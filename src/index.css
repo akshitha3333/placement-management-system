@@ -362,3 +362,21 @@
 .error{
   color: var(--danger);
 }
+.header{
+  border-bottom:1px solid var(--border-color);
+  background:var(--white);
+}
+
+.nav a{
+  text-decoration:none;
+  color:var(--text-primary);
+}
+
+.nav a:hover{
+  color:var(--primary);
+}
+
+.footer{
+  background:var(--gray-900);
+  color:white;
+}
