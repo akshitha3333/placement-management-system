@@ -132,12 +132,11 @@
   background: var(--bg-color);
   box-shadow:0 0 0 2px rgba(59,130,246,0.2);
 }
-
 /* buttons */
 .btn{
   width: 100%;
   padding:12px;
-  border:1px solid var(--border-color);
+  border:1px solid var(--bg-color);
   border-radius:14px;
   cursor:pointer;
   display: block;
@@ -351,3 +350,15 @@
 .br-lg { border-radius:1rem }
 .br-circle { border-radius:50% }
 
+.link-color{
+  color: #1f13be;
+}
+.company-color{
+  background-color: orange;
+}
+.space-between{
+  justify-content: space-between;
+}
+.error{
+  color: var(--danger);
+}
