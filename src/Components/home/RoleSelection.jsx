@@ -18,7 +18,7 @@ function RoleSelection(){
                 <input className=" btn-primary btn" type="button" name="Students" value="Students"onClick={() => navigate("/student-register")}/>
             </div>
             <div>
-                <a href="/"  class="text-center">Back to home</a>
+                <a href="/"  className="text-center">Back to home</a>
             </div>
         </div>
     );

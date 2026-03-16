@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-const rest = require("../../Rest")
-
+import rest from "../../Rest";
 function CompanyRegister() {
     const[nameError, setNameError]=useState("");
     const [emailError, setEmailError] = useState("");
@@ -10,15 +9,17 @@ function CompanyRegister() {
     const [industryError, setIndustryError] =useState("")
     const [locationError, setLocationError] = useState("");
     const [websiteError, setWebsiteError] = useState("");
+    const [message, setMessage] = useState("");
+    const [msgType, setMsgType] = useState("");
     const navigate = useNavigate();
 
 
     const validateName=(e)=>{
         const name = e.target.value.trim();
         if(name === ""){
-            setNameError("Company name is requried");
+            setNameError("Company name is required");
         }else if (name.length<=3){
-            setNameError("Company name must ne atleast 3 characters")
+            setNameError("Company name must be atleast 3 characters")
         }else if (!/^[A-Za-z\s.&-]+$/.test(name)){
             setNameError("only letters, spaces, ., & and - are allowed")
         }else{
@@ -33,7 +34,7 @@ function CompanyRegister() {
         }else if(!emailPattern.test(email)){
             setEmailError("Invalid Email Format");   
         }else{
-            setEmailError("valid Email");
+            setEmailError("");
         }
     }
     const validatePhone = (e) => {
@@ -58,12 +59,12 @@ function CompanyRegister() {
     }
         const validateLocation = (e) => {
 
-        const location = e.target.value.trim();
+        const companylocation = e.target.value.trim();
 
-        if(location === ""){
+        if(companylocation === ""){
             setLocationError("Location is required");
         }
-        else if(location.length < 3){
+        else if(companylocation.length < 3){
             setLocationError("Location must be at least 3 characters");
         }
         else{
@@ -96,6 +97,11 @@ function CompanyRegister() {
     const CompanyRegistration = (e) => {
         e.preventDefault();
         let name = document.getElementById("name").value;
+        let email = document.getElementById("email").value;
+        let phone = document.getElementById("phone").value;
+        let industry = document.getElementById("industry").value;
+        let location = document.getElementById("companylocation").value;
+        let website = document.getElementById("website").value;
 
         let data = {
             "name": name,
@@ -108,25 +114,25 @@ function CompanyRegister() {
         axios.post(rest.CompanyRegistration, data, header)
             .then(response => {
                 console.log(response.data);
-                if (response.data === "Student Registered Successfully") {
+                if (response.data === "Company Registered Successfully") {
 
                     setMessage(response.data);
                     setMsgType("success");
 
                     setTimeout(() => {
-                        navigate("/student-register");
+                        navigate("/company-login");
                     }, 1500);
 
                 } else {
 
                     setMessage(response.data);
-                    setMsgType("erro");
+                    setMsgType("error");
                 }
             })
             .catch(error => {
                 console.log(error);
                 setMessage("Something Went Wrong");
-                setMsgType("erro");
+                setMsgType("error");
             });
 
 
@@ -135,12 +141,13 @@ function CompanyRegister() {
         <div className="">
             <div className="card w-50 m-auto p-5">
                 <div className="text-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" fill="currentColor" class="bi bi-buildings" viewBox="0 0 16 16">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" fill="currentColor" className="bi bi-buildings" viewBox="0 0 16 16">
                         <path d="M14.763.075A.5.5 0 0 1 15 .5v15a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5V14h-1v1.5a.5.5 0 0 1-.5.5h-9a.5.5 0 0 1-.5-.5V10a.5.5 0 0 1 .342-.474L6 7.64V4.5a.5.5 0 0 1 .276-.447l8-4a.5.5 0 0 1 .487.022M6 8.694 1 10.36V15h5zM7 15h2v-1.5a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 .5.5V15h2V1.309l-7 3.5z" />
                         <path d="M2 11h1v1H2zm2 0h1v1H4zm-2 2h1v1H2zm2 0h1v1H4zm4-4h1v1H8zm2 0h1v1h-1zm-2 2h1v1H8zm2 0h1v1h-1zm2-2h1v1h-1zm0 2h1v1h-1zM8 7h1v1H8zm2 0h1v1h-1zm2 0h1v1h-1zM8 5h1v1H8zm2 0h1v1h-1zm2 0h1v1h-1zm0-2h1v1h-1z" />
                     </svg>
                      <h2>Company Registration</h2>
                      <p className="sub-text">Register your company for campus recruitment</p>
+                     {message && <p className={`alert-${msgType}`}>{message}</p>}
                 </div>
                <form onSubmit={CompanyRegistration} method="post">
                 <div className="row">
@@ -186,7 +193,7 @@ function CompanyRegister() {
                     <div className="col-6 p-3">
                          <div className="form-group">
                            <label className="form-control-label">Location</label>
-                            <input  className="form-control"type="text" id="location" placeholder="Bangalore, India" onChange={validateLocation}/>
+                            <input  className="form-control"type="text" id="companylocation" placeholder="Bangalore, India" onChange={validateLocation}/>
                             <p className="error fs-p8">{locationError}</p>
                         </div>
 
@@ -206,7 +213,7 @@ function CompanyRegister() {
                </form>
                 
                 <div className="fs-p7 text-center link-color mt-2" >
-                    <a   href="/company-login">Aleady have an account? Login</a> <br />
+                    <a   href="/company-login">Already have an account? Login</a> <br />
                     <a   href="/roleselection">Back to role Selection</a>
                 </div>
             </div>

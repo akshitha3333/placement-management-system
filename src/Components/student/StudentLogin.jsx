@@ -5,6 +5,8 @@ const rest = require("../../Rest")
 function StudentLogin() {
     const [emailError, setEmailError] = useState("");
     const [passwordError, setPasswordError] = useState("");
+    const [message, setMessage] = useState("");
+    const [msgType, setMsgType] = useState("");
     const navigate = useNavigate();
 
     const validateEmail = (e) => {
@@ -15,7 +17,7 @@ function StudentLogin() {
         } else if (!emailPattern.test(email)) {
             setEmailError("Invalid Email Format");
         } else {
-            setEmailError("valid Email");
+            setEmailError("");
         }
     }
     const validatePassword = (e) => {
@@ -42,8 +44,8 @@ function StudentLogin() {
     }
     const StudentLogin = (e) => {
         e.preventDefault();
-        let email = document.getElementById("email").value;
-        let password=document.getElementById("password").value;
+        let email = document.getElementById("Email").value;
+        let password=document.getElementById("Password").value;
         let data = {
             "email": email,
             "password": password,
@@ -57,47 +59,48 @@ function StudentLogin() {
                     setMsgType("success");
 
                     setTimeout(() => {
-                        navigate("/student-login ");
+                        navigate("/student-dashboard");
                     }, 1500);
 
                 } else {
 
                     setMessage(response.data);
-                    setMsgType("erro");
+                    setMsgType("error");
                 }
             })
             .catch(error => {
                 console.log(error);
                 setMessage("Something Went Wrong");
-                setMsgType("erro");
+                setMsgType("error");
             });
 
 
     }
 
     return (
-        <div class="card w-30 m-auto p-5">
-            <div class="text-center">
+        <div className="card w-30 m-auto p-5">
+            <div className="text-center">
                 <svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" fill="currentColor" class="bi bi-mortarboard" viewBox="0 0 16 16">
                     <path d="M8.211 2.047a.5.5 0 0 0-.422 0l-7.5 3.5a.5.5 0 0 0 .025.917l7.5 3a.5.5 0 0 0 .372 0L14 7.14V13a1 1 0 0 0-1 1v2h3v-2a1 1 0 0 0-1-1V6.739l.686-.275a.5.5 0 0 0 .025-.917zM8 8.46 1.758 5.965 8 3.052l6.242 2.913z" />
                     <path d="M4.176 9.032a.5.5 0 0 0-.656.327l-.5 1.7a.5.5 0 0 0 .294.605l4.5 1.8a.5.5 0 0 0 .372 0l4.5-1.8a.5.5 0 0 0 .294-.605l-.5-1.7a.5.5 0 0 0-.656-.327L8 10.466zm-.068 1.873.22-.748 3.496 1.311a.5.5 0 0 0 .352 0l3.496-1.311.22.748L8 12.46z" />
                 </svg>
-                <h2 class="mt-2">Student Login</h2>
-                <p class="mt-2">Access your placement portal</p>
+                <h2 className="mt-2">Student Login</h2>
+                <p className="mt-2">Access your placement portal</p>
+                {message && <p className={`alert-${msgType}`}>{message}</p>}
             </div>
             <form onSubmit={StudentLogin} method="post">
-                <div class="form-group mt-5">
-                    <label class="form-control-label" htmlFor="Email">Email Address</label>
-                    <input class="form-control" type="email" name="Email" id="Email" placeholder="Enter your email" onKeyUp={validateEmail} />
+                <div className="form-group mt-5">
+                    <label className="form-control-label" htmlFor="Email">Email Address</label>
+                    <input className="form-control" type="email" name="Email" id="Email" placeholder="Enter your email" onKeyUp={validateEmail} />
                     <p className="error">{emailError}</p>
                 </div>
-                <div class="form-group mt-5">
-                    <label class="form-control-label" htmlFor="Password">Password</label>
-                    <input class="form-control" type="password" name="password" id="Password" placeholder="Enter your Password" onKeyUp={validatePassword} />
+                <div className="form-group mt-5">
+                    <label className="form-control-label" htmlFor="Password">Password</label>
+                    <input className="form-control" type="password" name="password" id="Password" placeholder="Enter your Password" onKeyUp={validatePassword} />
                     <p className="error">{passwordError}</p>
                 </div>
                 <div>
-                    <input class="btn btn-primary mt-5" type="submit" name="Login" value="Login" />
+                    <input className="btn btn-primary mt-5" type="submit" name="Login" value="Login" />
                 </div>
             </form>
 
