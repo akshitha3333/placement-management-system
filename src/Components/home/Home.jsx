@@ -4,8 +4,7 @@ function Home() {
     const navigate = useNavigate();
 
   return (
-    <>
-
+    <div>
       {/* Navbar */}
       <header className="row space-between p-3">
         <div className="fs-4 bold">🎓 PlacementHub</div>
@@ -192,7 +191,7 @@ function Home() {
 
       </footer>
 
-    </>
+    </div>
   );
 }
 

@@ -143,7 +143,7 @@
   transition: all 0.5s;
 }
 .btn-sm{
-  width: 100%;
+  width: 20%;
   padding:10px;
   border:2px solid var(--border-color);
   border-radius:14px;
