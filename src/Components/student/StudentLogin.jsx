@@ -86,25 +86,25 @@ function StudentLogin() {
                 </svg>
                 <h2 className="mt-2">Student Login</h2>
                 <p className="mt-2">Access your placement portal</p>
-                {message && <p className={`alert-${msgType}`}>{message}</p>}
+                {message && <p className={`text-danger alert-${msgType}`}>{message}</p>}
             </div>
             <form onSubmit={StudentLogin} method="post">
                 <div className="form-group mt-5">
                     <label className="form-control-label" htmlFor="Email">Email Address</label>
                     <input className="form-control" type="email" name="Email" id="Email" placeholder="Enter your email" onKeyUp={validateEmail} />
-                    <p className="error">{emailError}</p>
+                    <p className="text-danger">{emailError}</p>
                 </div>
                 <div className="form-group mt-5">
                     <label className="form-control-label" htmlFor="Password">Password</label>
                     <input className="form-control" type="password" name="password" id="Password" placeholder="Enter your Password" onKeyUp={validatePassword} />
-                    <p className="error">{passwordError}</p>
+                    <p className="text-danger">{passwordError}</p>
                 </div>
                 <div>
                     <input className="btn btn-primary mt-5" type="submit" name="Login" value="Login" />
                 </div>
             </form>
 
-            <div className="fs-p7 text-center link-color mt-2" >
+            <div className="fs-p7 text-center text-link mt-2" >
                 <a href="/roleselection">Back to role Selection</a>
             </div>
         </div>

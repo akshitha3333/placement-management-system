@@ -81,7 +81,7 @@ function TutorLogin() {
                     </svg>
                      <h2 className="mt-2">Tutor Login</h2>
                      <p className="mt-2">Access Your tutor Portal</p>
-                     {message && <p className={`alert-${msgType}`}>{message}</p>}
+                     {message && <p className={` text-danger alert-${msgType}`}>{message}</p>}
                 </div>
                 <form onSubmit={TutorLogin} method="post">
                     <div className="form-group mt-5">
@@ -98,7 +98,7 @@ function TutorLogin() {
                     <input  className="btn btn-primary mt-5" type="submit" name="Login" value="Login" />
                 </div>
                 </form>
-                <div className="fs-p7 text-center link-color mt-2" >
+                <div className="fs-p7 text-center text-link mt-2" >
                     <a   href="/roleselection">Back to role Selection</a>
                 </div>
             </div>

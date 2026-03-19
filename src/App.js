@@ -8,24 +8,37 @@ import CompanyLogin from './Components/company/CompanyLogin';
 import TutorLogin from './Components/Tutor/tutorLogin';
 import StudentRegister from './Components/student/StudentRegister';
 import StudentLogin from './Components/student/StudentLogin';
-import AdminDashboard from './Components/admin/AdminDashboard';
+import AdminDashboard from './Components/admin/Adminpage/AdminDashboard';
 import CompanyDashboard from './Components/company/CompanyDashboard';
 import StudentDashbord from './Components/student/StudentDashbord';
 import TutorDashboard from './Components/Tutor/TutorDashboard';
-
+import AdminNav from './Components/admin/Adminpage/AdminNav';
+import AdminPage from './Components/admin/Adminpage/AdminPage';
+import AboutPage from './Components/home/AboutPage';
+import AdminStudents from './Components/admin/Adminpage/AdminStudents';
+import AdminCompanies from "./Components/admin/Adminpage/AdminCompanies";
+import AdminTutors from './Components/admin/Adminpage/AdminTutors';
 
 function App() {
   return (
     <Router>
       <div className='App'>
           <Routes>
-            <Route path='/' Component={Home}></Route>
+            <Route path='/' element={<Home />}></Route>
+            <Route path='/admin-page' element={<AdminPage />}>
+                 <Route index element={<AdminDashboard />} />
+                 <Route path="dashboard" element={<AdminDashboard />} />
+                 <Route path="students" element={<AdminStudents />} />
+                 <Route path="companies" element={<AdminCompanies />} />
+                 <Route path="Tutors" element={<AdminTutors/>} />
+            </Route>
             <Route path='/roleselection' Component={RoleSelection}></Route>
+            <Route path='/about-page' Component={AboutPage}></Route>
             <Route path='/admin-login' Component={AdminLogin}></Route>
-            <Route path='/admin-dashboard' Component={AdminDashboard}></Route>
-            <Route path='/company-register' Component={CompanyRegister}></Route>
+            <Route path='/admin-nav' Component={AdminNav}></Route>
             <Route path='/company-login' Component={CompanyLogin}></Route>
             <Route path='/company-dashboard' Component={CompanyDashboard}></Route>
+            <Route path='/company-register' Component={CompanyRegister}></Route>
             <Route path='/tutor-login' Component={TutorLogin}></Route>
             <Route path='/tutor-dashboard' Component={TutorDashboard}></Route>
             <Route path='/student-register' Component={StudentRegister}></Route>

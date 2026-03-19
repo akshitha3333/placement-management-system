@@ -147,7 +147,7 @@ function CompanyRegister() {
                     </svg>
                      <h2>Company Registration</h2>
                      <p className="sub-text">Register your company for campus recruitment</p>
-                     {message && <p className={`alert-${msgType}`}>{message}</p>}
+                     {message && <p className={`text-danger alert-${msgType}`}>{message}</p>}
                 </div>
                <form onSubmit={CompanyRegistration} method="post">
                 <div className="row">
@@ -155,14 +155,14 @@ function CompanyRegister() {
                         <div className="form-group">
                         <label className="form-control-label">Company Name</label>
                         <input className="form-control"type="text"  id="name" placeholder="Tech Corp" onKeyUp={validateName} />
-                        <p className="error fs-p8">{nameError}</p>
+                        <p className="text-danger fs-p8">{nameError}</p>
                     </div>
                     </div>
                     <div className="col-6 p-3">
                         <div className="form-group">
                             <label className="form-control-label">Email Address</label>
                             <input className="form-control" type="email" id="email"  placeholder="hr@company.com" onKeyUp={validateEmail}/>
-                            <p className="error fs-p8">{emailError}</p>
+                            <p className="text-danger fs-p8">{emailError}</p>
                         </div>
                     </div>
                 </div>
@@ -172,7 +172,7 @@ function CompanyRegister() {
                         <div className="form-group">
                             <label className="form-control-label">Phone Number</label>
                             <input className="form-control" type="text" id="phone"  placeholder="+91 9876543210" onChange={validatePhone} />
-                            <p className="error fs-p8">{phoneError}</p>
+                            <p className="text-danger fs-p8">{phoneError}</p>
                         </div>
                     </div>
                     <div className=" col-6 p-3">
@@ -184,7 +184,7 @@ function CompanyRegister() {
                             <option>Finance</option>
                             <option>Marketing</option>
                         </select>
-                        <p className="error fs-p8">{industryError}</p>
+                        <p className="text-danger fs-p8">{industryError}</p>
                     </div>
                     </div>
                 </div>
@@ -194,7 +194,7 @@ function CompanyRegister() {
                          <div className="form-group">
                            <label className="form-control-label">Location</label>
                             <input  className="form-control"type="text" id="companylocation" placeholder="Bangalore, India" onChange={validateLocation}/>
-                            <p className="error fs-p8">{locationError}</p>
+                            <p className="text-danger fs-p8">{locationError}</p>
                         </div>
 
                     </div>
@@ -202,7 +202,7 @@ function CompanyRegister() {
                          <div className="form-group">
                         <label className="form-control-label">Website</label>
                         <input className="form-control" type="text" id="website" placeholder="www.company.com" onChange={validateWebsite}/>
-                        <p className="error fs-p8">{websiteError}</p>
+                        <p className="text-danger fs-p8">{websiteError}</p>
                     </div>
                     </div>
                    
@@ -212,7 +212,7 @@ function CompanyRegister() {
                 </div>
                </form>
                 
-                <div className="fs-p7 text-center link-color mt-2" >
+                <div className="fs-p7 text-center text-link mt-2" >
                     <a   href="/company-login">Already have an account? Login</a> <br />
                     <a   href="/roleselection">Back to role Selection</a>
                 </div>

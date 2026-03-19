@@ -1,0 +1,6 @@
+const rest = "http://localhost:2026/"
+exports.CompanyRegister = rest + "companies"
+exports.StudentLogin = rest + "students/studentLogin"
+exports.AdminLogin = rest + "students/adminLogin"
+exports.StudentRegister = rest + "students/registration"
+exports.TutorLogin = rest + "tutors"

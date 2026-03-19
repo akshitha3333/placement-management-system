@@ -177,7 +177,7 @@ function StudentRegister() {
                     </svg>
                     <h2>Student Registration</h2>
                     <p className="sub-text">Create your placement account</p>
-                    {message && <p className={`alert-${msgType}`}>{message}</p>}
+                    {message && <p className={` text-danger alert-${msgType}`}>{message}</p>}
                 </div>
                 <form onSubmit={studentRegistration} method="post">
                     <div className="row">
@@ -185,14 +185,14 @@ function StudentRegister() {
                             <div className="form-group">
                                 <label className="form-control-label">Full Name</label>
                                 <input className="form-control" type="text" id="name" placeholder="Enter your Name" onKeyUp={validateName} />
-                                <p className="error fs-p8">{nameError}</p>
+                                <p className="text-danger">{nameError}</p>
                             </div>
                         </div>
                         <div className="col-6 p-3">
                             <div className="form-group">
                                 <label className="form-control-label">Email Address</label>
                                 <input className="form-control" type="email" id="email" placeholder="hr@company.com" onKeyUp={validateEmail} />
-                                <p className="error fs-p8">{emailError}</p>
+                                <p className="text-danger">{emailError}</p>
                             </div>
                         </div>
                     </div>
@@ -201,14 +201,14 @@ function StudentRegister() {
                             <div className="form-group">
                                 <label className="form-control-label">Phone Number</label>
                                 <input className="form-control" type="text" id="phone" placeholder="Phone Number" onChange={validatePhone} />
-                                <p className="error fs-p8">{phoneError}</p>
+                                <p className="text-danger fs-p8">{phoneError}</p>
                             </div>
                         </div>
                         <div className="col-6 p-3">
                             <div className="form-group">
                                 <label className="form-control-label">Roll Number</label>
                                 <input className="form-control" type="text" id="roll" placeholder="Roll Number" onChange={validateRollNumber} />
-                                <p className="error fs-p8">{rollError}</p>
+                                <p className="text-danger fs-p8">{rollError}</p>
                             </div>
                         </div>
 
@@ -229,7 +229,7 @@ function StudentRegister() {
                                     <option>Civil</option>
                                     <option>Mathematics</option>
                                 </select>
-                                <p className="error fs-p8">{departmentError}</p>
+                                <p className="text-danger fs-p8">{departmentError}</p>
                             </div>
                         </div>
                         <div className=" col-6 p-3">
@@ -242,7 +242,7 @@ function StudentRegister() {
                                     <option value="3">3rd Year</option>
                                     <option value="4">4th Year</option>
                                 </select>
-                                <p className="error">{yearError}</p>
+                                <p className="text-danger">{yearError}</p>
                             </div>
                         </div>
                     </div>
@@ -251,7 +251,7 @@ function StudentRegister() {
                             <div className="form-group">
                                 <label className="form-control-label">Upload Resume</label>
                                 <input className="form-control" type="file" id="resume" onChange={validateFile} />
-                                <p className="error fs-p8">{fileError}</p>
+                                <p className="text-danger">{fileError}</p>
                             </div>
                         </div>
                     </div>
@@ -259,7 +259,7 @@ function StudentRegister() {
                         <input className="btn btn-primary mt-5" type="submit" name="Register" value="Register" />
                     </div>
                 </form>
-                <div className="fs-p7 text-center link-color mt-2" >
+                <div className="fs-p7 text-center text-link mt-2" >
                     <a href="/student-login">Already have an account? Login</a> <br />
                     <a href="/roleselection">Back to role Selection</a>
                 </div>

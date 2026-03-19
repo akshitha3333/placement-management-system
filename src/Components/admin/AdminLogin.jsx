@@ -62,7 +62,7 @@ let header = {
                     setMsgType("success");
 
                     setTimeout(() => {
-                        navigate("/roleselection");
+                        navigate("/admin-page");
                     }, 1500);
 
                 } else {
@@ -89,22 +89,24 @@ let header = {
                     </svg>
                      <h2 className="mt-2">Admin Login</h2>
                      <p className="mt-2">Access the administration Portal</p>
+                    {message && <p className= {`text-danger alert-${msgType}`}>{message}</p>}
+
                 </div>
                <form onSubmit={AdminLogin} method="post">
                 <div className="form-group mt-5">
                     <label className="form-control-label" htmlFor="Email">Email Address</label>
                     <input  className="form-control" type="email" name="Email" id="Email" placeholder="Enter your email" required onKeyUp={validateEmail}/>
-                    <p className="error ">{emailError}</p>
+                    <p className="text-danger ">{emailError}</p>
                 </div>
                  <div className="form-group mt-5">
                     <label className="form-control-label" htmlFor="Password">Password</label>
                     <input  className="form-control" type="password" name="password" id="Password" placeholder="Enter your Password" required onKeyUp={validatePassword}/>
-                    <p className="error">{passwordError}</p>
+                    <p className="text-danger">{passwordError}</p>
                 </div>
                 <div>
                     <input  className="btn btn-primary mt-5" type="submit" name="Login" value="Login" />
                 </div>
-                <div className="fs-p7 text-center link-color mt-2" >
+                <div className="fs-p7 text-center text-link mt-2" >
                     <a   href="/roleselection">Back to role Selection</a>
                 </div>
                </form>
