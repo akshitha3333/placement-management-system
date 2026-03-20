@@ -93,31 +93,31 @@ function StudentRegister() {
         }
 
     }
-    const validateFile = (e) => {
+    // const validateFile = (e) => {
 
-        const file = e.target.files[0];
+    //     const file = e.target.files[0];
 
-        if (!file) {
-            setFileError("Please upload a file");
-            return;
-        }
+    //     if (!file) {
+    //         setFileError("Please upload a file");
+    //         return;
+    //     }
 
-        const allowedTypes = ["application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"];
+    //     const allowedTypes = ["application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"];
 
-        if (!allowedTypes.includes(file.type)) {
-            setFileError("Only PDF or Word files are allowed");
-            return;
-        }
+    //     if (!allowedTypes.includes(file.type)) {
+    //         setFileError("Only PDF or Word files are allowed");
+    //         return;
+    //     }
 
-        const maxSize = 2 * 1024 * 1024; // 2MB
+    //     const maxSize = 2 * 1024 * 1024; // 2MB
 
-        if (file.size > maxSize) {
-            setFileError("File size must be less than 2MB");
-            return;
-        }
+    //     if (file.size > maxSize) {
+    //         setFileError("File size must be less than 2MB");
+    //         return;
+    //     }
 
-        setFileError("");
-    }
+    //     setFileError("");
+    // }
 
     let header = {
         headers: {
@@ -129,19 +129,21 @@ function StudentRegister() {
         let name = document.getElementById("name").value;
         let email = document.getElementById("email").value;
         let phone = document.getElementById("phone").value;
-        let roll = document.getElementById("roll").value;
-        let departments = document.getElementById("departments").value;
+        let password=document.getElementById("password").value;
+        let rollNumber = document.getElementById("rollNumber").value;
+        let departmentId = document.getElementById("departmentId").value;
         let year = document.getElementById("year").value;
-
+        
         let data = {
             "name": name,
-            "email": email,
             "phone": phone,
-            "roll": roll,
-            "departments": departments,
+            "email": email,
+            "pssword":password,
+            "rollNumber": rollNumber,
             "year": year,
+            "departmentId": departmentId
         }
-        axios.post(rest.StudentRegister, data, header)
+        axios.post(rest.student, data, header)
             .then(response => {
                 console.log(response.data);
                 if (response.data === "Student Registered Successfully") {
@@ -207,7 +209,7 @@ function StudentRegister() {
                         <div className="col-6 p-3">
                             <div className="form-group">
                                 <label className="form-control-label">Roll Number</label>
-                                <input className="form-control" type="text" id="roll" placeholder="Roll Number" onChange={validateRollNumber} />
+                                <input className="form-control" type="text" id="rollNumber" placeholder="Roll Number" onChange={validateRollNumber} />
                                 <p className="text-danger fs-p8">{rollError}</p>
                             </div>
                         </div>
@@ -218,7 +220,7 @@ function StudentRegister() {
                         <div className=" col-6 p-3">
                             <div className="form-group">
                                 <label className="form-control-label">Departments</label>
-                                <select className="form-control" id="departments" onChange={validateDepartment}>
+                                <select className="form-control" id="departmentId" onChange={validateDepartment}>
                                     <option>Select Industry</option>
                                     <option>Computer Science</option>
                                     <option>Data Science</option>
@@ -246,7 +248,7 @@ function StudentRegister() {
                             </div>
                         </div>
                     </div>
-                    <div className="row">
+                    {/* <div className="row">
                         <div className=" col-6 p-3">
                             <div className="form-group">
                                 <label className="form-control-label">Upload Resume</label>
@@ -254,6 +256,14 @@ function StudentRegister() {
                                 <p className="text-danger">{fileError}</p>
                             </div>
                         </div>
+                    </div> */}
+                    <div className="row">
+                      <div className="col-6 p-3">
+                        <div className="form-group">
+                          <label className="form-control-label">Password</label>
+                          <input className="form-control" type="password" id="password" placeholder="Enter password" />
+                        </div>
+                      </div>
                     </div>
                     <div>
                         <input className="btn btn-primary mt-5" type="submit" name="Register" value="Register" />

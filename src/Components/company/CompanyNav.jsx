@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 
 
-function AdminNav({ children }) {
+function CompanyNav({ children }) {
 
   const navigate = useNavigate();
 
@@ -16,68 +16,84 @@ function AdminNav({ children }) {
         {/* Logo */}
         <div className="mb-5">
           <h3 className="bold">🎓 PlacementHub</h3>
-          <p className="fs-p8 text-gray-300">Admin Portal</p>
+          <p className="fs-p8 text-gray-300">Company Portal</p>
         </div>
 
         {/* OVERVIEW */}
         <p className="fs-p8 text-gray-300 mb-2">OVERVIEW</p>
 
         <div className="p-1 br-md hover-bg cursor-pointer"
-          onClick={() => navigate("/admin-page/dashboard")}>
+          onClick={() => navigate("/company-page/dashboard")}>
           📊 Dashboard
         </div>
 
+        <p className="fs-p8 text-gray-300 mb-2">RECRUITMENT</p>
+
         <div className="p-1 hover-bg cursor-pointer"
-          onClick={() => navigate("/admin-page/students")}>
-          👨‍🎓 Students
+          onClick={() => navigate("/company-page/students")}>
+          👨‍🎓 Job Post
         </div>
 
         <div className="p-1 hover-bg cursor-pointer"
-          onClick={() => navigate("/admin-page/companies")}>
-          🏢 Companies
+          onClick={() => navigate("/company-page/companies")}>
+          🏢 Job Categories
         </div>
 
         <div className="p-1 hover-bg cursor-pointer mb-2"
-          onClick={() => navigate("/admin-page/tutors")}>
-          👨‍🏫 Tutors
+          onClick={() => navigate("/company-page/tutors")}>
+          👨‍🏫 Skills Required
         </div>
 
+        <p className="fs-p8 text-gray-300 mb-2">HIRING PROCESS</p>
+
         <div className="p-1 hover-bg cursor-pointer mb-2"
-          onClick={() => navigate("/admin-page/departments")}>
-          👨‍🏫 Departments
+          onClick={() => navigate("/company-page/departments")}>
+          📄 Applications
+        </div>
+
+         <div className="p-1 hover-bg cursor-pointer mb-2"
+          onClick={() => navigate("/company-page/departments")}>
+          ✅ Shortlisted
+        </div>
+
+         <div className="p-1 hover-bg cursor-pointer mb-2"
+          onClick={() => navigate("/company-page/departments")}>
+         📅 Interviews
+        </div>
+
+         <div className="p-1 hover-bg cursor-pointer mb-2"
+          onClick={() => navigate("/company-page/departments")}>
+          💼 Offers
         </div>
 
         {/* PLACEMENT */}
-        <p className="fs-p8 text-gray-300 mb-2">PLACEMENT</p>
+        <p className="fs-p8 text-gray-300 mb-2">COMMUNICATION</p>
 
         <div className="p-1 hover-bg cursor-pointer"
           onClick={() => navigate("/job-categories")}>
-          🏷️ Job Categories
+          📅 Meetings
         </div>
 
         <div className="p-1 hover-bg cursor-pointer"
           onClick={() => navigate("/job-posts")}>
-          💼 Job Posts
+          🔔 Notifications
         </div>
+
+        <p className="fs-p8 text-gray-300 mb-2">REPORTS</p>
 
         <div className="p-1 hover-bg cursor-pointer"
           onClick={() => navigate("/applications")}>
-          📄 Applications
+          📊 Analytics
         </div>
 
         <div className="p-1 hover-bg cursor-pointer"
           onClick={() => navigate("/interviews")}>
-          📅 Interviews
+          📑 Placement Reports
         </div>
 
         <div className="p-1 hover-bg cursor-pointer"
           onClick={() => navigate("/offers")}>
-          🎯 Offers
-        </div>
-
-        <div className="p-1 hover-bg cursor-pointer"
-          onClick={() => navigate("/meetings")}>
-          📹 Meetings
+          🗺️ Students Map
         </div>
 
         {/* SYSTEM */}
@@ -85,12 +101,7 @@ function AdminNav({ children }) {
 
         <div className="p-1 hover-bg cursor-pointer"
           onClick={() => navigate("/reports")}>
-          📊 Reports
-        </div>
-
-        <div className="p-1 hover-bg cursor-pointer"
-          onClick={() => navigate("/notifications")}>
-          🔔 Notifications
+         🏢 Company Profile
         </div>
 
         <div className="p-1 hover-bg cursor-pointer"
@@ -100,12 +111,12 @@ function AdminNav({ children }) {
 
         {/* Sign Out */}
         <div className="mt-6 p-1 hover-bg cursor-pointer text-gray-300"
-         onClick={() => navigate("/")}>
+         onClick={() => navigate("/admin-page/companies")}>
           🚪 Logout
         </div>
 
       </aside>
-      <div style={{ flex: 1,display: "flex", flexDirection: "column", height: "100vh" }}>
+      <div style ={{ flex: 1,display: "flex", flexDirection: "column", height: "100vh" }}>
 
       <header 
         className="row space-between items-center p-2 box-shadow bg-white"
@@ -174,4 +185,4 @@ function AdminNav({ children }) {
   );
 }
 
-export default AdminNav;
+export default CompanyNav;
