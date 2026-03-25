@@ -15,7 +15,6 @@ function AdminTutors() {
     password: ""
   });
 
-  // 🔥 Fetch tutors from backend
   const fetchTutors = async () => {
     try {
       const res = await axios.get("/admin-tutors");
@@ -33,19 +32,16 @@ function AdminTutors() {
     setTutor({ ...tutor, [e.target.name]: e.target.value });
   };
 
-  // 🔥 Add tutor
   const handleSubmit = async (e) => {
     e.preventDefault();
 
     try {
       const res = await axios.post("/admin-add-tutor", tutor);
 
-      // Add new tutor to UI instantly
       setTutors([...tutors, res.data]);
 
       setShowModal(false);
 
-      // Reset form
       setTutor({
         name: "",
         email: "",
@@ -182,7 +178,6 @@ function AdminTutors() {
                 onChange={handleChange}
               />
 
-              {/* 🔐 PASSWORD FIELD */}
               <input
                 type="password"
                 className="form-control mb-3"

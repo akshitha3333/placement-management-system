@@ -20,6 +20,7 @@ import CompanyDashboard from './Components/company/CompanyDashboard';
 import StudentDashbord from './Components/student/StudentDashbord';
 import TutorDashboard from './Components/Tutor/TutorDashboard';
 import CompanyPage from './Components/company/CompanyPage';
+import CompanyNav from './Components/company/CompanyNav';
 
 function App() {
   return (
@@ -27,6 +28,7 @@ function App() {
       <div className='App'>
           <Routes>
             <Route path='/' element={<Home />}></Route>
+            <Route path='/admin-nav' Component={AdminNav}></Route>
             <Route path='/admin-page' element={<AdminPage />}>
                  <Route index element={<AdminDashboard />} />
                  <Route path="dashboard" element={<AdminDashboard />} />
@@ -38,12 +40,12 @@ function App() {
             <Route path='/roleselection' Component={RoleSelection}></Route>
             <Route path='/about-page' Component={AboutPage}></Route>
             <Route path='/admin-login' Component={AdminLogin}></Route>
-            <Route path='/admin-nav' Component={AdminNav}></Route>
             <Route path='/company-login' Component={CompanyLogin}></Route>
             <Route path='/company-register' Component={CompanyRegister}></Route>
+            <Route path='/company-nav' Component={CompanyNav}></Route>
             <Route path='/company-page' element={<CompanyPage/>}>
                 <Route index element={<CompanyDashboard/>} />
-                 <Route path='dashboard' element={<CompanyDashboard/>} />
+                <Route path='dashboard' element={<CompanyDashboard/>} />
             </Route>
             <Route path='/tutor-login' Component={TutorLogin}></Route>
             <Route path='/tutor-dashboard' Component={TutorDashboard}></Route>

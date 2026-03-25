@@ -6,7 +6,8 @@ function CompanyRegister() {
     const[nameError, setNameError]=useState("");
     const [emailError, setEmailError] = useState("");
     const [phoneError, setPhoneError] = useState("");
-    const [industryError, setIndustryError] =useState("")
+    const [passwordError,setPasswordError]=useState("");
+    const [industryError, setIndustryError] =useState("");
     const [locationError, setLocationError] = useState("");
     const [websiteError, setWebsiteError] = useState("");
     const [message, setMessage] = useState("");
@@ -55,6 +56,20 @@ function CompanyRegister() {
             setPhoneError("");
         }
     }
+     const validatePassword = (e) => {
+
+    const password = e.target.value;
+
+    const pattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&]).{8,}$/;
+
+    if(password === ""){
+        setPasswordError("Password is required");
+    }
+    else{
+        setPasswordError("");
+    }
+
+}
     const validateIndustry=(e)=>{
         const industry=e.target.value;
         if(industry === ""){
@@ -106,6 +121,7 @@ function CompanyRegister() {
         let industry = document.getElementById("industry").value;
         let location = document.getElementById("companylocation").value;
         let website = document.getElementById("website").value;
+        let password  = document.getElementById("password").value;
         const formdata=new FormData();
         formdata.append("companyName",name)
         formdata.append("phone",phone)
@@ -117,6 +133,7 @@ function CompanyRegister() {
         formdata.append("longitude",longitude)
         formdata.append("about",about)
         formdata.append("logo",file)
+        formdata.append("password",password)
         axios.post(rest.company, formdata, header)
             .then(response => {
                 console.log(response.data);
@@ -158,7 +175,6 @@ function CompanyRegister() {
 
       <form onSubmit={CompanyRegistration} method="post">
 
-        {/* Row 1 - Name & Email */}
         <div className="row">
           <div className="col-6 p-3">
             <div className="form-group">
@@ -176,12 +192,11 @@ function CompanyRegister() {
           </div>
         </div>
 
-        {/* Row 2 - Phone & Industry */}
         <div className="row">
           <div className="col-6 p-3">
             <div className="form-group">
               <label className="form-control-label">Phone Number</label>
-              <input className="form-control" type="text" id="phone" placeholder="+91 9876543210" onChange={validatePhone} />
+              <input className="form-control" type="text" id="phone" placeholder="phone number" onChange={validatePhone} />
               <p className="text-danger fs-p8">{phoneError}</p>
             </div>
           </div>
@@ -199,12 +214,11 @@ function CompanyRegister() {
           </div>
         </div>
 
-        {/* Row 3 - Location & Website */}
         <div className="row">
           <div className="col-6 p-3">
             <div className="form-group">
               <label className="form-control-label">Location</label>
-              <input className="form-control" type="text" id="companylocation" placeholder="Bangalore, India" onChange={validateLocation} />
+              <input className="form-control" type="text" id="companylocation" placeholder="Location" onChange={validateLocation} />
               <p className="text-danger fs-p8">{locationError}</p>
             </div>
           </div>
@@ -217,7 +231,6 @@ function CompanyRegister() {
           </div>
         </div>
 
-        {/* Row 4 - Latitude & Longitude */}
         <div className="row">
           <div className="col-6 p-3">
             <div className="form-group">
@@ -233,7 +246,23 @@ function CompanyRegister() {
           </div>
         </div>
 
-        {/* Row 5 - About */}
+        <div className="row">
+          <div className="col-12 p-3">
+            <div className="form-group">
+              <label className="form-control-label">Company Logo URL</label>
+              <input className="form-control" type="file" id="logo"  onChange={handleFileChange} />
+            </div>
+          </div>
+          <div className="col-6 p-3">
+            <div className="form-group">
+                    <label className="form-control-label" htmlFor="Password">Password</label>
+                    <input  className="form-control" type="password" name="password" id="password" placeholder="Enter your Password" required onKeyUp={validatePassword}/>
+                    <p className="text-danger">{passwordError}</p>
+                </div>
+          </div>
+          
+        </div>
+        
         <div className="row">
           <div className="col-12 p-3">
             <div className="form-group">
@@ -250,17 +279,6 @@ function CompanyRegister() {
           </div>
         </div>
 
-        {/* Row 6 - Logo */}
-        <div className="row">
-          <div className="col-12 p-3">
-            <div className="form-group">
-              <label className="form-control-label">Company Logo URL</label>
-              <input className="form-control" type="file" id="logo"  onChange={handleFileChange} />
-            </div>
-          </div>
-        </div>
-
-        {/* Submit */}
         <div className="p-3">
           <input className="btn btn-primary" type="submit" value="Register"  />
         </div>
@@ -274,6 +292,7 @@ function CompanyRegister() {
 
     </div>
   </div>
-);
+   )
+
 }
 export default CompanyRegister; 

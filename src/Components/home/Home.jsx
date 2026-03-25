@@ -6,6 +6,7 @@ function Home() {
   return (
     <div>
       {/* Navbar */}
+      
       <header className="row space-between p-2 items-center box-shadow ">
         <div className="fs-4 bold">🎓 PlacementHub</div>
 

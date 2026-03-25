@@ -6,4 +6,4 @@ function CompanyDashboard(){
     )
     
 }
-export  default CompanyDashboard()
+export  default CompanyDashboard;

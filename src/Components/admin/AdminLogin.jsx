@@ -30,11 +30,6 @@ function AdminLogin() {
     if(password === ""){
         setPasswordError("Password is required");
     }
-    else if(!pattern.test(password)){
-        setPasswordError(
-        "Password must contain 8 characters, uppercase, lowercase, number and special character"
-        );
-    }
     else{
         setPasswordError("");
     }

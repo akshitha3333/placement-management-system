@@ -7,6 +7,7 @@ function AdminDepartments() {
   const [deptName, setDeptName] = useState("");
   const [departments, setDepartments] = useState([]);
   const [error, setError]=useState("");
+  const[count,setCount] =useState(0);
 
 let header = {
         headers: {
@@ -28,6 +29,7 @@ const handleSubmit = (e) => {
   .then((response) => {
       setDepartments((prev) => [...prev, response.data]); 
       setDeptName("")
+      setCount(count+1)
     console.log(response.data);
   }).catch((error) => {
   if (error.response?.status === 409) {
@@ -40,7 +42,7 @@ const handleSubmit = (e) => {
 }
 useEffect(()=>{
   getdepartments()
-},[]);
+},[count]);
 const getdepartments=()=>{
  axios.get(rest.departments,header)
   .then((response) => {
