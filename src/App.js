@@ -15,20 +15,11 @@ import AdminCompanies from "./Components/admin/Adminpage/AdminCompanies";
 import AdminTutors from './Components/admin/Adminpage/AdminTutors';
 import AdminDepartments from './Components/admin/Adminpage/AdminDepartments';
 import AdminDashboard from './Components/admin/Adminpage/AdminDashboard';
-import AdminJobCategories from './Components/admin/Adminpage/AdminJobCategories';
-import AdminJobPosts from './Components/admin/Adminpage/AdminJobPosts';
-import AdminApplications from './Components/admin/Adminpage/AdminApplications';
-import AdminInterviews from './Components/admin/Adminpage/AdminInterviews';
-import AdminOffers from './Components/admin/Adminpage/AdminOffers';
-import AdminMeetings from './Components/admin/Adminpage/AdminMeetings';
-import AdminReports from './Components/admin/Adminpage/AdminReports';
-import AdminSkills from './Components/admin/Adminpage/AdminSkills';
 // Company
 import CompanyRegister from './Components/company/CompanyRegister';
 import CompanyLogin from './Components/company/CompanyLogin';
-import CompanyPage from './Components/company/CompanyPage';
-// import CompanyNav from './Components/company/CompanyNav';
-import CompanyDashboard from './Components/company/CompanyDashboard';
+import CompanyPage from './Components/company/CompanyPages/CompanyPage';
+import CompanyDashboard from './Components/company/CompanyPages/CompanyDashboard';// import CompanyNav from './Components/company/CompanyNav';
 import CompanyJobPosts from './Components/company/CompanyPages/CompanyJobPosts';
 import CompanyApplications from './Components/company/CompanyPages/CompanyApplications';
 import CompanyShortlisted from './Components/company/CompanyPages/CompanyShortlisted';
@@ -40,18 +31,16 @@ import CompanyProfile from './Components/company/CompanyPages/CompanyProfile';
 // Students
 import StudentRegister from './Components/student/StudentRegister';
 import StudentLogin from './Components/student/StudentLogin';
-import StudentDashboard from './Components/student/StudentDashbord';
-import StudentPage from './Components/student/StudentPage';
-import StudentJobPosts from './Components/student/StudentPages/StudentJobPosts';
-import StudentApplications from './Components/student/StudentPages/StudentApplications';
+import StudentDashboard from './Components/student/StudentPages/StudentDashboard';import StudentPage from './Components/student/StudentPage';
+import StudentJobPosts from './Components/student/StudentPages/StudentsJobPosts';import StudentApplications from './Components/student/StudentPages/StudentApplications';
 import StudentInterviews from './Components/student/StudentPages/StudentInterviews';
 import StudentOffers from './Components/student/StudentPages/StudentOffers';
 import StudentMeetings from './Components/student/StudentPages/StudentMeetings';
 import StudentProfile from './Components/student/StudentPages/StudentProfile';
 
 // Tutor
-import TutorDashboard from './Components/Tutor/TutorDashboard';
-import TutorLogin from './Components/Tutor/tutorLogin';
+import TutorLogin from './Components/Tutor/TutorLogin';
+import TutorPage from './Components/Tutor/TutorPage';
 import TutorDashboard from './Components/Tutor/TutorPages/TutorDashboard';
 import TutorStudents from './Components/Tutor/TutorPages/TutorStudents';
 import TutorFeedback from './Components/Tutor/TutorPages/TutorFeedback';
@@ -78,14 +67,6 @@ function App() {
                  <Route path="companies" element={<AdminCompanies />} />
                  <Route path="tutors" element={<AdminTutors/>} />
                  <Route path="departments" element={<AdminDepartments/>} />
-                 <Route path='job-categories' element={<AdminJobCategories />} />
-                 <Route path='job-posts' element={<AdminJobPosts />} />
-                 <Route path='applications' element={<AdminApplications />} />
-                 <Route path='interviews' element={<AdminInterviews />} />
-                 <Route path='offers' element={<AdminOffers />} />
-                 <Route path='meetings' element={<AdminMeetings />} />
-                 <Route path='reports' element={<AdminReports />} />
-                 <Route path='skills' element={<AdminSkills />} />
             </Route>
             
             {/* Company */}
