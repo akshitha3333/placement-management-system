@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
+import Cookies from 'js-cookie';
 const rest = require("../../Rest")
 
 function AdminLogin() {
@@ -55,8 +56,7 @@ let header = {
                 const result = response.data
                 console.log(result);
                 if (response.data.status){
-                    console.log("sucess");
-                    localStorage.setItem("token",result.data)
+                    Cookies.set("token",result.data)
                     navigate("/admin-page")
                 }else{
                     console.log("error");

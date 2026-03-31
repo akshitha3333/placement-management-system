@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
 import rest from "../../../Rest";
-
+import Cookies from 'js-cookie';
 
 function AdminDepartments() {
   const [deptName, setDeptName] = useState("");
@@ -12,7 +12,7 @@ function AdminDepartments() {
 let header = {
         headers: {
             "Content-type": "application/json",
-            Authorization: `Bearer ${localStorage.getItem("token")}`
+            "Authorization": `Bearer ${Cookies.get('token')}`
         }
     }
 
@@ -130,5 +130,6 @@ const getdepartments=()=>{
 
   );
 }
-
 export default AdminDepartments;
+
+

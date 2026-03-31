@@ -1,32 +1,43 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
-
+import Cookies from 'js-cookie'
+const rest = require("../../../Rest")
 function AdminTutors() {
   const [showModal, setShowModal] = useState(false);
   const [tutors, setTutors] = useState([]);
-
+  const [departments, setDepartments] = useState([]);
   const [tutor, setTutor] = useState({
     tutorName: "",
     email: "",
     phone: "",
     specialization: "",
     experience: "",
-    departmentName: "",
+    departmentId: "",
     password: ""
   });
 
+       const header = {
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${Cookies.get('token')}`
+        }
+    };
+
   const fetchTutors = async () => {
     try {
-      const res = await axios.get("/admin-tutors");
-      setTutors(res.data);
+      const res = await axios.get(rest.tutor,header);
+      console.log(res.data);
+      
+      setTutors(res.data.data);
     } catch (err) {
       console.log(err);
     }
   };
 
-  useEffect(() => {
-    fetchTutors();
-  }, []);
+ useEffect(() => {
+  fetchTutors();
+  fetchDepartments();  
+}, []);
 
   const handleChange = (e) => {
     setTutor({ ...tutor, [e.target.name]: e.target.value });
@@ -36,19 +47,22 @@ function AdminTutors() {
     e.preventDefault();
 
     try {
-      const res = await axios.post("/admin-add-tutor", tutor);
-
+      const res = await axios.post(rest.tutor, tutor,header);
+     if(res.data==="Duplicate Tutor Added."){
+       alert()
+       return
+     }
       setTutors([...tutors, res.data]);
 
       setShowModal(false);
 
       setTutor({
-        name: "",
+        tutorName: "",
         email: "",
         phone: "",
         specialization: "",
         experience: "",
-        department: "",
+        departmentId: "",
         password: ""
       });
 
@@ -56,7 +70,14 @@ function AdminTutors() {
       console.log(err);
     }
   };
-
+  const fetchDepartments = async () => {
+  try {
+    const res = await axios.get(rest.departments, header); // make sure this API exists
+    setDepartments(res.data.data);
+  } catch (err) {
+    console.log(err);
+  }
+};
   return (
     <div className="p-4">
 
@@ -83,22 +104,10 @@ function AdminTutors() {
         {tutors.map((t) => (
           <div key={t.id} className="card p-3 w-30">
 
-            <div className="row space-between">
-              <div className="bold">{t.name}</div>
+            <div className="row space-between items-center">
+  <div className="bold">{t.tutorName}</div>
 
-              {/* Status */}
-              <span
-                className="status-item"
-                style={{
-                  background: t.active
-                    ? "rgba(22,163,74,0.1)"
-                    : "rgba(220,38,38,0.1)",
-                  color: t.active ? "#16a34a" : "#dc2626"
-                }}
-              >
-                {t.active ? "Active" : "Inactive"}
-              </span>
-            </div>
+</div>
 
             <p className="fs-p9 text-gray-500">{t.specialization}</p>
             <p className="fs-p9">{t.email}</p>
@@ -112,7 +121,7 @@ function AdminTutors() {
               </div>
 
               <div>
-                <div className="bold">{t.department}</div>
+                <div className="bold">{t.departmentModel?.departmentName || "No Department"}</div>
                 <span className="fs-p8 text-gray-500">Department</span>
               </div>
             </div>
@@ -133,8 +142,8 @@ function AdminTutors() {
               <input
                 className="form-control mb-2"
                 placeholder="Full Name"
-                name="name"
-                value={tutor.name}
+                name="tutorName"
+                value={tutor.tutorName}
                 onChange={handleChange}
               />
 
@@ -170,13 +179,20 @@ function AdminTutors() {
                 onChange={handleChange}
               />
 
-              <input
+              <select
                 className="form-control mb-2"
-                placeholder="Department"
-                name="department"
-                value={tutor.department}
+                name="departmentId"
+                value={tutor.departmentId}
                 onChange={handleChange}
-              />
+              >
+                <option value="">Select Department</option>
+
+                {departments.map((dept) => (
+                  <option key={dept.departmentId} value={dept.departmentId}>
+                    {dept.departmentName}
+                  </option>
+                ))}
+              </select>
 
               <input
                 type="password"
@@ -189,7 +205,7 @@ function AdminTutors() {
 
               <div className="row" style={{ gap: "10px" }}>
               <button  type="button" className="btn btn-primary" onClick={handleSubmit}>
-                Add Department
+                Add Tutors
               </button>
                 <button
                   type="button"

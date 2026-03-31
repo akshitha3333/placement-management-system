@@ -13,7 +13,6 @@ function StudentNav({ children }) {
       {icon} {label}
     </div>
   );
-
   return (
     <div style={{ height: "100vh", display: "flex", overflow: "hidden" }}>
       <aside className="bg-primary-dark text-white p-4" style={{ width: "230px", minHeight: "100vh", overflowY: "auto", flexShrink: 0 }}>
@@ -34,7 +33,6 @@ function StudentNav({ children }) {
         {navItem("/student-page/offers", "🎯", "Offers")}
 
         <p className="fs-p8 text-gray-300 mb-1 mt-3">TOOLS</p>
-        {navItem("/student-page/ai-interview", "🤖", "AI Mock Interview")}
         {navItem("/student-page/meetings", "📹", "Meetings")}
 
         <p className="fs-p8 text-gray-300 mb-1 mt-3">ACCOUNT</p>

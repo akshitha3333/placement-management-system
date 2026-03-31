@@ -522,3 +522,70 @@ background:var(--gray-100);
 .position-relative:hover .card {
   display: block !important;
 }
+.nav-active {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  font-weight: 600;
+}
+
+/* Company icon in table */
+.company-icon {
+  font-size: 1.4rem;
+}
+
+/* Text success / danger helpers */
+.text-success { color: var(--success); }
+.text-danger  { color: var(--danger); }
+.text-warning { color: var(--warning); }
+.text-info    { color: var(--info); }
+.text-secondary { color: var(--text-secondary); }
+.text-gray-500  { color: var(--gray-500); }
+.text-gray-600  { color: var(--gray-600); }
+
+/* Gradient hero text (already in your file but safe to repeat) */
+.hero-title {
+  font-size: 3.5rem;
+  font-weight: 700;
+  color: var(--gray-900);
+}
+
+/* Scrollable sidebar  */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 4px; }
+
+/* Table hover row */
+tbody tr.hover-bg:hover {
+  background: var(--gray-100);
+}
+
+/* Modal responsive fix */
+@media (max-width: 600px) {
+  .modal-box { width: 95% !important; }
+}
+
+/* m-auto fix for login cards */
+.m-auto {
+  margin: 60px auto !important;
+}
+
+/* position helpers */
+.position-position {
+  border-radius: 12px;
+  object-fit: cover;
+}
+
+/* gradient bg for stat cards */
+.stat-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.12);
+}
+
+/* link colour */
+a.text-link { color: var(--link); text-decoration: none; }
+a.text-link:hover { text-decoration: underline; }
+
+/* alert boxes */
+.alert-success { background: rgba(22,163,74,0.1); border: 1px solid rgba(22,163,74,0.3); border-radius: 8px; padding: 10px; }
+.alert-danger  { background: rgba(220,38,38,0.1);  border: 1px solid rgba(220,38,38,0.3);  border-radius: 8px; padding: 10px; }
+.alert-info    { background: rgba(14,165,233,0.1);  border: 1px solid rgba(14,165,233,0.3);  border-radius: 8px; padding: 10px; }

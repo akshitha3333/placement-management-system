@@ -30,10 +30,7 @@ function StudentDashboard() {
             <h2 className="bold mb-1">👋 Welcome back!</h2>
             <p className="fs-p9" style={{ opacity: 0.85 }}>Your placement journey is on track. Keep applying!</p>
           </div>
-          <button className="btn w-auto" style={{ background: "white", color: "#325563", fontWeight: "bold", padding: "8px 20px" }}
-            onClick={() => navigate("/student-page/ai-interview")}>
-            🤖 Practice AI Interview
-          </button>
+         
         </div>
       </div>
 
@@ -110,12 +107,7 @@ function StudentDashboard() {
               onClick={() => navigate("/student-page/profile")}>Complete Profile</button>
           </div>
 
-          <div className="card p-4">
-            <h4 className="mb-2">🤖 AI Interview Tip</h4>
-            <p className="fs-p9 text-secondary">Practice mock interviews before your actual ones. Our AI gives real-time feedback!</p>
-            <button className="btn btn-secondary mt-3" style={{ fontSize: "0.8rem", padding: "8px" }}
-              onClick={() => navigate("/student-page/ai-interview")}>Start Practice →</button>
-          </div>
+         
         </div>
       </div>
     </div>

@@ -38,7 +38,7 @@ function TutorLogin() {
     }
     let header = {
         headers: {
-            "Content-type": "Application/json"
+            "Content-Type": "Application/json"
         }
     }
       const TutorLogin = (e) => {
@@ -49,29 +49,25 @@ function TutorLogin() {
             "email": email,
             "password": password,
         }
-        axios.post(rest.TutorLogin, data, header)
-            .then(response => {
-                console.log(response.data);
-                if (response.data === "Login Successfully") {
+        axios.post(rest.login, data, header)
+  .then(response => {
+    if (response.data.message === "Login Successfully") {
 
-                    setMessage(response.data);
-                    setMsgType("success");
+      // ✅ store token
+      localStorage.setItem("token", response.data.token);
 
-                    setTimeout(() => {
-                        navigate("/tutor-dashboard");
-                    }, 1500);
+      setMessage(response.data.message);
+      setMsgType("success");
 
-                } else {
+      setTimeout(() => {
+        navigate("/tutor-dashboard");
+      }, 1500);
 
-                    setMessage(response.data);
-                    setMsgType("error");
-                }
-            })
-            .catch(error => {
-                console.log(error);
-                setMessage("Something Went Wrong");
-                setMsgType("error");
-            });
+    } else {
+      setMessage("Invalid Credentials");
+      setMsgType("error");
+    }
+  })
     }
     return (
             <div className="card w-30 m-auto p-5">

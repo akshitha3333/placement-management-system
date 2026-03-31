@@ -28,7 +28,7 @@ function CompanyNav({ children }) {
         <p className="fs-p8 text-gray-300 mb-2">RECRUITMENT</p>
 
         <div className="p-1 hover-bg cursor-pointer"
-          onClick={() => navigate("/company-page/students")}>
+          onClick={() => navigate("/company-page/job-posts")}>
           👨‍🎓 Job Post
         </div>
 
@@ -45,22 +45,22 @@ function CompanyNav({ children }) {
         <p className="fs-p8 text-gray-300 mb-2">HIRING PROCESS</p>
 
         <div className="p-1 hover-bg cursor-pointer mb-2"
-          onClick={() => navigate("/company-page/departments")}>
+          onClick={() => navigate("/company-page/applications")}>
           📄 Applications
         </div>
 
          <div className="p-1 hover-bg cursor-pointer mb-2"
-          onClick={() => navigate("/company-page/departments")}>
+          onClick={() => navigate("/company-page/shortlisted")}>
           ✅ Shortlisted
         </div>
 
          <div className="p-1 hover-bg cursor-pointer mb-2"
-          onClick={() => navigate("/company-page/departments")}>
+          onClick={() => navigate("/company-page/interviews")}>
          📅 Interviews
         </div>
 
          <div className="p-1 hover-bg cursor-pointer mb-2"
-          onClick={() => navigate("/company-page/departments")}>
+          onClick={() => navigate("/company-page/offers")}>
           💼 Offers
         </div>
 
@@ -68,7 +68,7 @@ function CompanyNav({ children }) {
         <p className="fs-p8 text-gray-300 mb-2">COMMUNICATION</p>
 
         <div className="p-1 hover-bg cursor-pointer"
-          onClick={() => navigate("/job-categories")}>
+          onClick={() => navigate("/company-page/meetings")}>
           📅 Meetings
         </div>
 
@@ -98,18 +98,18 @@ function CompanyNav({ children }) {
         <p className="fs-p8 text-gray-300 mb-2">SYSTEM</p>
 
         <div className="p-1 hover-bg cursor-pointer"
-          onClick={() => navigate("/reports")}>
+          onClick={() => navigate("/company-page/profile")}>
          🏢 Company Profile
         </div>
 
         <div className="p-1 hover-bg cursor-pointer"
-          onClick={() => navigate("/settings")}>
+          onClick={() => navigate("/company-page/settings")}>
           ⚙️ Settings
         </div>
 
         {/* Sign Out */}
         <div className="mt-6 p-1 hover-bg cursor-pointer text-gray-300"
-         onClick={() => navigate("/admin-page/companies")}>
+         onClick={() => navigate("/")}>
           🚪 Logout
         </div>
 

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import rest from "../../Rest";
+
 function CompanyRegister() {
     const[nameError, setNameError]=useState("");
     const [emailError, setEmailError] = useState("");
@@ -17,10 +18,15 @@ function CompanyRegister() {
     const [about, setAbout] = useState("");
     const navigate = useNavigate();
     const [file, setFile] = useState(null);
+      const [state, setState] = useState({});
 
-     const handleFileChange = (e) => {
-           setFile(e.target.files[0]);
-         };
+
+     
+           const fileSelectedHandler = (event) => {
+        setState({
+            selectedFile: event.target.files[0]
+        });
+    };
     const validateName=(e)=>{
         const name = e.target.value.trim();
         if(name === ""){
@@ -110,56 +116,59 @@ function CompanyRegister() {
         }
 
     }
-     let header = {
-        headers: {}
-    }
+     const header = {
+        headers: {
+            "Content-type": "multipart/form-data"
+        }
+    };
     const CompanyRegistration = (e) => {
-        e.preventDefault();
-        let name = document.getElementById("name").value;
-        let email = document.getElementById("email").value;
-        let phone = document.getElementById("phone").value;
-        let industry = document.getElementById("industry").value;
-        let location = document.getElementById("companylocation").value;
-        let website = document.getElementById("website").value;
-        let password  = document.getElementById("password").value;
-        const formdata=new FormData();
-        formdata.append("companyName",name)
-        formdata.append("phone",phone)
-        formdata.append("website",website)
-        formdata.append("industryType",industry)
-        formdata.append("location",location)
-        formdata.append("email",email)
-        formdata.append("latitude",latitude)
-        formdata.append("longitude",longitude)
-        formdata.append("about",about)
-        formdata.append("logo",file)
-        formdata.append("password",password)
-        axios.post(rest.company, formdata, header)
-            .then(response => {
-                console.log(response.data);
-                if (response.data === "Company Registered Successfully") {
+    e.preventDefault();
 
-                    setMessage(response.data);
-                    {message && <p className={msgType === "success" ? "text-success" : "text-danger"}>{message}</p>}
+    let name = document.getElementById("name").value;
+    let email = document.getElementById("email").value;
+    let phone = document.getElementById("phone").value;
+    let industry = document.getElementById("industry").value;
+    let location = document.getElementById("companylocation").value;
+    let website = document.getElementById("website").value;
+    let password  = document.getElementById("password").value;
 
-                    setTimeout(() => {
-                        navigate("/company-login");
-                    }, 1500);
+    const formdata = new FormData();
+    formdata.append("companyName", name);
+    formdata.append("phone", phone);
+    formdata.append("website", website);
+    formdata.append("industryType", industry);
+    formdata.append("location", location);
+    formdata.append("email", email);
+    formdata.append("latitude", latitude);
+    formdata.append("longitude", longitude);
+    formdata.append("about", about);
+    formdata.append("logo", state.selectedFile);
+    formdata.append("password", password);
+    console.log(state.selectedFile);
+    console.log(rest.company);
+    
 
-                } else {
+    axios.post(rest.company, formdata,header)
+        .then(response => {
+            if (response.data === "Company Registered Successfully") {
+                setMessage(response.data);
+                setMsgType("success");
 
-                    setMessage(response.data);
-                    setMsgType("error");
-                }
-            })
-            .catch(error => {
-                console.log(error);
-                setMessage("Something Went Wrong");
+                setTimeout(() => {
+                    navigate("/company-login");
+                }, 1500);
+            } else {
+                setMessage(response.data);
                 setMsgType("error");
-            });
-
-
-    }
+            }
+        })
+        .catch(error => {
+            console.log(error);
+            setMessage("Something Went Wrong");
+            setMsgType("error");
+        });
+};
+    
    return (
   <div className="">
     <div className="card w-50 m-auto p-5">
@@ -250,7 +259,7 @@ function CompanyRegister() {
           <div className="col-12 p-3">
             <div className="form-group">
               <label className="form-control-label">Company Logo URL</label>
-              <input className="form-control" type="file" id="logo"  onChange={handleFileChange} />
+              <input className="form-control" type="file" id="logo" onChange={fileSelectedHandler} />
             </div>
           </div>
           <div className="col-6 p-3">

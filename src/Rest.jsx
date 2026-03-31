@@ -1,8 +1,10 @@
 const rest = "http://localhost:2026/api/"
 const classification = rest+"classification/"
 const auth= rest+"auth/"
+const actors=rest+"actors/"
 exports.departments = classification+"departments"
 exports.login = auth+ "login"
-exports.tutor =rest+"tutor"
+exports.tutor =  actors+"tutors"
 exports.company=auth+"company"
 exports.student=auth+"student"
+
