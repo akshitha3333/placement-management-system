@@ -10,7 +10,7 @@ function Home() {
       <header className="row space-between p-2 items-center box-shadow ">
         <div className="fs-4 bold">🎓 PlacementHub</div>
 
-        <div className="row  ">
+        <div className="row">
           <a className="m-2 text-black medium" href="/">Home</a>
           <a className="m-2 text-black medium" href="/about-page">AboutUs</a>
           <a className="m-2 text-black medium" href="/">Companies</a>
@@ -21,7 +21,6 @@ function Home() {
         </div>
 
       </header>
-      {/* Hero Section */}
       <div class="row items-center p-7 hero-section">
 
         <div class="col-6">

@@ -21,6 +21,8 @@ import CompanyLogin from './Components/company/CompanyLogin';
 import CompanyPage from './Components/company/CompanyPages/CompanyPage';
 import CompanyDashboard from './Components/company/CompanyPages/CompanyDashboard';// import CompanyNav from './Components/company/CompanyNav';
 import CompanyJobPosts from './Components/company/CompanyPages/CompanyJobPosts';
+import CompanyJobCategories from './Components/company/CompanyPages/CompanyJobCategories';
+import CompanySkillsRequired from './Components/company/CompanyPages/CompanySkillsRequired'
 import CompanyApplications from './Components/company/CompanyPages/CompanyApplications';
 import CompanyShortlisted from './Components/company/CompanyPages/CompanyShortlisted';
 import CompanyInterviews from './Components/company/CompanyPages/CompanyInterviews';
@@ -77,6 +79,8 @@ function App() {
                 <Route index element={<CompanyDashboard/>} />
                 <Route path='dashboard' element={<CompanyDashboard/>} />
                 <Route path='job-posts' element={<CompanyJobPosts />} />
+                <Route path="job-categories" element={<CompanyJobCategories />} />
+                <Route path="skills-required" element={<CompanySkillsRequired />} />
                 <Route path='applications' element={<CompanyApplications />} />
                 <Route path='shortlisted' element={<CompanyShortlisted />} />
                 <Route path='interviews' element={<CompanyInterviews />} />

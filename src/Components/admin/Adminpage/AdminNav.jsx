@@ -20,18 +20,16 @@ function AdminNav({ children }) {
         </div>
 
         {/* OVERVIEW */}
+        <div className="p-1 br-md mb-2 hover-bg cursor-pointer"
+          onClick={() => navigate("/admin-page/dashboard")}>
+          📊 Dashboard
+        </div>
+
         <p className="fs-p8 text-gray-300 mb-2">OVERVIEW</p>
          <div className="p-1 hover-bg cursor-pointer"
           onClick={() => navigate("/admin-page/students")}>
           👨‍🎓 Students
         </div>
-
-        <div className="p-1 br-md hover-bg cursor-pointer"
-          onClick={() => navigate("/admin-page/dashboard")}>
-          📊 Dashboard
-        </div>
-
-       
 
         <div className="p-1 hover-bg cursor-pointer"
           onClick={() => navigate("/admin-page/companies")}>

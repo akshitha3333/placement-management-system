@@ -33,12 +33,12 @@ function CompanyNav({ children }) {
         </div>
 
         <div className="p-1 hover-bg cursor-pointer"
-          onClick={() => navigate("/company-page/companies")}>
+          onClick={() => navigate("/company-page/job-categories")}>
           🏢 Job Categories
         </div>
 
         <div className="p-1 hover-bg cursor-pointer mb-2"
-          onClick={() => navigate("/company-page/tutors")}>
+          onClick={() => navigate("/company-page/skills-required")}>
           👨‍🏫 Skills Required
         </div>
 

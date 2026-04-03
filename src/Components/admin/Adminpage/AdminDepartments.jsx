@@ -16,8 +16,6 @@ let header = {
         }
     }
 
-   
-
 const handleSubmit = (e) => {
   e.preventDefault();
   if (!deptName.trim()) return;
@@ -25,7 +23,7 @@ const handleSubmit = (e) => {
   const data = {
     departmentName: deptName
   };
-  axios.post(rest.departments, data, header)
+  axios.post(rest.adminDepartments, data, header)
   .then((response) => {
       setDepartments((prev) => [...prev, response.data]); 
       setDeptName("")
@@ -44,12 +42,12 @@ useEffect(()=>{
   getdepartments()
 },[count]);
 const getdepartments=()=>{
- axios.get(rest.departments,header)
+ axios.get(rest.adminDepartments,header)
   .then((response) => {
     console.log(response.data);
     let result = response.data
     if(result.success){
-      setDepartments(result.data)
+      setDepartments(result.data ?? [])
     }
   }).catch((error)=>{
     console.log(error);
@@ -102,7 +100,7 @@ const getdepartments=()=>{
     <div className="card p-4 w-80 m-auto">
       <h3 className="fs-4 mb-3 text-center">📋 Departments List</h3>
 
-      {departments.length === 0 ? (
+      {(departments ?? []).length === 0 ? (
         <p className="text-gray-300 text-center">No departments added yet</p>
       ) : (
         <table className="w-100">

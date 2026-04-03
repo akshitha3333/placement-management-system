@@ -1,156 +1,395 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
+const rest = require("../../../Rest");
+
+const getToken = () => localStorage.getItem("token") || "";
+
+// Change this at the top of the file:
+const getHeader = () => {
+  const token = localStorage.getItem("token");
+  return {
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: token ? `Bearer ${token}` : "",
+    },
+  };
+};
 
 const emptyForm = {
-  title: "", category: "", location: "", jobType: "", package: "",
-  openings: "", description: "", skills: "", deadline: "", eligibility: ""
+  tiitle:             "",
+  description:        "",
+  requiredCandidate:  "",
+  lastDateToApply:    "",
+  eligiblePercentage: "",
+  poster:             "",
+  skillIds:           [],
 };
 
 function CompanyJobPosts() {
-  const [posts, setPosts] = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [showModal, setShowModal] = useState(false);
-  const [form, setForm] = useState(emptyForm);
-  const [loading, setLoading] = useState(true);
-
-  const header = { headers: { "Content-type": "application/json", Authorization: `Bearer ${localStorage.getItem("companyToken")}` } };
+  const [posts, setPosts]           = useState([]);
+  const [showModal, setShowModal]   = useState(false);
+  const [showDetail, setShowDetail] = useState(false);
+  const [selected, setSelected]     = useState(null);
+  const [form, setForm]             = useState(emptyForm);
+  const [loading, setLoading]       = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [message, setMessage]       = useState("");
+  const [msgType, setMsgType]       = useState("");
+  const [skillInput, setSkillInput] = useState("");
 
   useEffect(() => {
-    axios.get("/api/company/job-posts", header)
-      .then(res => { setPosts(res.data.data || res.data || []); setLoading(false); })
-      .catch(() => setLoading(false));
-    axios.get("/api/classification/job-categories", header)
-      .then(res => setCategories(res.data.data || res.data || []))
-      .catch(console.error);
+    axios.get(rest.jobPost, getHeader())
+      .then(res => {
+        const list = Array.isArray(res.data.data) ? res.data.data
+                   : Array.isArray(res.data)       ? res.data
+                   : [];
+        setPosts(list);
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error(err);
+        setLoading(false);
+      });
   }, []);
 
   const handleChange = e => setForm({ ...form, [e.target.name]: e.target.value });
 
+  const handleAddSkill = () => {
+    const id = parseInt(skillInput.trim());
+    if (!isNaN(id) && !form.skillIds.includes(id)) {
+      setForm(prev => ({ ...prev, skillIds: [...prev.skillIds, id] }));
+    }
+    setSkillInput("");
+  };
+
+  const handleRemoveSkill = (id) => {
+    setForm(prev => ({ ...prev, skillIds: prev.skillIds.filter(s => s !== id) }));
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
-    axios.post("/api/company/job-posts", form, header)
-      .then(res => { setPosts(prev => [...prev, res.data.data || res.data]); setShowModal(false); setForm(emptyForm); })
-      .catch(console.error);
+    if (!form.tiitle.trim()) {
+      setMessage("Job title is required.");
+      setMsgType("error");
+      return;
+    }
+    setSubmitting(true);
+
+    axios.post(rest.jobPost, form, getHeader())
+      .then(res => {
+        const newPost = res.data.data || res.data;
+        setPosts(prev => [newPost, ...prev]);
+        setShowModal(false);
+        setForm(emptyForm);
+        setSkillInput("");
+        setMessage("Job posted successfully!");
+        setMsgType("success");
+        setTimeout(() => setMessage(""), 3000);
+      })
+      .catch(err => {
+        console.error(err);
+        setMessage(err.response?.data?.message || "Failed to post job. Try again.");
+        setMsgType("error");
+      })
+      .finally(() => setSubmitting(false));
   };
 
-  const togglePost = (id, enabled) => {
-    axios.patch(`/api/company/job-posts/${id}/toggle`, { enabled: !enabled }, header)
-      .then(() => setPosts(prev => prev.map(p => p.id === id ? { ...p, enabled: !enabled } : p)))
-      .catch(console.error);
+  const StatusBadge = ({ s }) => {
+    const val = (s || "ACTIVE").toUpperCase();
+    const map = {
+      ACTIVE:   { bg: "rgba(22,163,74,0.1)",  color: "var(--success)", label: "Active"   },
+      DEACTIVE: { bg: "rgba(220,38,38,0.1)",  color: "var(--danger)",  label: "Deactive" },
+      OPEN:     { bg: "rgba(22,163,74,0.1)",  color: "var(--success)", label: "Open"     },
+      CLOSED:   { bg: "rgba(220,38,38,0.1)",  color: "var(--danger)",  label: "Closed"   },
+    };
+    const c = map[val] || { bg: "rgba(156,163,175,0.15)", color: "var(--gray-500)", label: val };
+    return (
+      <span style={{ padding: "4px 12px", borderRadius: "20px", fontWeight: "600",
+        fontSize: "0.75rem", background: c.bg, color: c.color }}>
+        {c.label}
+      </span>
+    );
   };
+
+  const Row = ({ label, value }) => (
+    <tr>
+      <td className="text-secondary fs-p9" style={{ width: "160px", verticalAlign: "top", paddingRight: "8px" }}>{label}</td>
+      <td className="fs-p9">{value || "—"}</td>
+    </tr>
+  );
 
   return (
-    <div className="p-4">
+    <div className="p-4" style={{ height: "calc(100vh - 70px)", overflowY: "auto" }}>
+
       <div className="row space-between items-center mb-4">
         <div>
           <h2 className="fs-5 bold">Job Posts</h2>
           <p className="fs-p9 text-secondary">Post and manage your job requirements</p>
         </div>
-        <button className="btn btn-primary w-auto" onClick={() => setShowModal(true)}>+ Post New Job</button>
+        <button
+          className="btn btn-primary"
+          style={{ width: "auto", padding: "8px 18px", borderRadius: "10px" }}
+          onClick={() => { setShowModal(true); setMessage(""); setForm(emptyForm); setSkillInput(""); }}
+        >
+          + Post New Job
+        </button>
       </div>
 
-      {loading ? <p>Loading...</p> : (
-        <div className="row" style={{ gap: "16px" }}>
-          {posts.length === 0 ? (
-            <div className="card p-5 w-100 text-center">
-              <p style={{ fontSize: "3rem" }}>💼</p>
-              <p className="bold mt-2">No job posts yet</p>
-              <p className="text-secondary fs-p9">Click "Post New Job" to get started</p>
-            </div>
-          ) : posts.map(post => (
-            <div key={post.id} className="card p-4 stat-card" style={{ width: "calc(48% - 16px)" }}>
+      {message && (
+        <div className={msgType === "success" ? "alert-success mb-3" : "alert-danger mb-3"}>
+          <p className="fs-p9" style={{ color: msgType === "success" ? "var(--success)" : "var(--danger)", fontWeight: "600" }}>
+            {message}
+          </p>
+        </div>
+      )}
+
+      {loading ? (
+        <p className="text-center p-4">Loading...</p>
+      ) : posts.length === 0 ? (
+        <div className="card p-5 text-center">
+          <p style={{ fontSize: "3rem" }}>💼</p>
+          <p className="bold mt-2">No job posts yet</p>
+          <p className="text-secondary fs-p9">Click "Post New Job" to get started</p>
+        </div>
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))", gap: "16px" }}>
+          {posts.map(post => (
+            <div key={post.jobPostId} className="card p-4 stat-card">
+
               <div className="row space-between items-center mb-2">
-                <h4 className="bold">{post.title}</h4>
-                <span className="status-item fs-p8" style={{
-                  background: post.enabled ? "rgba(22,163,74,0.1)" : "rgba(220,38,38,0.1)",
-                  color: post.enabled ? "#16a34a" : "#dc2626"
-                }}>{post.enabled ? "Active" : "Disabled"}</span>
+                <h4 className="bold fs-p9" style={{ margin: 0 }}>{post.tiitle || "Untitled"}</h4>
+                <StatusBadge s={post.status} />
               </div>
-              <p className="fs-p9 text-secondary">{post.category} • {post.location}</p>
-              <p className="fs-p9 bold text-success mt-1">{post.package} LPA</p>
-              <p className="fs-p8 text-secondary mt-1">Openings: {post.openings} | Deadline: {post.deadline}</p>
-              {post.skills && (
-                <div className="mt-2" style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-                  {post.skills.split(",").map((s, i) => (
-                    <span key={i} className="fs-p8" style={{ background: "#e5e7eb", borderRadius: "12px", padding: "2px 10px" }}>{s.trim()}</span>
-                  ))}
-                </div>
+
+              {post.companyModel && (
+                <p className="fs-p8 text-secondary mb-1">
+                  {post.companyModel.companyName} • {post.companyModel.location || "—"}
+                </p>
               )}
-              <div className="row mt-3" style={{ gap: "8px" }}>
-                <button className="btn btn-muted w-auto" style={{ padding: "6px 14px", fontSize: "0.8rem" }}>Applicants ({post.applicantCount || 0})</button>
-                <button
-                  className={`btn ${post.enabled ? "btn-danger" : "btn-primary"} w-auto`}
-                  style={{ padding: "6px 14px", fontSize: "0.8rem" }}
-                  onClick={() => togglePost(post.id, post.enabled)}
-                >{post.enabled ? "Disable" : "Enable"}</button>
+
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "10px", margin: "8px 0" }}>
+                {post.requiredCandidate && (
+                  <span className="fs-p8" style={{ background: "rgba(14,165,233,0.1)", color: "var(--info)", padding: "3px 10px", borderRadius: "12px" }}>
+                    👥 {post.requiredCandidate} openings
+                  </span>
+                )}
+                {post.eligiblePercentage && (
+                  <span className="fs-p8" style={{ background: "rgba(245,158,11,0.1)", color: "var(--warning)", padding: "3px 10px", borderRadius: "12px" }}>
+                    📊 {post.eligiblePercentage}% eligible
+                  </span>
+                )}
+                {post.poster && (
+                  <span className="fs-p8" style={{ background: "rgba(84,95,57,0.1)", color: "var(--secondary)", padding: "3px 10px", borderRadius: "12px" }}>
+                    🏷 {post.poster}
+                  </span>
+                )}
               </div>
+
+              <p className="fs-p8 text-secondary">
+                Posted: {post.postedDate || "—"} &nbsp;|&nbsp; Deadline: {post.lastDateToApply || "—"}
+              </p>
+
+              {post.description && (
+                <p className="fs-p8 text-secondary mt-1" style={{
+                  overflow: "hidden", display: "-webkit-box",
+                  WebkitLineClamp: 2, WebkitBoxOrient: "vertical"
+                }}>
+                  {post.description}
+                </p>
+              )}
+
+              <div className="row mt-3" style={{ gap: "8px" }}>
+                <button
+                  className="btn btn-sm btn-info"
+                  style={{ width: "auto", padding: "5px 14px", borderRadius: "8px", fontSize: "12px" }}
+                  onClick={() => { setSelected(post); setShowDetail(true); }}
+                >
+                  👁️ View
+                </button>
+                <button
+                  className="btn btn-sm btn-muted"
+                  style={{ width: "auto", padding: "5px 14px", borderRadius: "8px", fontSize: "12px" }}
+                >
+                  👥 Applicants ({post.jobPostModelsList?.length || 0})
+                </button>
+              </div>
+
             </div>
           ))}
         </div>
       )}
 
-      {/* Modal */}
+      {/* Post Job Modal */}
       {showModal && (
-        <div className="modal-overlay">
-          <div className="card p-5" style={{ width: "540px", maxWidth: "95%", maxHeight: "90vh", overflowY: "auto" }}>
-            <h3 className="mb-4">Post New Job</h3>
-            <div className="form-group mb-2">
-              <label className="form-control-label">Job Title *</label>
-              <input className="form-control" name="title" value={form.title} onChange={handleChange} placeholder="e.g. Software Engineer" />
+        <div className="modal-overlay" onClick={() => setShowModal(false)}>
+          <div
+            className="card p-4"
+            style={{ width: "520px", maxWidth: "95%", maxHeight: "90vh", overflowY: "auto" }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="row space-between items-center mb-3">
+              <h3 className="bold">Post New Job</h3>
+              <button className="btn btn-sm btn-muted" style={{ width: "auto", padding: "4px 10px", borderRadius: "8px" }}
+                onClick={() => setShowModal(false)}>✕</button>
             </div>
-            <div className="row" style={{ gap: "10px" }}>
-              <div className="col-6 p-0">
-                <label className="form-control-label">Category</label>
-                <select className="form-control" name="category" value={form.category} onChange={handleChange}>
-                  <option value="">Select Category</option>
-                  {categories.map(c => <option key={c.id} value={c.categoryName || c.name}>{c.categoryName || c.name}</option>)}
-                </select>
+
+            <hr style={{ marginBottom: "16px", borderColor: "var(--border-color)" }} />
+
+            {message && (
+              <div className={msgType === "success" ? "alert-success mb-3" : "alert-danger mb-3"}>
+                <p className="fs-p9" style={{ color: msgType === "success" ? "var(--success)" : "var(--danger)", fontWeight: "600" }}>{message}</p>
               </div>
-              <div className="col-6 p-0">
-                <label className="form-control-label">Job Type</label>
-                <select className="form-control" name="jobType" value={form.jobType} onChange={handleChange}>
-                  <option value="">Select Type</option>
-                  <option>Full Time</option><option>Internship</option><option>Contract</option>
-                </select>
+            )}
+
+            <form onSubmit={handleSubmit}>
+
+              <div className="form-group mb-3">
+                <label className="form-control-label">Job Title *</label>
+                <input className="form-control" name="tiitle" value={form.tiitle} onChange={handleChange} placeholder="e.g. Software Engineer" required />
               </div>
-            </div>
-            <div className="row mt-2" style={{ gap: "10px" }}>
-              <div className="col-6 p-0">
-                <label className="form-control-label">Package (LPA)</label>
-                <input className="form-control" name="package" value={form.package} onChange={handleChange} placeholder="e.g. 8" />
+
+              <div className="row mb-3" style={{ gap: "10px" }}>
+                <div style={{ flex: 1 }}>
+                  <label className="form-control-label">Required Candidates</label>
+                  <input className="form-control" name="requiredCandidate" value={form.requiredCandidate} onChange={handleChange} placeholder="e.g. 10" />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label className="form-control-label">Eligible Percentage</label>
+                  <input className="form-control" name="eligiblePercentage" value={form.eligiblePercentage} onChange={handleChange} placeholder="e.g. 75" />
+                </div>
               </div>
-              <div className="col-6 p-0">
-                <label className="form-control-label">Openings</label>
-                <input className="form-control" name="openings" value={form.openings} onChange={handleChange} placeholder="e.g. 10" />
+
+              <div className="row mb-3" style={{ gap: "10px" }}>
+                <div style={{ flex: 1 }}>
+                  <label className="form-control-label">Last Date to Apply</label>
+                  <input type="date" className="form-control" name="lastDateToApply" value={form.lastDateToApply} onChange={handleChange} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label className="form-control-label">Poster / Role Tag</label>
+                  <input className="form-control" name="poster" value={form.poster} onChange={handleChange} placeholder="e.g. Full Time" />
+                </div>
               </div>
-            </div>
-            <div className="form-group mt-2 mb-2">
-              <label className="form-control-label">Location</label>
-              <input className="form-control" name="location" value={form.location} onChange={handleChange} placeholder="e.g. Hyderabad" />
-            </div>
-            <div className="form-group mb-2">
-              <label className="form-control-label">Required Skills (comma separated)</label>
-              <input className="form-control" name="skills" value={form.skills} onChange={handleChange} placeholder="React, Java, SQL" />
-            </div>
-            <div className="form-group mb-2">
-              <label className="form-control-label">Eligibility (CGPA / Branch)</label>
-              <input className="form-control" name="eligibility" value={form.eligibility} onChange={handleChange} placeholder="CGPA ≥ 7.5, CSE/IT/ECE" />
-            </div>
-            <div className="form-group mb-2">
-              <label className="form-control-label">Application Deadline</label>
-              <input type="date" className="form-control" name="deadline" value={form.deadline} onChange={handleChange} />
-            </div>
-            <div className="form-group mb-3">
-              <label className="form-control-label">Job Description</label>
-              <textarea className="form-control" rows="3" name="description" value={form.description} onChange={handleChange} />
-            </div>
-            <div className="row" style={{ gap: "10px" }}>
-              <button className="btn btn-primary" onClick={handleSubmit}>Post Job</button>
-              <button className="btn btn-muted" onClick={() => setShowModal(false)}>Cancel</button>
-            </div>
+
+              <div className="form-group mb-3">
+                <label className="form-control-label">Job Description</label>
+                <textarea className="form-control" rows="4" name="description" value={form.description} onChange={handleChange} placeholder="Describe the role, responsibilities..." />
+              </div>
+
+              {/* Skill IDs */}
+              <div className="form-group mb-3">
+                <label className="form-control-label">Skill IDs</label>
+                <div className="row" style={{ gap: "8px" }}>
+                  <input
+                    className="form-control"
+                    type="number"
+                    value={skillInput}
+                    onChange={e => setSkillInput(e.target.value)}
+                    onKeyDown={e => e.key === "Enter" && (e.preventDefault(), handleAddSkill())}
+                    placeholder="Enter skill ID and press Add"
+                    style={{ flex: 1 }}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-info"
+                    style={{ width: "auto", padding: "6px 14px", borderRadius: "8px" }}
+                    onClick={handleAddSkill}
+                  >
+                    + Add
+                  </button>
+                </div>
+                {form.skillIds.length > 0 && (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginTop: "10px" }}>
+                    {form.skillIds.map(id => (
+                      <span key={id} style={{
+                        background: "rgba(14,165,233,0.1)", color: "var(--info)",
+                        padding: "4px 10px", borderRadius: "20px", fontSize: "12px",
+                        fontWeight: "600", display: "flex", alignItems: "center", gap: "6px"
+                      }}>
+                        🔧 Skill #{id}
+                        <span onClick={() => handleRemoveSkill(id)}
+                          style={{ cursor: "pointer", fontWeight: "bold", fontSize: "14px", lineHeight: 1 }}>
+                          ×
+                        </span>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="row" style={{ gap: "10px" }}>
+                <button type="submit" className="btn btn-primary" style={{ borderRadius: "10px", flex: 1 }} disabled={submitting}>
+                  {submitting ? "Posting..." : "✔ Post Job"}
+                </button>
+                <button type="button" className="btn btn-muted" style={{ borderRadius: "10px", flex: 1 }} onClick={() => setShowModal(false)}>
+                  Cancel
+                </button>
+              </div>
+
+            </form>
           </div>
         </div>
       )}
+
+      {/* Detail Modal */}
+      {showDetail && selected && (
+        <div className="modal-overlay" onClick={() => setShowDetail(false)}>
+          <div
+            className="card p-4"
+            style={{ width: "520px", maxWidth: "95%", maxHeight: "85vh", overflowY: "auto" }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="row space-between items-center mb-3">
+              <div>
+                <p className="bold fs-4" style={{ margin: 0 }}>{selected.tiitle}</p>
+                <StatusBadge s={selected.status} />
+              </div>
+              <button className="btn btn-sm btn-muted" style={{ width: "auto", padding: "4px 10px", borderRadius: "8px" }}
+                onClick={() => setShowDetail(false)}>✕</button>
+            </div>
+
+            <hr style={{ marginBottom: "12px", borderColor: "var(--border-color)" }} />
+
+            <p className="fs-p8 text-secondary bold mb-2" style={{ textTransform: "uppercase", letterSpacing: "0.05em" }}>Job Details</p>
+            <table className="w-100">
+              <tbody>
+                <Row label="Job Post ID"        value={`JP${String(selected.jobPostId).padStart(3,"0")}`} />
+                <Row label="Required Candidates" value={selected.requiredCandidate} />
+                <Row label="Eligible %"         value={selected.eligiblePercentage ? `${selected.eligiblePercentage}%` : "—"} />
+                <Row label="Posted Date"        value={selected.postedDate} />
+                <Row label="Last Date to Apply" value={selected.lastDateToApply} />
+                <Row label="Poster / Tag"       value={selected.poster} />
+                <Row label="Applicants"         value={selected.jobPostModelsList?.length || 0} />
+              </tbody>
+            </table>
+
+            {selected.description && (
+              <>
+                <hr style={{ margin: "12px 0", borderColor: "var(--border-color)" }} />
+                <p className="fs-p8 text-secondary bold mb-1" style={{ textTransform: "uppercase", letterSpacing: "0.05em" }}>Description</p>
+                <p className="fs-p9">{selected.description}</p>
+              </>
+            )}
+
+            {selected.companyModel && (
+              <>
+                <hr style={{ margin: "12px 0", borderColor: "var(--border-color)" }} />
+                <p className="fs-p8 text-secondary bold mb-2" style={{ textTransform: "uppercase", letterSpacing: "0.05em" }}>Company</p>
+                <table className="w-100">
+                  <tbody>
+                    <Row label="Company"  value={selected.companyModel.companyName} />
+                    <Row label="Industry" value={selected.companyModel.industryType} />
+                    <Row label="Location" value={selected.companyModel.location} />
+                    <Row label="Email"    value={selected.companyModel.email} />
+                    <Row label="Website"  value={selected.companyModel.website} />
+                  </tbody>
+                </table>
+              </>
+            )}
+
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

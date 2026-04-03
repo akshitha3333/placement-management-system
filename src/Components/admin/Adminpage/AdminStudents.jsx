@@ -92,7 +92,6 @@ useEffect(() => {
   <option value="Rejected">Rejected</option>
 </select>
       </div>
-
       {/* Table */}
       <div className="card p-2">
         {loading ? (
@@ -115,18 +114,14 @@ useEffect(() => {
               {students.map((student) => (
                 <tr key={student.id} className="hover-bg">
                   <td>{student.id}</td>
-
                   <td>
                     <div className="bold">{student.name}</div>
                     <div className="fs-p8 text-gray-300">
                       {student.email}
                     </div>
                   </td>
-
                   <td>{student.department}</td>
-
                   <td className="bold">{student.cgpa}</td>
-
                   {/* Verification */}
                   <td>
                     <span

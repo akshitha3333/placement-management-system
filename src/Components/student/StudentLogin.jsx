@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import Cookies from 'js-cookie';
 import axios from "axios";
 const rest = require("../../Rest")
 function StudentLogin() {
@@ -23,17 +24,17 @@ function StudentLogin() {
     const validatePassword = (e) => {
         const password = e.target.value;
         const pattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&]).{8,}$/;
-        if (password === "") {
-            setPasswordError("Password is required");
-        }
-        else if (!pattern.test(password)) {
-            setPasswordError(
-                "Password must contain 8 characters, uppercase, lowercase, number and special character"
-            );
-        }
-        else {
-            setPasswordError("");
-        }
+        // if (password === "") {
+        //     setPasswordError("Password is required");
+        // }
+        // else if (!pattern.test(password)) {
+        //     setPasswordError(
+        //         "Password must contain 8 characters, uppercase, lowercase, number and special character"
+        //     );
+        // }
+        // else {
+        //     setPasswordError("");
+        // }
 
     }
 
@@ -50,21 +51,20 @@ function StudentLogin() {
             "email": email,
             "password": password,
         }
-        axios.post(rest.StudentLogin, data, header)
+        axios.post(rest.login, data, header)
             .then(response => {
                 console.log(response.data);
-                if (response.data === "Student Login Successfully") {
+                if (response.data.success) {
 
-                    setMessage(response.data);
+                    Cookies.set("token",response.data.token);
+                   setMessage(response.data.message);
                     setMsgType("success");
-
                     setTimeout(() => {
-                        navigate("/student-dashboard");
+                        navigate("/student-page");
                     }, 1500);
 
                 } else {
-
-                    setMessage(response.data);
+                    setMessage(response.data.message);
                     setMsgType("error");
                 }
             })
@@ -73,14 +73,11 @@ function StudentLogin() {
                 setMessage("Something Went Wrong");
                 setMsgType("error");
             });
-
-
     }
-
     return (
         <div className="card w-30 m-auto p-5">
             <div className="text-center">
-                <svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" fill="currentColor" class="bi bi-mortarboard" viewBox="0 0 16 16">
+                <svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" fill="currentColor" className="bi bi-mortarboard" viewBox="0 0 16 16">
                     <path d="M8.211 2.047a.5.5 0 0 0-.422 0l-7.5 3.5a.5.5 0 0 0 .025.917l7.5 3a.5.5 0 0 0 .372 0L14 7.14V13a1 1 0 0 0-1 1v2h3v-2a1 1 0 0 0-1-1V6.739l.686-.275a.5.5 0 0 0 .025-.917zM8 8.46 1.758 5.965 8 3.052l6.242 2.913z" />
                     <path d="M4.176 9.032a.5.5 0 0 0-.656.327l-.5 1.7a.5.5 0 0 0 .294.605l4.5 1.8a.5.5 0 0 0 .372 0l4.5-1.8a.5.5 0 0 0 .294-.605l-.5-1.7a.5.5 0 0 0-.656-.327L8 10.466zm-.068 1.873.22-.748 3.496 1.311a.5.5 0 0 0 .352 0l3.496-1.311.22.748L8 12.46z" />
                 </svg>

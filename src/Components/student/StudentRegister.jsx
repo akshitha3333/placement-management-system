@@ -1,15 +1,16 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom"
 import axios from "axios";
+import { useEffect } from "react";
 const rest = require("../../Rest")
 function StudentRegister() {
+    const [departments, setDepartments] = useState([]);
     const [nameError, setNameError] = useState("");
     const [emailError, setEmailError] = useState("");
     const [phoneError, setPhoneError] = useState("");
     const [rollError, setRollError] = useState("");
     const [departmentError, setDepartmentError] = useState("");
     const [yearError, setYearError] = useState("");
-    const [fileError, setFileError] = useState("");
     const [message, setMessage] = useState("");
     const [msgType, setMsgType] = useState("");
 
@@ -18,9 +19,9 @@ function StudentRegister() {
     const validateName = (e) => {
         const name = e.target.value.trim();
         if (name === "") {
-            setNameError("Company name is requried");
+            setNameError("Name is requried");
         } else if (name.length <= 3) {
-            setNameError("Company name must ne atleast 3 characters")
+            setNameError("Name must ne atleast 3 characters")
         } else if (!/^[A-Za-z\s.&-]+$/.test(name)) {
             setNameError("only letters, spaces, ., & and - are allowed")
         } else {
@@ -93,37 +94,11 @@ function StudentRegister() {
         }
 
     }
-    // const validateFile = (e) => {
 
-    //     const file = e.target.files[0];
-
-    //     if (!file) {
-    //         setFileError("Please upload a file");
-    //         return;
-    //     }
-
-    //     const allowedTypes = ["application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"];
-
-    //     if (!allowedTypes.includes(file.type)) {
-    //         setFileError("Only PDF or Word files are allowed");
-    //         return;
-    //     }
-
-    //     const maxSize = 2 * 1024 * 1024; // 2MB
-
-    //     if (file.size > maxSize) {
-    //         setFileError("File size must be less than 2MB");
-    //         return;
-    //     }
-
-    //     setFileError("");
-    // }
-
-    let header = {
-        headers: {
-            "Content-type": "Application/json"
-        }
-    }
+   const header = {
+           headers: {
+               "Content-Type": "application/json"           }
+       };
     const studentRegistration = (e) => {
         e.preventDefault();
         let name = document.getElementById("name").value;
@@ -131,6 +106,7 @@ function StudentRegister() {
         let phone = document.getElementById("phone").value;
         let password=document.getElementById("password").value;
         let rollNumber = document.getElementById("rollNumber").value;
+        let percentage = document.getElementById("percentage").value;
         let departmentId = document.getElementById("departmentId").value;
         let year = document.getElementById("year").value;
         
@@ -138,37 +114,60 @@ function StudentRegister() {
             "name": name,
             "phone": phone,
             "email": email,
-            "pssword":password,
+            "password":password,
+            "percentage":percentage,
             "rollNumber": rollNumber,
             "year": year,
             "departmentId": departmentId
         }
+        if (
+          nameError || emailError || phoneError || rollError ||
+          departmentError || yearError
+        ) {
+          setMessage("Please fix validation errors");
+          setMsgType("error");
+          return;
+        }
         axios.post(rest.student, data, header)
             .then(response => {
                 console.log(response.data);
-                if (response.data === "Student Registered Successfully") {
 
-                    setMessage(response.data);
+                // ✅ FIX: use response.data.message not response.message
+                const msg     = response.data.message || "";
+                const success = response.data.success;
+
+                if (success && msg === "Student Added Successfully.") {
+                    setMessage("✔ Registered successfully! Redirecting to login...");
                     setMsgType("success");
+                    setTimeout(() => navigate("/student-login"), 1500);
 
-                    setTimeout(() => {
-                        navigate("/student-login");
-                    }, 1500);
+                } else if (msg === "Student Already Exists") {
+                    setMessage("⚠ This email or roll number is already registered. Please login.");
+                    setMsgType("error");
 
                 } else {
-
-                    setMessage(response.data);
-                    setMsgType("error");
+                    setMessage(msg || "Registration completed.");
+                    setMsgType("success");
+                    setTimeout(() => navigate("/student-login"), 1500);
                 }
             })
             .catch(error => {
                 console.log(error);
-                setMessage("Something Went Wrong");
+                setMessage("Something went wrong. Please try again.");
                 setMsgType("error");
             });
-
-
-    }
+    };
+   const fetchDepartments = async () => {
+     try {
+       const res = await axios.get(rest.departments, header); // make sure this API exists
+        setDepartments(res.data?.data || res.data);
+     } catch (err) {
+       console.log(err);
+     }
+   };
+useEffect(() => {
+  fetchDepartments();
+}, []);
     return (
         <div className="">
             <div className="card w-50 m-auto p-5">
@@ -220,16 +219,18 @@ function StudentRegister() {
                         <div className=" col-6 p-3">
                             <div className="form-group">
                                 <label className="form-control-label">Departments</label>
-                                <select className="form-control" id="departmentId" onChange={validateDepartment}>
-                                    <option>Select Industry</option>
-                                    <option>Computer Science</option>
-                                    <option>Data Science</option>
-                                    <option>Artificial Intelligence</option>
-                                    <option>Information Technology</option>
-                                    <option>Electronics</option>
-                                    <option>Mechanical</option>
-                                    <option>Civil</option>
-                                    <option>Mathematics</option>
+                                <select
+                                      className="form-control"
+                                      id="departmentId"
+                                      onChange={validateDepartment}
+                                    >
+                                      <option value="">Select Department</option>
+
+                                      {departments.map((dept) => (
+                                        <option key={dept.departmentId} value={dept.departmentId}>
+                                          {dept.departmentName}
+                                        </option>
+                                      ))}
                                 </select>
                                 <p className="text-danger fs-p8">{departmentError}</p>
                             </div>
@@ -248,23 +249,21 @@ function StudentRegister() {
                             </div>
                         </div>
                     </div>
-                    {/* <div className="row">
+                    <div className="row">
                         <div className=" col-6 p-3">
                             <div className="form-group">
-                                <label className="form-control-label">Upload Resume</label>
-                                <input className="form-control" type="file" id="resume" onChange={validateFile} />
-                                <p className="text-danger">{fileError}</p>
+                                <label className="form-control-label">Percentage</label>
+                                <input className="form-control" type="text" id="percentage" placeholder="Enter percentage" />
                             </div>
                         </div>
-                    </div> */}
-                    <div className="row">
-                      <div className="col-6 p-3">
+                        <div className="col-6 p-3">
                         <div className="form-group">
                           <label className="form-control-label">Password</label>
                           <input className="form-control" type="password" id="password" placeholder="Enter password" />
                         </div>
                       </div>
                     </div>
+                
                     <div>
                         <input className="btn btn-primary mt-5" type="submit" name="Register" value="Register" />
                     </div>

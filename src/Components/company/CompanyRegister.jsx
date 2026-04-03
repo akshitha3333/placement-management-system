@@ -18,14 +18,12 @@ function CompanyRegister() {
     const [about, setAbout] = useState("");
     const navigate = useNavigate();
     const [file, setFile] = useState(null);
-      const [state, setState] = useState({});
+    const [state, setState] = useState({});
 
 
      
-           const fileSelectedHandler = (event) => {
-        setState({
-            selectedFile: event.target.files[0]
-        });
+    const fileSelectedHandler = (event) => {
+      setFile(event.target.files[0]);
     };
     const validateName=(e)=>{
         const name = e.target.value.trim();
@@ -116,14 +114,20 @@ function CompanyRegister() {
         }
 
     }
-     const header = {
-        headers: {
-            "Content-type": "multipart/form-data"
-        }
-    };
+    //  const header = {
+    //     headers: {
+    //         "Content-type": "multipart/form-data"
+    //     }
+    // };
     const CompanyRegistration = (e) => {
     e.preventDefault();
-
+    console.log(file);
+    
+    if (!file) {
+    setMessage("Please upload company logo");
+    setMsgType("error");
+    return;
+  } 
     let name = document.getElementById("name").value;
     let email = document.getElementById("email").value;
     let phone = document.getElementById("phone").value;
@@ -131,7 +135,6 @@ function CompanyRegister() {
     let location = document.getElementById("companylocation").value;
     let website = document.getElementById("website").value;
     let password  = document.getElementById("password").value;
-
     const formdata = new FormData();
     formdata.append("companyName", name);
     formdata.append("phone", phone);
@@ -142,13 +145,12 @@ function CompanyRegister() {
     formdata.append("latitude", latitude);
     formdata.append("longitude", longitude);
     formdata.append("about", about);
-    formdata.append("logo", state.selectedFile);
+    formdata.append("logo", file);
     formdata.append("password", password);
     console.log(state.selectedFile);
     console.log(rest.company);
-    
 
-    axios.post(rest.company, formdata,header)
+    axios.post(rest.company, formdata)
         .then(response => {
             if (response.data === "Company Registered Successfully") {
                 setMessage(response.data);
@@ -179,7 +181,7 @@ function CompanyRegister() {
         </svg>
         <h2>Company Registration</h2>
         <p className="text-secoundary fs-p9">Register your company for campus recruitment</p>
-        {message && <p className={msgType === "success" ? "text-sucess" : "text-danger"}>{message}</p>}
+        {message && <p className={msgType === "success" ? "text-succ0000000000000000ess" : "text-danger"}>{message}</p>}
       </div>
 
       <form onSubmit={CompanyRegistration} method="post">
