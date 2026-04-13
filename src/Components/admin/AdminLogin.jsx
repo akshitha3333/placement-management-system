@@ -56,7 +56,10 @@ let header = {
                 const result = response.data
                 console.log(result);
                 if (response.data.status){
-                    Cookies.set("token",result.data)
+                  console.log(response.data);
+                  
+                    Cookies.set("token",response.data.data)
+
                     navigate("/admin-page")
                 }else{
                     console.log("error");

@@ -58,15 +58,14 @@ function TutorLogin() {
             
             if (response.data.message === "Login Success.") {
 
-            //  localStorage.setItem("token", response.data.token);
-             Cookies.set("token",response.data);
+             Cookies.set("token",response.data.data);
              console.log(response.data);
             
                 setMessage(response.data.message);
                 setMsgType("success");
 
                 setTimeout(() => {
-                    navigate("/tutor-page ");
+                    navigate("/tutor-page");
                 }, 1500);
 
                 } else {

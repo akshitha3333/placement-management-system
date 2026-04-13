@@ -27,7 +27,6 @@ function AdminTutors() {
     try {
       const res = await axios.get(rest.tutor,header);
       console.log(res.data);
-      
       setTutors(res.data.data);
     } catch (err) {
       console.log(err);

@@ -14,6 +14,7 @@ function AdminCompanies() {
   // ── Try cookie first, fallback to localStorage ──
   const getToken = () =>
     Cookies.get('token') || localStorage.getItem('token') || "";
+  
 
   const getHeader = () => ({
     headers: {
@@ -31,7 +32,7 @@ function AdminCompanies() {
   /* ── Fetch all companies ── */
   useEffect(() => {
     const token = getToken();
-    console.log("TOKEN FOUND:", token ? "yes ✔" : "MISSING ✖");
+    console.log("TOKEN FOUND:", token ? "yes " : "MISSING ");
     console.log("TOKEN VALUE:", token);
 
     axios.get(rest.companys, getHeader())
@@ -65,9 +66,8 @@ function AdminCompanies() {
   const updateStatus = async (id, newStatus) => {
     setActionLoading(id);
     try {
-      await axios.put(
-        `${rest.companys}/${id}/status`,
-        { status: newStatus },
+      await axios.patch(
+        `${rest.companys}/${id}/verify`,
         getHeader()
       );
       setCompanies(prev =>
@@ -126,7 +126,7 @@ function AdminCompanies() {
           onMouseLeave={e => { e.currentTarget.style.background="rgba(156,163,175,0.15)"; e.currentTarget.style.color="#6b7280"; e.currentTarget.style.borderColor="#9ca3af"; }}
           onClick={() => updateStatus(id, "VERIFIED")}
         >
-          {busy ? "..." : "⊘ Unverified"}
+          {busy ? "..." : "Unverified"}
         </button>
       );
     }

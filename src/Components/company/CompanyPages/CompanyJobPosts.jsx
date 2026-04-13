@@ -5,7 +5,7 @@ const rest = require("../../../Rest");
 
 let header = {
         headers: {
-            "Content-type": "application/json",
+            "Content-type": "multipart/form-data",
             "Authorization": `Bearer ${Cookies.get('token')}`
         }
     }
@@ -72,54 +72,68 @@ function CompanyJobPosts() {
     setForm(prev => ({ ...prev, skillIds: prev.skillIds.filter(s => s !== id) }));
 
   const handleSubmit = e => {
-    e.preventDefault();
-    if (!form.tiitle.trim()) {
-      setMessage("Job title is required.");
-      setMsgType("error");
-      return;
+  e.preventDefault();
+
+  if (!form.tiitle.trim()) {
+    setMessage("Job title is required.");
+    setMsgType("error");
+    return;
+  }
+
+  if (!form.poster) {
+    setMessage("Poster image is required.");
+    setMsgType("error");
+    return;
+  }
+
+  setSubmitting(true);
+  setMessage("");
+
+  const formData = new FormData();
+
+  // Append all fields
+  formData.append("title", form.tiitle);
+  formData.append("description", form.description);
+  formData.append("requiredCandidate", form.requiredCandidate);
+  formData.append("postedDate", form.postedDate);
+  formData.append("lastDateToApply", form.lastDateToApply);
+  formData.append("eligiblePercentage", form.eligiblePercentage);
+
+  // Append array properly
+  form.skillIds.forEach(id => {
+    formData.append("skillIds", id);
+  });
+
+  // Append file
+  formData.append("poster", form.poster);
+
+  axios.post(rest.jobPost, formData, {
+    headers: {
+      Authorization: `Bearer ${Cookies.get("token")}`
+      // ❌ DO NOT set Content-Type manually
     }
-    if (!form.poster) {
-      setMessage("Poster image is required.");
-      setMsgType("error");
-      return;
-    }
-    setSubmitting(true);
-    setMessage("");
+  })
+  .then(res => {
+    const newPost = res.data.data || res.data;
 
-    // All text fields go as query params
-    const params = new URLSearchParams();
-    params.append("tiitle",             form.tiitle);
-    params.append("description",        form.description);
-    params.append("requiredCandidate",  form.requiredCandidate);
-    params.append("postedDate",         form.postedDate);
-    params.append("lastDateToApply",    form.lastDateToApply);
-    params.append("eligiblePercentage", form.eligiblePercentage);
-    form.skillIds.forEach(id => params.append("skillIds", id));
+    setPosts(prev => [newPost, ...prev]);
+    setShowModal(false);
+    setForm(emptyForm);
+    setPosterPreview(null);
+    setSkillInput("");
 
-    // Poster goes as multipart/form-data body
-    const formData = new FormData();
-    formData.append("poster", form.poster);
+    setMessage("Job posted successfully!");
+    setMsgType("success");
 
-    axios.post(rest.jobPost, formData, header)
-      .then(res => {
-        const newPost = res.data.data || res.data;
-        setPosts(prev => [newPost, ...prev]);
-        setShowModal(false);
-        setForm(emptyForm);
-        setPosterPreview(null);
-        setSkillInput("");
-        setMessage("Job posted successfully!");
-        setMsgType("success");
-        setTimeout(() => setMessage(""), 3000);
-      })
-      .catch(err => {
-        console.error("POST error:", err.response?.status, err.response?.data);
-        setMessage(err.response?.data?.message || "Failed to post job. Try again.");
-        setMsgType("error");
-      })
-      .finally(() => setSubmitting(false));
-  };
-
+    setTimeout(() => setMessage(""), 3000);
+  })
+  .catch(err => {
+    console.error("POST error:", err.response?.data);
+    setMessage(err.response?.data?.message || "Failed to post job.");
+    setMsgType("error");
+  })
+  .finally(() => setSubmitting(false));
+};
   const StatusBadge = ({ s }) => {
     const val = (s || "ACTIVE").toUpperCase();
     const map = {
@@ -277,7 +291,7 @@ function CompanyJobPosts() {
               {/* Job Title */}
               <div className="form-group mb-3">
                 <label className="form-control-label">Job Title *</label>
-                <input className="form-control" name="tiitle" value={form.tiitle}
+                <input className="form-control" name="tiitle" id="tiitle" value={form.tiitle}
                   onChange={handleChange} placeholder="e.g. Software Engineer" required />
               </div>
 

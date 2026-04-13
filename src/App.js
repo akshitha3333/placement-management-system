@@ -42,10 +42,11 @@ import StudentProfile from './Components/student/StudentPages/StudentProfile';
 
 // Tutor
 import TutorLogin from './Components/Tutor/TutorLogin';
-import TutorPage from './Components/Tutor/TutorPage';
+import TutorPage from './Components/Tutor/TutorPages/TutorPage';
 import TutorDashboard from './Components/Tutor/TutorPages/TutorDashboard';
 import TutorStudents from './Components/Tutor/TutorPages/TutorStudents';
 import TutorFeedback from './Components/Tutor/TutorPages/TutorFeedback';
+import TutorJobposts from './Components/Tutor/TutorPages/TutorJobposts'
 import TutorMeetings from './Components/Tutor/TutorPages/TutorMeetings';
 import TutorPlacementReport from './Components/Tutor/TutorPages/TutorPlacementReport';
 
@@ -104,11 +105,12 @@ function App() {
             </Route>
 
           {/* tutors */}
-            <Route path='/tutor-login' Component={TutorLogin}></Route>
+            <Route path='/tutor-login' element={<TutorLogin/>}></Route>
             <Route path='/tutor-page' element={<TutorPage />}>
             <Route index element={<TutorDashboard />} />
             <Route path='dashboard' element={<TutorDashboard />} />
             <Route path='students' element={<TutorStudents />} />
+            <Route path='job-posts' element={<TutorJobposts />} />
             <Route path='feedback' element={<TutorFeedback />} />
             <Route path='meetings' element={<TutorMeetings />} />
             <Route path='placement-report' element={<TutorPlacementReport />} />

@@ -9,10 +9,10 @@ function StudentDashboard() {
 
   // UI mock stats — replace with real API
   const stats = [
-    { label: "Jobs Available", value: 18, icon: "💼", color: "#325563", path: "/student-page/job-posts" },
-    { label: "Applications", value: 4, icon: "📄", color: "#0ea5e9", path: "/student-page/applications" },
-    { label: "Interviews", value: 2, icon: "📅", color: "#f59e0b", path: "/student-page/interviews" },
-    { label: "Offers", value: 1, icon: "🎯", color: "#16a34a", path: "/student-page/offers" },
+    { label: "Jobs Available", value: 0, icon: "💼", color: "#325563", path: "/student-page/job-posts" },
+    { label: "Applications", value: 0, icon: "📄", color: "#0ea5e9", path: "/student-page/applications" },
+    { label: "Interviews", value: 0, icon: "📅", color: "#f59e0b", path: "/student-page/interviews" },
+    { label: "Offers", value: 0, icon: "🎯", color: "#16a34a", path: "/student-page/offers" },
   ];
 
   const recentJobs = [

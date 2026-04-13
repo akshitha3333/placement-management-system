@@ -1,4 +1,4 @@
-import TutorNav from "./TutorNav";
+import TutorNav from "../TutorNav";
 import { Outlet } from "react-router-dom";
 
 function TutorPage() {
