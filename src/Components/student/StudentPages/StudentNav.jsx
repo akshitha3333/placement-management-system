@@ -26,6 +26,7 @@ function StudentNav({ children }) {
 
         <p className="fs-p8 text-gray-300 mb-1 mt-3">JOBS</p>
         {navItem("/student-page/job-posts", "💼", "Browse Jobs")}
+        {navItem("/student-page/student-recommended", "💼", "Recommended Jobs")}
         {navItem("/student-page/applications", "📄", "My Applications")}
 
         <p className="fs-p8 text-gray-300 mb-1 mt-3">PROCESS</p>

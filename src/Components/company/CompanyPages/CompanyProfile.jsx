@@ -1,111 +1,264 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
+import Cookies from "js-cookie";
+const rest = require("../../../Rest");
 
 function CompanyProfile() {
-  const [profile, setProfile] = useState({
-    companyName: "", industry: "", email: "", phone: "", website: "",
-    address: "", city: "", state: "", description: "", founded: ""
-  });
-  const [editing, setEditing] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [saved, setSaved] = useState(false);
+  const [profile,  setProfile]  = useState(null);
+  const [form,     setForm]     = useState({});
+  const [editing,  setEditing]  = useState(false);
+  const [loading,  setLoading]  = useState(true);
+  const [saving,   setSaving]   = useState(false);
+  const [message,  setMessage]  = useState("");
+  const [msgType,  setMsgType]  = useState("");
 
-  const header = { headers: { "Content-type": "application/json", Authorization: `Bearer ${localStorage.getItem("companyToken")}` } };
-
-  useEffect(() => {
-    axios.get("/api/company/profile", header)
-      .then(res => { setProfile(res.data.data || res.data || {}); setLoading(false); })
-      .catch(() => setLoading(false));
-  }, []);
-
-  const handleSave = () => {
-    axios.put("/api/company/profile", profile, header)
-      .then(() => { setEditing(false); setSaved(true); setTimeout(() => setSaved(false), 3000); })
-      .catch(console.error);
+  const header = {
+    headers: {
+      "Content-Type": "application/json",
+      Authorization:  `Bearer ${Cookies.get("token")}`,
+    },
   };
 
-  const handleChange = e => setProfile({ ...profile, [e.target.name]: e.target.value });
+  // ── GET /api/actors/companys ───────────────────────────
+  useEffect(() => {
+    const init = async () => {
+      try {
+        const res  = await axios.get(rest.companys, header);
+        const list = res.data?.data || res.data || [];
+        const me   = Array.isArray(list) ? list[0] : list;
+        setProfile(me);
+        setForm({
+          companyName:  me?.companyName  || "",
+          noOfEmployee: me?.noOfEmployee || "",
+          website:      me?.website      || "",
+          about:        me?.about        || "",
+        });
+      } catch (err) {
+        console.error("fetchProfile:", err);
+        setMessage("Failed to load profile.");
+        setMsgType("error");
+      } finally {
+        setLoading(false);
+      }
+    };
+    init();
+  }, []);
 
-  if (loading) return <p className="p-5">Loading...</p>;
+  // ── PATCH /api/actors/companys/{companyId} ─────────────
+  const handleSave = async () => {
+    setSaving(true);
+    setMessage("");
+    try {
+      const companyId = profile?.companyId || profile?.id;
+      await axios.patch(`${rest.companys}/${companyId}`, form, header);
+      setProfile((prev) => ({ ...prev, ...form }));
+      setEditing(false);
+      setMessage("Profile updated successfully!");
+      setMsgType("success");
+      setTimeout(() => setMessage(""), 3000);
+    } catch (err) {
+      console.error("saveProfile:", err);
+      setMessage(err.response?.data?.message || "Failed to save profile.");
+      setMsgType("error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleChange = (e) =>
+    setForm({ ...form, [e.target.name]: e.target.value });
+
+  const cancelEdit = () => {
+    setEditing(false);
+    setForm({
+      companyName:  profile?.companyName  || "",
+      noOfEmployee: profile?.noOfEmployee || "",
+      website:      profile?.website      || "",
+      about:        profile?.about        || "",
+    });
+    setMessage("");
+  };
+
+  if (loading)
+    return <div className="p-5 text-center"><p>Loading profile...</p></div>;
+
+  const dept  = profile?.departmentModel?.departmentName || "—";
+  const email = profile?.userModel?.email || "—";
 
   return (
     <div className="p-4">
+      {/* ── Header ── */}
       <div className="row space-between items-center mb-4">
         <div>
           <h2 className="fs-5 bold">Company Profile</h2>
           <p className="fs-p9 text-secondary">Manage your company information</p>
         </div>
         {!editing ? (
-          <button className="btn btn-primary w-auto" onClick={() => setEditing(true)}>✏️ Edit Profile</button>
+          <button className="btn btn-primary w-auto" onClick={() => setEditing(true)}>
+            ✏️ Edit Profile
+          </button>
         ) : (
           <div className="row" style={{ gap: "10px" }}>
-            <button className="btn btn-primary w-auto" onClick={handleSave}>💾 Save</button>
-            <button className="btn btn-muted w-auto" onClick={() => setEditing(false)}>Cancel</button>
+            <button className="btn btn-primary w-auto" onClick={handleSave} disabled={saving}>
+              {saving ? "Saving..." : "💾 Save"}
+            </button>
+            <button className="btn btn-muted w-auto" onClick={cancelEdit}>Cancel</button>
           </div>
         )}
       </div>
 
-      {saved && <div className="card p-2 mb-3" style={{ background: "rgba(22,163,74,0.1)", border: "1px solid #16a34a" }}>
-        <p className="text-success">✅ Profile saved successfully!</p>
-      </div>}
+      {/* ── Message ── */}
+      {message && (
+        <div
+          className="card p-2 mb-3 fs-p9"
+          style={{
+            background: msgType === "success" ? "rgba(22,163,74,0.1)" : "rgba(220,38,38,0.1)",
+            border:     `1px solid ${msgType === "success" ? "#16a34a" : "#dc2626"}`,
+            color:      msgType === "success" ? "#16a34a" : "#dc2626",
+          }}
+        >
+          {msgType === "success" ? "✅" : "⚠️"} {message}
+        </div>
+      )}
 
-      {/* Company Header Card */}
-      <div className="card p-5 mb-4">
+      {/* ── Banner Card ── */}
+      <div className="card p-5 mb-4" style={{ background: "linear-gradient(135deg, #0b2e40, #325563)", border: "none" }}>
         <div className="row items-center" style={{ gap: "20px" }}>
-          <div className="bg-primary text-white br-circle" style={{ width: "72px", height: "72px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "2rem", flexShrink: 0 }}>
+          <div
+            className="text-white br-circle"
+            style={{
+              width:           "72px",
+              height:          "72px",
+              display:         "flex",
+              alignItems:      "center",
+              justifyContent:  "center",
+              fontSize:        "2rem",
+              flexShrink:      0,
+              background:      "rgba(255,255,255,0.15)",
+            }}
+          >
             🏢
           </div>
-          <div>
-            {editing ? (
-              <input className="form-control" name="companyName" value={profile.companyName} onChange={handleChange} placeholder="Company Name" style={{ fontSize: "1.3rem", fontWeight: "bold", marginBottom: "8px" }} />
-            ) : <h3 className="bold">{profile.companyName || "Company Name"}</h3>}
-            <p className="text-secondary fs-p9">{profile.industry || "Industry"} &nbsp;|&nbsp; {profile.city || "City"}, {profile.state || "State"}</p>
+          <div style={{ color: "white" }}>
+            <h3 className="bold">{profile?.companyName || "Your Company"}</h3>
+            <p className="fs-p9" style={{ opacity: 0.8 }}>
+              {dept} &nbsp;|&nbsp; {email}
+            </p>
           </div>
         </div>
       </div>
 
-      {/* Details */}
+      {/* ── Detail Cards ── */}
       <div className="row">
+        {/* Editable Fields */}
         <div className="col-6 p-2">
-          <div className="card p-4 h-100">
-            <h4 className="mb-3">📋 Basic Information</h4>
-            {[
-              { label: "Industry", name: "industry", placeholder: "e.g. Information Technology" },
-              { label: "Email", name: "email", placeholder: "company@email.com" },
-              { label: "Phone", name: "phone", placeholder: "+91 XXXXXXXXXX" },
-              { label: "Website", name: "website", placeholder: "https://company.com" },
-              { label: "Founded Year", name: "founded", placeholder: "2010" },
-            ].map(field => (
-              <div className="form-group mb-2" key={field.name}>
-                <label className="form-control-label">{field.label}</label>
-                {editing ? (
-                  <input className="form-control" name={field.name} value={profile[field.name] || ""} onChange={handleChange} placeholder={field.placeholder} />
-                ) : <p className="fs-p9 p-2" style={{ background: "#f9fafb", borderRadius: "8px" }}>{profile[field.name] || <span className="text-secondary">Not set</span>}</p>}
-              </div>
-            ))}
+          <div className="card p-4">
+            <h4 className="mb-3">📋 Company Details</h4>
+
+            {/* Company Name */}
+            <div className="form-group mb-3">
+              <label className="form-control-label">Company Name</label>
+              {editing ? (
+                <input
+                  className="form-control"
+                  name="companyName"
+                  value={form.companyName}
+                  onChange={handleChange}
+                  placeholder="Enter company name"
+                />
+              ) : (
+                <p className="fs-p9 p-2" style={{ background: "#f9fafb", borderRadius: "8px" }}>
+                  {profile?.companyName || <span className="text-secondary">Not set</span>}
+                </p>
+              )}
+            </div>
+
+            {/* No. of Employees */}
+            <div className="form-group mb-3">
+              <label className="form-control-label">Number of Employees</label>
+              {editing ? (
+                <input
+                  className="form-control"
+                  name="noOfEmployee"
+                  value={form.noOfEmployee}
+                  onChange={handleChange}
+                  placeholder="e.g. 500"
+                  type="number"
+                />
+              ) : (
+                <p className="fs-p9 p-2" style={{ background: "#f9fafb", borderRadius: "8px" }}>
+                  {profile?.noOfEmployee || <span className="text-secondary">Not set</span>}
+                </p>
+              )}
+            </div>
+
+            {/* Website */}
+            <div className="form-group mb-3">
+              <label className="form-control-label">Website</label>
+              {editing ? (
+                <input
+                  className="form-control"
+                  name="website"
+                  value={form.website}
+                  onChange={handleChange}
+                  placeholder="https://yourcompany.com"
+                />
+              ) : (
+                <p className="fs-p9 p-2" style={{ background: "#f9fafb", borderRadius: "8px" }}>
+                  {profile?.website ? (
+                    <a href={profile.website} target="_blank" rel="noreferrer" className="text-link">
+                      {profile.website}
+                    </a>
+                  ) : (
+                    <span className="text-secondary">Not set</span>
+                  )}
+                </p>
+              )}
+            </div>
           </div>
         </div>
 
+        {/* Read-only + About */}
         <div className="col-6 p-2">
-          <div className="card p-4 h-100">
-            <h4 className="mb-3">📍 Address & Description</h4>
-            {[
-              { label: "Address", name: "address" },
-              { label: "City", name: "city" },
-              { label: "State", name: "state" },
-            ].map(field => (
-              <div className="form-group mb-2" key={field.name}>
-                <label className="form-control-label">{field.label}</label>
-                {editing ? (
-                  <input className="form-control" name={field.name} value={profile[field.name] || ""} onChange={handleChange} />
-                ) : <p className="fs-p9 p-2" style={{ background: "#f9fafb", borderRadius: "8px" }}>{profile[field.name] || <span className="text-secondary">Not set</span>}</p>}
-              </div>
-            ))}
-            <div className="form-group mb-2">
+          <div className="card p-4">
+            <h4 className="mb-3">📍 Account Info</h4>
+
+            {/* Email (read-only from userModel) */}
+            <div className="form-group mb-3">
+              <label className="form-control-label">Registered Email</label>
+              <p className="fs-p9 p-2" style={{ background: "#f9fafb", borderRadius: "8px" }}>
+                {email}
+              </p>
+            </div>
+
+            {/* Department (read-only) */}
+            <div className="form-group mb-3">
+              <label className="form-control-label">Department / Sector</label>
+              <p className="fs-p9 p-2" style={{ background: "#f9fafb", borderRadius: "8px" }}>
+                {dept}
+              </p>
+            </div>
+
+            {/* About */}
+            <div className="form-group mb-3">
               <label className="form-control-label">About Company</label>
               {editing ? (
-                <textarea className="form-control" rows="4" name="description" value={profile.description || ""} onChange={handleChange} placeholder="Describe your company..." />
-              ) : <p className="fs-p9 p-2" style={{ background: "#f9fafb", borderRadius: "8px", minHeight: "80px" }}>{profile.description || <span className="text-secondary">Not set</span>}</p>}
+                <textarea
+                  className="form-control"
+                  name="about"
+                  rows="4"
+                  value={form.about}
+                  onChange={handleChange}
+                  placeholder="Describe your company, culture, vision..."
+                />
+              ) : (
+                <p
+                  className="fs-p9 p-2"
+                  style={{ background: "#f9fafb", borderRadius: "8px", minHeight: "80px" }}
+                >
+                  {profile?.about || <span className="text-secondary">No description added yet</span>}
+                </p>
+              )}
             </div>
           </div>
         </div>

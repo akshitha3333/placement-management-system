@@ -33,8 +33,11 @@ import CompanyProfile from './Components/company/CompanyPages/CompanyProfile';
 // Students
 import StudentRegister from './Components/student/StudentRegister';
 import StudentLogin from './Components/student/StudentLogin';
-import StudentDashboard from './Components/student/StudentPages/StudentDashboard';import StudentPage from './Components/student/StudentPage';
-import StudentJobPosts from './Components/student/StudentPages/StudentsJobPosts';import StudentApplications from './Components/student/StudentPages/StudentApplications';
+import StudentDashboard from './Components/student/StudentPages/StudentDashboard';
+import StudentPage from './Components/student/StudentPages/StudentPage';
+import StudentJobPosts from './Components/student/StudentPages/StudentsJobPosts';
+import StudentRecommended from './Components/student/StudentPages/StudentRecommended';
+import StudentApplications from './Components/student/StudentPages/StudentApplications';
 import StudentInterviews from './Components/student/StudentPages/StudentInterviews';
 import StudentOffers from './Components/student/StudentPages/StudentOffers';
 import StudentMeetings from './Components/student/StudentPages/StudentMeetings';
@@ -97,6 +100,7 @@ function App() {
             <Route index element={<StudentDashboard />} />
             <Route path='dashboard' element={<StudentDashboard />} />
             <Route path='job-posts' element={<StudentJobPosts />} />
+            <Route path='student-recommended' element={<StudentRecommended />} />
             <Route path='applications' element={<StudentApplications />} />
             <Route path='interviews' element={<StudentInterviews />} />
             <Route path='offers' element={<StudentOffers />} />

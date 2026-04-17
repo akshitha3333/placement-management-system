@@ -1,133 +1,251 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
+import Cookies from "js-cookie";
+const rest = require("../../../Rest");
 
 function TutorPlacementReport() {
-  const [students, setStudents] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [selectedStudent, setSelectedStudent] = useState(null);
-  const [reportForm, setReportForm] = useState({ remarks: "", placedCompany: "", package: "", joiningDate: "" });
-  const [uploading, setUploading] = useState(false);
+  const [students,     setStudents]     = useState([]);
+  const [suggestions,  setSuggestions]  = useState([]);
+  const [loading,      setLoading]      = useState(true);
+  const [error,        setError]        = useState("");
   const [filterStatus, setFilterStatus] = useState("");
+  const [search,       setSearch]       = useState("");
+  const [tutor,        setTutor]        = useState(null);
 
-  const header = { headers: { "Content-type": "application/json", Authorization: `Bearer ${localStorage.getItem("tutorToken")}` } };
-
-  useEffect(() => {
-    axios.get("/api/tutor/placement-report", header)
-      .then(res => { setStudents(res.data.data || res.data || []); setLoading(false); })
-      .catch(() => setLoading(false));
-  }, []);
-
-  const handleUploadReport = (e) => {
-    const file = e.target.files[0];
-    if (!file || !selectedStudent) return;
-    setUploading(true);
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("studentId", selectedStudent.id);
-    Object.entries(reportForm).forEach(([k, v]) => formData.append(k, v));
-
-    axios.post("/api/tutor/placement-report/upload", formData, {
-      headers: { "Content-type": "multipart/form-data", Authorization: `Bearer ${localStorage.getItem("tutorToken")}` }
-    }).then(() => {
-      setStudents(prev => prev.map(s => s.id === selectedStudent.id ? { ...s, reportUploaded: true, ...reportForm } : s));
-      setSelectedStudent(null);
-      setReportForm({ remarks: "", placedCompany: "", package: "", joiningDate: "" });
-      setUploading(false);
-    }).catch(() => setUploading(false));
+  const header = {
+    headers: {
+      "Content-Type": "application/json",
+      Authorization:  `Bearer ${Cookies.get("token")}`,
+    },
   };
 
-  const filtered = students.filter(s => !filterStatus || (filterStatus === "Placed" ? s.placementStatus === "Placed" : filterStatus === "Report Uploaded" ? s.reportUploaded : filterStatus === "Pending" ? !s.reportUploaded && s.placementStatus !== "Placed" : true));
+  useEffect(() => {
+    const init = async () => {
+      try {
+        // 1. Tutor profile
+        const tutorRes  = await axios.get(rest.tutor, header);
+        const tutorList = tutorRes.data?.data || tutorRes.data || [];
+        const t         = Array.isArray(tutorList) ? tutorList[0] : tutorList;
+        setTutor(t);
 
-  const statusColor = (s) => ({
-    Placed: ["rgba(22,163,74,0.1)", "#16a34a"],
-    "In Process": ["rgba(14,165,233,0.1)", "#0ea5e9"],
-    "Not Applied": ["rgba(107,114,128,0.1)", "#6b7280"],
-  }[s] || ["rgba(107,114,128,0.1)", "#6b7280"]);
+        // 2. All students
+        const stuRes  = await axios.get(rest.students, header);
+        const stuList = stuRes.data?.data || stuRes.data || [];
+        setStudents(Array.isArray(stuList) ? stuList : []);
+
+        // 3. All job suggestions (to know who was assigned)
+        const sugRes  = await axios.get(rest.jobSuggestions, header);
+        const sugList = sugRes.data?.data || sugRes.data || [];
+        setSuggestions(Array.isArray(sugList) ? sugList : []);
+      } catch (err) {
+        console.error("TutorPlacementReport init:", err);
+        setError("Failed to load placement data.");
+      } finally {
+        setLoading(false);
+      }
+    };
+    init();
+  }, []);
+
+  // ── Helpers ────────────────────────────────────────────
+  const getName  = (s) => s.name || s.studentName || "Student";
+  const getEmail = (s) => s.userModel?.email || s.email || "—";
+  const getDept  = (s) => s.departmentModel?.departmentName || "—";
+  const getCgpa  = (s) => s.cgpa || s.marks || "—";
+
+  // Which students have been assigned at least one job?
+  const assignedStudentIds = new Set(
+    suggestions.map((sg) => {
+      const sm = sg.studentModel;
+      return String(sm?.studentId || sm?.id || sg.studentId || "");
+    })
+  );
+
+  const getPlacementStatus = (s) => {
+    const sid = String(s.studentId || s.id || "");
+    if (assignedStudentIds.has(sid)) return "Assigned";
+    return "Not Assigned";
+  };
+
+  // Filter students to tutor's department
+  const tutorDeptId = tutor?.departmentModel?.departmentId || tutor?.departmentId;
+  const myStudents  = students.filter((s) => {
+    if (!tutorDeptId) return true;
+    const sd = s?.departmentModel?.departmentId || s?.departmentId;
+    return String(sd) === String(tutorDeptId);
+  });
+
+  const assigned    = myStudents.filter((s) => getPlacementStatus(s) === "Assigned");
+  const notAssigned = myStudents.filter((s) => getPlacementStatus(s) === "Not Assigned");
+
+  const filtered = myStudents.filter((s) => {
+    const matchStatus =
+      !filterStatus ||
+      (filterStatus === "Assigned"     && getPlacementStatus(s) === "Assigned") ||
+      (filterStatus === "Not Assigned" && getPlacementStatus(s) === "Not Assigned");
+
+    const q = search.toLowerCase();
+    const matchSearch =
+      !q ||
+      getName(s).toLowerCase().includes(q) ||
+      getEmail(s).toLowerCase().includes(q);
+
+    return matchStatus && matchSearch;
+  });
+
+  const placementRate = myStudents.length
+    ? Math.round((assigned.length / myStudents.length) * 100)
+    : 0;
 
   return (
     <div className="p-4">
       <h2 className="fs-5 bold mb-1">Placement Report</h2>
-      <p className="fs-p9 text-secondary mb-4">View and upload student placement reports</p>
+      <p className="fs-p9 text-secondary mb-4">
+        Overview of your students' placement status
+      </p>
 
-      {/* Stats */}
+      {/* ── Stats ── */}
       <div className="row mb-4">
         {[
-          { label: "Total Students", value: students.length, color: "#325563" },
-          { label: "Placed", value: students.filter(s => s.placementStatus === "Placed").length, color: "#16a34a" },
-          { label: "Reports Uploaded", value: students.filter(s => s.reportUploaded).length, color: "#0ea5e9" },
-          { label: "Pending Report", value: students.filter(s => s.placementStatus === "Placed" && !s.reportUploaded).length, color: "#f59e0b" },
+          { label: "Total Students",  value: myStudents.length,   color: "#325563" },
+          { label: "Assigned to Jobs",value: assigned.length,     color: "#16a34a" },
+          { label: "Not Assigned",    value: notAssigned.length,  color: "#f59e0b" },
+          { label: "Placement Rate",  value: `${placementRate}%`, color: "#0ea5e9" },
         ].map((s, i) => (
           <div className="col-3 p-2" key={i}>
-            <div className="card p-3 stat-card text-center">
-              <h3 className="bold" style={{ color: s.color }}>{s.value}</h3>
+            <div className="card p-4 stat-card text-center">
+              <h2 className="bold" style={{ color: s.color }}>
+                {loading ? "…" : s.value}
+              </h2>
               <p className="fs-p9 text-secondary">{s.label}</p>
             </div>
           </div>
         ))}
       </div>
 
-      {/* Filter */}
-      <div className="row mb-4" style={{ gap: "12px" }}>
-        <div className="col-3 p-0">
-          <select className="form-control" value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
-            <option value="">All Students</option>
-            <option value="Placed">Placed</option>
-            <option value="Report Uploaded">Report Uploaded</option>
-            <option value="Pending">Pending Report</option>
+      {/* ── Progress Bar ── */}
+      <div className="card p-4 mb-4" style={{ background: "linear-gradient(135deg, #f0f9f4, #e8f4f8)", border: "none" }}>
+        <div className="row space-between items-center mb-2">
+          <h4>📈 Overall Placement Rate</h4>
+          <span className="bold" style={{ color: "#325563", fontSize: "1.2rem" }}>
+            {placementRate}%
+          </span>
+        </div>
+        <div style={{ height: "12px", background: "#e5e7eb", borderRadius: "6px" }}>
+          <div
+            style={{
+              width:        `${placementRate}%`,
+              height:       "12px",
+              background:   "linear-gradient(90deg, #325563, #4A788C)",
+              borderRadius: "6px",
+              transition:   "width 0.5s",
+            }}
+          />
+        </div>
+        <p className="fs-p8 text-secondary mt-2">
+          {assigned.length} of {myStudents.length} students assigned to job opportunities
+        </p>
+      </div>
+
+      {/* ── Filters ── */}
+      <div className="row space-between items-center mb-3">
+        <h4>👥 Student List</h4>
+        <div className="row" style={{ gap: "10px" }}>
+          <input
+            type="text"
+            className="form-control"
+            placeholder="Search name or email..."
+            style={{ width: "200px" }}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          <select
+            className="form-control"
+            style={{ width: "160px" }}
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+          >
+            <option value="">All Status</option>
+            <option value="Assigned">Assigned</option>
+            <option value="Not Assigned">Not Assigned</option>
           </select>
         </div>
       </div>
 
-      {/* Table */}
+      {/* ── Table ── */}
       <div className="card p-2">
-        {loading ? <p className="text-center p-4">Loading...</p> : (
+        {loading ? (
+          <p className="text-center p-4">Loading students...</p>
+        ) : error ? (
+          <p className="p-4 text-danger">{error}</p>
+        ) : filtered.length === 0 ? (
+          <div className="text-center p-5">
+            <p style={{ fontSize: "2.5rem" }}>🔍</p>
+            <p className="bold mt-2">No students found</p>
+          </div>
+        ) : (
           <table className="w-100">
             <thead>
               <tr>
+                <th>#</th>
                 <th>Student</th>
+                <th>Email</th>
                 <th>Department</th>
-                <th>CGPA</th>
-                <th>Placement</th>
-                <th>Company</th>
-                <th>Package</th>
-                <th>Report</th>
-                <th>Actions</th>
+                <th>CGPA / Marks</th>
+                <th>Status</th>
+                <th>Jobs Assigned</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.length === 0 ? (
-                <tr><td colSpan="8" className="text-center p-4 text-secondary">No students found</td></tr>
-              ) : filtered.map(s => {
-                const [bg, color] = statusColor(s.placementStatus || "Not Applied");
+              {filtered.map((s, i) => {
+                const sid     = String(s.studentId || s.id || "");
+                const status  = getPlacementStatus(s);
+                const jobsAssigned = suggestions.filter((sg) => {
+                  const sm = sg.studentModel;
+                  return String(sm?.studentId || sm?.id || sg.studentId || "") === sid;
+                }).length;
+
                 return (
-                  <tr key={s.id} className="hover-bg">
+                  <tr key={s.studentId || i} className="hover-bg">
+                    <td className="text-secondary fs-p9">{i + 1}</td>
                     <td>
-                      <div className="bold">{s.name}</div>
-                      <div className="fs-p8 text-secondary">{s.email}</div>
+                      <div className="row items-center" style={{ gap: "8px" }}>
+                        <div
+                          className="bg-primary text-white br-circle"
+                          style={{
+                            width:          "32px",
+                            height:         "32px",
+                            display:        "flex",
+                            alignItems:     "center",
+                            justifyContent: "center",
+                            fontWeight:     "bold",
+                            fontSize:       "0.85rem",
+                            flexShrink:     0,
+                          }}
+                        >
+                          {getName(s).charAt(0).toUpperCase()}
+                        </div>
+                        <div className="bold fs-p9">{getName(s)}</div>
+                      </div>
                     </td>
-                    <td>{s.department}</td>
-                    <td className="bold">{s.cgpa}</td>
+                    <td className="fs-p8 text-secondary">{getEmail(s)}</td>
+                    <td>{getDept(s)}</td>
+                    <td className="bold">{getCgpa(s)}</td>
                     <td>
-                      <span className="status-item fs-p8" style={{ background: bg, color }}>
-                        {s.placementStatus || "Not Applied"}
+                      <span
+                        className="status-item"
+                        style={{
+                          background: status === "Assigned"
+                            ? "rgba(22,163,74,0.1)"
+                            : "rgba(245,158,11,0.1)",
+                          color:      status === "Assigned" ? "#16a34a" : "#f59e0b",
+                        }}
+                      >
+                        {status}
                       </span>
                     </td>
-                    <td>{s.placedCompany || <span className="text-secondary">—</span>}</td>
-                    <td>{s.package ? <span className="bold text-success">{s.package} LPA</span> : <span className="text-secondary">—</span>}</td>
-                    <td>
-                      {s.reportUploaded
-                        ? <span className="status-item fs-p8" style={{ background: "rgba(22,163,74,0.1)", color: "#16a34a" }}>✅ Uploaded</span>
-                        : <span className="fs-p8 text-secondary">Not uploaded</span>
-                      }
-                    </td>
-                    <td>
-                      <button
-                        className="btn btn-primary w-auto"
-                        style={{ padding: "4px 10px", fontSize: "0.75rem" }}
-                        onClick={() => setSelectedStudent(s)}
-                      >
-                        {s.reportUploaded ? "Update" : "Upload"}
-                      </button>
+                    <td className="text-center bold" style={{ color: "#325563" }}>
+                      {jobsAssigned || "—"}
                     </td>
                   </tr>
                 );
@@ -136,55 +254,6 @@ function TutorPlacementReport() {
           </table>
         )}
       </div>
-
-      {/* Upload Report Modal */}
-      {selectedStudent && (
-        <div className="modal-overlay">
-          <div className="card p-5" style={{ width: "480px", maxWidth: "95%" }}>
-            <h3 className="mb-1">Upload Placement Report</h3>
-            <p className="fs-p9 text-secondary mb-3">For: <span className="bold">{selectedStudent.name}</span></p>
-
-            <div className="form-group mb-2">
-              <label className="form-control-label">Placed Company</label>
-              <input className="form-control" placeholder="e.g. TechCorp Pvt Ltd" value={reportForm.placedCompany} onChange={e => setReportForm({ ...reportForm, placedCompany: e.target.value })} />
-            </div>
-
-            <div className="row mb-2" style={{ gap: "10px" }}>
-              <div className="col-6 p-0">
-                <label className="form-control-label">Package (LPA)</label>
-                <input className="form-control" placeholder="e.g. 8.5" value={reportForm.package} onChange={e => setReportForm({ ...reportForm, package: e.target.value })} />
-              </div>
-              <div className="col-6 p-0">
-                <label className="form-control-label">Joining Date</label>
-                <input type="date" className="form-control" value={reportForm.joiningDate} onChange={e => setReportForm({ ...reportForm, joiningDate: e.target.value })} />
-              </div>
-            </div>
-
-            <div className="form-group mb-2">
-              <label className="form-control-label">Remarks</label>
-              <textarea className="form-control" rows="2" placeholder="Any notes about this placement..." value={reportForm.remarks} onChange={e => setReportForm({ ...reportForm, remarks: e.target.value })} />
-            </div>
-
-            <div className="form-group mb-3">
-              <label className="form-control-label">Upload Report File (PDF)</label>
-              <input
-                type="file"
-                accept=".pdf,.doc,.docx"
-                className="form-control"
-                onChange={handleUploadReport}
-                disabled={uploading}
-              />
-              <p className="fs-p8 text-secondary mt-1">Accepted: PDF, DOC, DOCX</p>
-            </div>
-
-            <div className="row" style={{ gap: "10px" }}>
-              <button className="btn btn-muted" onClick={() => setSelectedStudent(null)}>Cancel</button>
-            </div>
-
-            {uploading && <p className="text-secondary fs-p9 mt-2 text-center">Uploading...</p>}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

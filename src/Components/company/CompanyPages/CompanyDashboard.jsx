@@ -1,98 +1,213 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
+import Cookies from "js-cookie";
+const rest = require("../../../Rest");
 
 function CompanyDashboard() {
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(false);
+  const [jobs,        setJobs]        = useState([]);
+  const [company,     setCompany]     = useState(null);
+  const [loading,     setLoading]     = useState(true);
 
-  // Mock data for UI (replace with real API calls)
-  const stats = [
-    { title: "Active Job Posts", value: 5, sub: "2 closing soon", icon: "💼" },
-    { title: "Total Applications", value: 128, sub: "+12 this week", icon: "📄" },
-    { title: "Shortlisted", value: 34, sub: "Pending review", icon: "✅" },
-    { title: "Offers Released", value: 8, sub: "4 accepted", icon: "🎯" },
+  const header = {
+    headers: {
+      "Content-Type": "application/json",
+      Authorization:  `Bearer ${Cookies.get("token")}`,
+    },
+  };
+
+  useEffect(() => {
+    const init = async () => {
+      try {
+        // Fetch job posts
+        const jobRes  = await axios.get(rest.jobPost, header);
+        const jobList = jobRes.data?.data || jobRes.data || [];
+        setJobs(Array.isArray(jobList) ? jobList : []);
+
+        // Fetch company profile
+        const compRes  = await axios.get(rest.companys, header);
+        const compList = compRes.data?.data || compRes.data || [];
+        const me       = Array.isArray(compList) ? compList[0] : compList;
+        setCompany(me);
+      } catch (err) {
+        console.error("Dashboard init:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    init();
+  }, []);
+
+  const quickActions = [
+    { label: "Post New Job",       icon: "➕", path: "/company-page/job-posts",    color: "#325563" },
+    { label: "View Shortlisted",   icon: "✅", path: "/company-page/shortlisted",  color: "#16a34a" },
+    { label: "Schedule Interview", icon: "📅", path: "/company-page/interviews",   color: "#0ea5e9" },
+    { label: "Release Offer",      icon: "🎯", path: "/company-page/offers",       color: "#f59e0b" },
   ];
 
-  const recentApplications = [
-    { name: "Arjun Kumar", dept: "CSE", job: "Software Engineer", cgpa: 8.9, status: "Applied" },
-    { name: "Priya Sharma", dept: "ECE", job: "Embedded Engineer", cgpa: 8.2, status: "Shortlisted" },
-    { name: "Rahul Mehta", dept: "CSE", job: "Software Engineer", cgpa: 9.1, status: "Interviewed" },
-    { name: "Sneha Reddy", dept: "IT", job: "DevOps Engineer", cgpa: 7.8, status: "Applied" },
-  ];
-
-  const statusColor = (s) => ({
-    Applied: ["rgba(14,165,233,0.1)", "#0ea5e9"],
-    Shortlisted: ["rgba(245,158,11,0.1)", "#f59e0b"],
-    Interviewed: ["rgba(101,163,13,0.1)", "#65a30d"],
-    Selected: ["rgba(22,163,74,0.1)", "#16a34a"],
-    Rejected: ["rgba(220,38,38,0.1)", "#dc2626"],
-  }[s] || ["rgba(107,114,128,0.1)", "#6b7280"]);
+  const activeJobs  = jobs.filter((j) => {
+    const last = j.lastDateToApply;
+    return !last || new Date(last) >= new Date();
+  });
 
   return (
     <div>
-      <h2 className="fs-5 bold mb-1">Company Dashboard</h2>
-      <p className="fs-p9 text-secondary mb-4">Manage your recruitment pipeline</p>
+      {/* ── Welcome Banner ── */}
+      <div
+        className="card p-5 mb-4"
+        style={{ background: "linear-gradient(135deg, #0b2e40, #325563)", color: "white", border: "none" }}
+      >
+        <div className="row space-between items-center">
+          <div>
+            <h2 className="bold mb-1">
+              🏢 {loading ? "Welcome!" : (company?.companyName || "Welcome!")}
+            </h2>
+            <p className="fs-p9" style={{ opacity: 0.85 }}>
+              Manage your recruitment pipeline from here
+            </p>
+          </div>
+          <button
+            className="btn w-auto"
+            style={{ background: "rgba(255,255,255,0.15)", color: "white", border: "1px solid rgba(255,255,255,0.3)", padding: "8px 20px" }}
+            onClick={() => navigate("/company-page/profile")}
+          >
+            View Profile
+          </button>
+        </div>
+      </div>
 
-      {/* Stats */}
-      <div className="row mb-5">
-        {stats.map((s, i) => (
+      {/* ── Stats ── */}
+      <div className="row mb-4">
+        {[
+          { title: "Total Job Posts",  value: jobs.length,        sub: `${activeJobs.length} active`, icon: "💼", path: "/company-page/job-posts",   color: "#325563" },
+          { title: "Applications",     value: "—",                sub: "Across all posts",            icon: "📄", path: "/company-page/applications", color: "#0ea5e9" },
+          { title: "Interviews",       value: "—",                sub: "Scheduled",                   icon: "📅", path: "/company-page/interviews",   color: "#f59e0b" },
+          { title: "Offers Released",  value: "—",                sub: "Track in Offers",             icon: "🎯", path: "/company-page/offers",       color: "#16a34a" },
+        ].map((s, i) => (
           <div className="col-3 p-2" key={i}>
-            <div className="card p-4 stat-card">
+            <div className="card p-4 stat-card cursor-pointer" onClick={() => navigate(s.path)}>
               <div className="row space-between items-center mb-2">
                 <p className="fs-p9 text-secondary">{s.title}</p>
                 <span style={{ fontSize: "1.4rem" }}>{s.icon}</span>
               </div>
-              <h2 className="bold">{s.value}</h2>
-              <p className="fs-p9 text-success">{s.sub}</p>
+              <h2 className="bold" style={{ color: s.color }}>{loading ? "…" : s.value}</h2>
+              <p className="fs-p9 text-secondary">{s.sub}</p>
             </div>
           </div>
         ))}
       </div>
 
-      {/* Recent Applications */}
-      <div className="card p-4 mb-4">
-        <div className="row space-between items-center mb-3">
-          <h4>Recent Applications</h4>
-          <button className="btn btn-primary w-auto" style={{ padding: "6px 16px", fontSize: "0.85rem" }}
-            onClick={() => navigate("/company-page/applications")}>View All</button>
-        </div>
-        <table className="w-100">
-          <thead>
-            <tr><th>Candidate</th><th>Department</th><th>Applied For</th><th>CGPA</th><th>Status</th><th>Actions</th></tr>
-          </thead>
-          <tbody>
-            {recentApplications.map((a, i) => {
-              const [bg, color] = statusColor(a.status);
-              return (
-                <tr key={i} className="hover-bg">
-                  <td><div className="bold">{a.name}</div></td>
-                  <td>{a.dept}</td>
-                  <td>{a.job}</td>
-                  <td className="bold">{a.cgpa}</td>
-                  <td><span className="status-item" style={{ background: bg, color }}>{a.status}</span></td>
-                  <td><span className="cursor-pointer">👁️</span></td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+      {/* ── Recent Job Posts + Quick Actions ── */}
+      <div className="row">
+        <div className="col-8 p-2">
+          <div className="card p-4">
+            <div className="row space-between items-center mb-3">
+              <h4>💼 Recent Job Posts</h4>
+              <button
+                className="btn btn-primary w-auto"
+                style={{ padding: "6px 14px", fontSize: "0.8rem" }}
+                onClick={() => navigate("/company-page/job-posts")}
+              >
+                View All
+              </button>
+            </div>
 
-      {/* Quick Actions */}
-      <div className="row" style={{ gap: "16px" }}>
-        {[
-          { label: "Post New Job", icon: "➕", path: "/company-page/job-posts", color: "#325563" },
-          { label: "View Shortlisted", icon: "✅", path: "/company-page/shortlisted", color: "#16a34a" },
-          { label: "Schedule Interview", icon: "📅", path: "/company-page/interviews", color: "#0ea5e9" },
-          { label: "Release Offer", icon: "🎯", path: "/company-page/offers", color: "#f59e0b" },
-        ].map((a, i) => (
-          <div key={i} className="card p-4 stat-card cursor-pointer text-center" style={{ flex: 1 }}
-            onClick={() => navigate(a.path)}>
-            <p style={{ fontSize: "2rem" }}>{a.icon}</p>
-            <p className="fs-p9 bold mt-1" style={{ color: a.color }}>{a.label}</p>
+            {loading ? (
+              <p className="text-secondary fs-p9">Loading...</p>
+            ) : jobs.length === 0 ? (
+              <div className="text-center p-4">
+                <p style={{ fontSize: "2rem" }}>📋</p>
+                <p className="bold mt-2">No job posts yet</p>
+                <button
+                  className="btn btn-primary w-auto mt-2"
+                  style={{ padding: "8px 20px", fontSize: "0.85rem" }}
+                  onClick={() => navigate("/company-page/job-posts")}
+                >
+                  Create First Job Post
+                </button>
+              </div>
+            ) : (
+              jobs.slice(0, 4).map((job, i) => {
+                const jid    = job.jobPostId || job.id;
+                const title  = job.title || job.tiitle;
+                const isOpen = !job.lastDateToApply || new Date(job.lastDateToApply) >= new Date();
+                return (
+                  <div
+                    key={jid || i}
+                    className="p-3 mb-2 hover-bg"
+                    style={{ border: "1px solid var(--border-color)", borderRadius: "10px" }}
+                  >
+                    <div className="row space-between items-center">
+                      <div>
+                        <div className="bold">{title}</div>
+                        <div className="fs-p8 text-secondary">
+                          Required: {job.requiredCandidate || "—"} candidates &nbsp;·&nbsp;
+                          Min %: {job.eligiblePercentage || "—"}%
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="fs-p8 text-secondary mb-1">
+                          Closes: {job.lastDateToApply || "Open"}
+                        </div>
+                        <span
+                          className="status-item fs-p8"
+                          style={{
+                            background: isOpen ? "rgba(22,163,74,0.1)"  : "rgba(220,38,38,0.1)",
+                            color:      isOpen ? "#16a34a"               : "#dc2626",
+                          }}
+                        >
+                          {isOpen ? "Active" : "Closed"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
-        ))}
+        </div>
+
+        <div className="col-4 p-2">
+          {/* Quick Actions */}
+          <div className="card p-4 mb-3">
+            <h4 className="mb-3">⚡ Quick Actions</h4>
+            {quickActions.map((a, i) => (
+              <div
+                key={i}
+                className="p-2 mb-2 hover-bg cursor-pointer br-md"
+                style={{ border: "1px solid var(--border-color)", borderRadius: "10px" }}
+                onClick={() => navigate(a.path)}
+              >
+                <div className="row items-center" style={{ gap: "10px" }}>
+                  <span style={{ fontSize: "1.3rem" }}>{a.icon}</span>
+                  <span className="fs-p9 bold" style={{ color: a.color }}>{a.label}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Company info mini card */}
+          {company && (
+            <div className="card p-4" style={{ background: "linear-gradient(135deg, #f0f9f4, #e8f4f8)", border: "none" }}>
+              <h4 className="mb-2">🏢 Company Info</h4>
+              <p className="fs-p9 bold">{company.companyName}</p>
+              <p className="fs-p8 text-secondary mt-1">
+                📧 {company.userModel?.email || company.email || "—"}
+              </p>
+              <p className="fs-p8 text-secondary mt-1">
+                🏭 {company.departmentModel?.departmentName || "—"}
+              </p>
+              <button
+                className="btn btn-primary mt-3"
+                style={{ padding: "8px", fontSize: "0.8rem" }}
+                onClick={() => navigate("/company-page/profile")}
+              >
+                Edit Profile
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

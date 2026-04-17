@@ -102,11 +102,6 @@ function CompanyNav({ children }) {
          🏢 Company Profile
         </div>
 
-        <div className="p-1 hover-bg cursor-pointer"
-          onClick={() => navigate("/company-page/settings")}>
-          ⚙️ Settings
-        </div>
-
         {/* Sign Out */}
         <div className="mt-6 p-1 hover-bg cursor-pointer text-gray-300"
          onClick={() => navigate("/")}>

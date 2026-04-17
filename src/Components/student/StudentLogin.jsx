@@ -53,10 +53,9 @@ function StudentLogin() {
         }
         axios.post(rest.login, data, header)
             .then(response => {
-                console.log(response.data);
-                if (response.data.success) {
-
-                    Cookies.set("token",response.data.token);
+            if (response.data.success) {
+                Cookies.set("token", response.data.data, { path: "/" });
+                console.log("cookie saved:", Cookies.get("token")); 
                    setMessage(response.data.message);
                     setMsgType("success");
                     setTimeout(() => {

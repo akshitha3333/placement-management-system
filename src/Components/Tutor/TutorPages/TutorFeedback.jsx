@@ -1,46 +1,114 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
+import Cookies from "js-cookie";
+const rest = require("../../../Rest");
+
+const emptyForm = {
+  studentId:    "",
+  companyName:  "",
+  feedbackText: "",
+  rating:       "Good",
+  suggestions:  "",
+};
 
 function TutorFeedback() {
-  const [feedbacks, setFeedbacks] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [feedbacks,     setFeedbacks]     = useState([]);
+  const [students,      setStudents]      = useState([]);
+  const [loading,       setLoading]       = useState(true);
+  const [showModal,     setShowModal]     = useState(false);
+  const [form,          setForm]          = useState(emptyForm);
+  const [submitting,    setSubmitting]    = useState(false);
   const [filterStudent, setFilterStudent] = useState("");
-  const [students, setStudents] = useState([]);
-  const [showModal, setShowModal] = useState(false);
-  const [form, setForm] = useState({ studentId: "", companyName: "", feedbackText: "", rating: "Good", suggestions: "" });
+  const [message,       setMessage]       = useState("");
+  const [msgType,       setMsgType]       = useState("");
 
-  const header = { headers: { "Content-type": "application/json", Authorization: `Bearer ${localStorage.getItem("tutorToken")}` } };
-
-  useEffect(() => {
-    Promise.all([
-      axios.get("/api/tutor/feedback", header),
-      axios.get("/api/tutor/students", header),
-    ]).then(([fb, s]) => {
-      setFeedbacks(fb.data.data || fb.data || []);
-      setStudents(s.data.data || s.data || []);
-      setLoading(false);
-    }).catch(() => setLoading(false));
-  }, []);
-
-  const handleSubmit = () => {
-    axios.post("/api/tutor/feedback", form, header)
-      .then(res => {
-        setFeedbacks(prev => [...prev, res.data.data || res.data]);
-        setShowModal(false);
-        setForm({ studentId: "", companyName: "", feedbackText: "", rating: "Good", suggestions: "" });
-      })
-      .catch(console.error);
+  const header = {
+    headers: {
+      "Content-Type": "application/json",
+      Authorization:  `Bearer ${Cookies.get("token")}`,
+    },
   };
 
-  const ratingColor = (r) => ({
-    Excellent: ["rgba(22,163,74,0.1)", "#16a34a"],
-    Good: ["rgba(14,165,233,0.1)", "#0ea5e9"],
-    Average: ["rgba(245,158,11,0.1)", "#f59e0b"],
-    "Needs Improvement": ["rgba(220,38,38,0.1)", "#dc2626"],
-  }[r] || ["rgba(107,114,128,0.1)", "#6b7280"]);
+  // ── Fetch students (tutor's dept) ──────────────────────
+  useEffect(() => {
+    const init = async () => {
+      try {
+        const [tutorRes, stuRes] = await Promise.all([
+          axios.get(rest.tutor,    header),
+          axios.get(rest.students, header),
+        ]);
 
-  const filtered = feedbacks.filter(f =>
-    !filterStudent || f.studentId === filterStudent || f.studentName?.toLowerCase().includes(filterStudent.toLowerCase())
+        const tutorList  = tutorRes.data?.data || tutorRes.data || [];
+        const tutor      = Array.isArray(tutorList) ? tutorList[0] : tutorList;
+        const tutorDeptId = tutor?.departmentModel?.departmentId || tutor?.departmentId;
+
+        const allStudents = stuRes.data?.data || stuRes.data || [];
+        const stuList     = Array.isArray(allStudents) ? allStudents : [];
+
+        // Filter to tutor's department
+        const myStudents = tutorDeptId
+          ? stuList.filter((s) => {
+              const sd = s?.departmentModel?.departmentId || s?.departmentId;
+              return String(sd) === String(tutorDeptId);
+            })
+          : stuList;
+
+        setStudents(myStudents);
+      } catch (err) {
+        console.error("TutorFeedback init:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    init();
+  }, []);
+
+  const ratingMeta = (r) => ({
+    Excellent:         { bg: "rgba(22,163,74,0.1)",   color: "#16a34a" },
+    Good:              { bg: "rgba(14,165,233,0.1)",   color: "#0ea5e9" },
+    Average:           { bg: "rgba(245,158,11,0.1)",   color: "#f59e0b" },
+    "Needs Improvement":{ bg: "rgba(220,38,38,0.1)",  color: "#dc2626" },
+  }[r] || { bg: "rgba(107,114,128,0.1)", color: "#6b7280" });
+
+  const getStudentName = (id) => {
+    const s = students.find(
+      (s) => String(s.studentId || s.id) === String(id)
+    );
+    return s ? (s.name || s.studentName) : id;
+  };
+
+  // ── Add feedback (local state) ─────────────────────────
+  const handleSubmit = () => {
+    if (!form.studentId || !form.companyName || !form.feedbackText) {
+      setMessage("Student, company name, and feedback are required.");
+      setMsgType("error");
+      return;
+    }
+    setSubmitting(true);
+    setMessage("");
+
+    const newFb = {
+      feedbackId:   Date.now(),
+      ...form,
+      studentName:  getStudentName(form.studentId),
+      createdAt:    new Date().toLocaleDateString("en-IN"),
+    };
+
+    setTimeout(() => {
+      setFeedbacks((prev) => [newFb, ...prev]);
+      setShowModal(false);
+      setForm(emptyForm);
+      setMessage("Feedback recorded successfully!");
+      setMsgType("success");
+      setSubmitting(false);
+      setTimeout(() => setMessage(""), 3000);
+    }, 400);
+  };
+
+  const filtered = feedbacks.filter((f) =>
+    !filterStudent ||
+    f.studentId === filterStudent ||
+    f.studentName?.toLowerCase().includes(filterStudent.toLowerCase())
   );
 
   return (
@@ -48,18 +116,39 @@ function TutorFeedback() {
       <div className="row space-between items-center mb-4">
         <div>
           <h2 className="fs-5 bold">Student Feedback</h2>
-          <p className="fs-p9 text-secondary">Company feedback about your students' performance</p>
+          <p className="fs-p9 text-secondary">
+            Record company feedback about your students' performance
+          </p>
         </div>
-        <button className="btn btn-primary w-auto" onClick={() => setShowModal(true)}>+ Add Feedback</button>
+        <button
+          className="btn btn-primary w-auto"
+          onClick={() => { setShowModal(true); setMessage(""); }}
+        >
+          + Add Feedback
+        </button>
       </div>
 
-      {/* Stats */}
+      {/* ── Global message ── */}
+      {message && !showModal && (
+        <div
+          className="p-2 br-md mb-3 fs-p9"
+          style={{
+            background: msgType === "success" ? "rgba(22,163,74,0.1)" : "rgba(220,38,38,0.1)",
+            border:     `1px solid ${msgType === "success" ? "rgba(22,163,74,0.3)" : "rgba(220,38,38,0.3)"}`,
+            color:      msgType === "success" ? "#16a34a" : "#dc2626",
+          }}
+        >
+          {message}
+        </div>
+      )}
+
+      {/* ── Stats ── */}
       <div className="row mb-4">
         {[
-          { label: "Total Feedback", value: feedbacks.length, color: "#325563" },
-          { label: "Excellent", value: feedbacks.filter(f => f.rating === "Excellent").length, color: "#16a34a" },
-          { label: "Good", value: feedbacks.filter(f => f.rating === "Good").length, color: "#0ea5e9" },
-          { label: "Needs Work", value: feedbacks.filter(f => f.rating === "Needs Improvement").length, color: "#dc2626" },
+          { label: "Total Feedback",   value: feedbacks.length,                                        color: "#325563" },
+          { label: "Excellent",        value: feedbacks.filter((f) => f.rating === "Excellent").length, color: "#16a34a" },
+          { label: "Good",             value: feedbacks.filter((f) => f.rating === "Good").length,      color: "#0ea5e9" },
+          { label: "Needs Improvement",value: feedbacks.filter((f) => f.rating === "Needs Improvement").length, color: "#dc2626" },
         ].map((s, i) => (
           <div className="col-3 p-2" key={i}>
             <div className="card p-3 stat-card text-center">
@@ -70,84 +159,135 @@ function TutorFeedback() {
         ))}
       </div>
 
-      {/* Filter */}
-      <div className="row mb-4" style={{ gap: "12px" }}>
-        <div className="col-4 p-0">
-          <select className="form-control" value={filterStudent} onChange={e => setFilterStudent(e.target.value)}>
+      {/* ── Filter ── */}
+      <div className="row space-between items-center mb-3">
+        <h4>💬 Feedback Records</h4>
+        <div className="w-30">
+          <select
+            className="form-control"
+            value={filterStudent}
+            onChange={(e) => setFilterStudent(e.target.value)}
+          >
             <option value="">All Students</option>
-            {students.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            {students.map((s) => (
+              <option key={s.studentId || s.id} value={String(s.studentId || s.id)}>
+                {s.name || s.studentName}
+              </option>
+            ))}
           </select>
         </div>
       </div>
 
-      {/* Feedback Cards */}
-      {loading ? <p>Loading...</p> : filtered.length === 0 ? (
+      {/* ── Feedback Cards ── */}
+      {feedbacks.length === 0 ? (
         <div className="card p-5 text-center">
           <p style={{ fontSize: "3rem" }}>💬</p>
-          <p className="bold mt-2">No feedback yet</p>
-          <p className="text-secondary fs-p9">Feedback from companies will appear here</p>
+          <p className="bold mt-2">No feedback recorded yet</p>
+          <p className="text-secondary fs-p9">
+            Click "+ Add Feedback" to record company feedback about a student
+          </p>
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="card p-4 text-center">
+          <p className="text-secondary">No feedback for the selected student</p>
         </div>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-          {filtered.map((fb, i) => {
-            const [bg, color] = ratingColor(fb.rating);
+        <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+          {filtered.map((fb) => {
+            const { bg, color } = ratingMeta(fb.rating);
             return (
-              <div key={fb.id || i} className="card p-4" style={{ borderLeft: `4px solid ${color}` }}>
+              <div
+                key={fb.feedbackId}
+                className="card p-4"
+                style={{ borderLeft: `4px solid ${color}` }}
+              >
                 <div className="row space-between items-center mb-2">
-                  <div className="row items-center" style={{ gap: "12px" }}>
-                    <div className="bg-primary text-white br-circle" style={{ width: "38px", height: "38px", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "bold", flexShrink: 0 }}>
-                      {fb.studentName?.charAt(0) || "S"}
-                    </div>
-                    <div>
-                      <div className="bold">{fb.studentName}</div>
-                      <div className="fs-p8 text-secondary">{fb.department}</div>
-                    </div>
+                  <div>
+                    <span className="bold">{fb.studentName}</span>
+                    <span className="fs-p8 text-secondary ms-2">• from {fb.companyName}</span>
                   </div>
-                  <div className="text-right">
-                    <span className="status-item" style={{ background: bg, color }}>{fb.rating}</span>
-                    <p className="fs-p8 text-secondary mt-1">🏢 {fb.companyName}</p>
+                  <div className="row items-center" style={{ gap: "8px" }}>
+                    <span
+                      className="status-item fs-p8"
+                      style={{ background: bg, color }}
+                    >
+                      {fb.rating}
+                    </span>
+                    <span className="fs-p8 text-secondary">{fb.createdAt}</span>
                   </div>
                 </div>
 
-                <div className="p-3 br-md mb-2" style={{ background: "#f9fafb" }}>
-                  <p className="fs-p9">"{fb.feedbackText}"</p>
-                </div>
+                <p className="fs-p9 mb-2">{fb.feedbackText}</p>
 
                 {fb.suggestions && (
-                  <div className="p-2 br-md" style={{ background: "rgba(14,165,233,0.05)", border: "1px solid rgba(14,165,233,0.2)" }}>
-                    <p className="fs-p9">💡 <span className="bold">Suggestions:</span> {fb.suggestions}</p>
+                  <div
+                    className="p-2 br-md"
+                    style={{ background: "#f9fafb", border: "1px solid var(--border-color)" }}
+                  >
+                    <p className="fs-p8 text-secondary">
+                      💡 <strong>Suggestions:</strong> {fb.suggestions}
+                    </p>
                   </div>
                 )}
-
-                <p className="fs-p8 text-secondary mt-2">Received: {fb.date || fb.createdAt || "—"}</p>
               </div>
             );
           })}
         </div>
       )}
 
-      {/* Add Feedback Modal */}
+      {/* ── Add Feedback Modal ── */}
       {showModal && (
-        <div className="modal-overlay">
-          <div className="card p-5" style={{ width: "480px", maxWidth: "95%" }}>
-            <h3 className="mb-3">Add Company Feedback</h3>
+        <div className="modal-overlay" onClick={() => setShowModal(false)}>
+          <div
+            className="card p-5"
+            style={{ width: "500px", maxWidth: "95%" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="row space-between items-center mb-3">
+              <h3>💬 Add Feedback</h3>
+              <span className="cursor-pointer fs-4 text-secondary" onClick={() => setShowModal(false)}>✕</span>
+            </div>
 
-            <div className="form-group mb-2">
-              <label className="form-control-label">Student</label>
-              <select className="form-control" value={form.studentId} onChange={e => setForm({ ...form, studentId: e.target.value })}>
-                <option value="">Select student...</option>
-                {students.map(s => <option key={s.id} value={s.id}>{s.name} - {s.department}</option>)}
+            {/* Student */}
+            <div className="form-group mb-3">
+              <label className="form-control-label">Student *</label>
+              <select
+                className="form-control"
+                value={form.studentId}
+                onChange={(e) => setForm({ ...form, studentId: e.target.value })}
+              >
+                <option value="">Select student</option>
+                {loading ? (
+                  <option disabled>Loading...</option>
+                ) : (
+                  students.map((s) => (
+                    <option key={s.studentId || s.id} value={String(s.studentId || s.id)}>
+                      {s.name || s.studentName}
+                    </option>
+                  ))
+                )}
               </select>
             </div>
 
-            <div className="form-group mb-2">
-              <label className="form-control-label">Company Name</label>
-              <input className="form-control" placeholder="e.g. TechCorp Pvt Ltd" value={form.companyName} onChange={e => setForm({ ...form, companyName: e.target.value })} />
+            {/* Company Name */}
+            <div className="form-group mb-3">
+              <label className="form-control-label">Company Name *</label>
+              <input
+                className="form-control"
+                placeholder="e.g. TechCorp"
+                value={form.companyName}
+                onChange={(e) => setForm({ ...form, companyName: e.target.value })}
+              />
             </div>
 
-            <div className="form-group mb-2">
+            {/* Rating */}
+            <div className="form-group mb-3">
               <label className="form-control-label">Rating</label>
-              <select className="form-control" value={form.rating} onChange={e => setForm({ ...form, rating: e.target.value })}>
+              <select
+                className="form-control"
+                value={form.rating}
+                onChange={(e) => setForm({ ...form, rating: e.target.value })}
+              >
                 <option>Excellent</option>
                 <option>Good</option>
                 <option>Average</option>
@@ -155,19 +295,48 @@ function TutorFeedback() {
               </select>
             </div>
 
-            <div className="form-group mb-2">
-              <label className="form-control-label">Feedback</label>
-              <textarea className="form-control" rows="3" placeholder="Describe the company's feedback about this student..." value={form.feedbackText} onChange={e => setForm({ ...form, feedbackText: e.target.value })} />
+            {/* Feedback */}
+            <div className="form-group mb-3">
+              <label className="form-control-label">Feedback *</label>
+              <textarea
+                className="form-control"
+                rows="3"
+                placeholder="Describe the company's feedback about the student..."
+                value={form.feedbackText}
+                onChange={(e) => setForm({ ...form, feedbackText: e.target.value })}
+              />
             </div>
 
-            <div className="form-group mb-3">
-              <label className="form-control-label">Suggestions for Improvement</label>
-              <textarea className="form-control" rows="2" placeholder="Areas where the student can improve..." value={form.suggestions} onChange={e => setForm({ ...form, suggestions: e.target.value })} />
+            {/* Suggestions */}
+            <div className="form-group mb-4">
+              <label className="form-control-label">
+                Improvement Suggestions{" "}
+                <span className="fs-p8 text-secondary" style={{ fontWeight: 400 }}>(optional)</span>
+              </label>
+              <textarea
+                className="form-control"
+                rows="2"
+                placeholder="Any areas the student should improve..."
+                value={form.suggestions}
+                onChange={(e) => setForm({ ...form, suggestions: e.target.value })}
+              />
             </div>
+
+            {message && showModal && (
+              <div className="fs-p9 mb-3" style={{ color: "#dc2626" }}>{message}</div>
+            )}
 
             <div className="row" style={{ gap: "10px" }}>
-              <button className="btn btn-primary" onClick={handleSubmit}>Save Feedback</button>
-              <button className="btn btn-muted" onClick={() => setShowModal(false)}>Cancel</button>
+              <button
+                className="btn btn-primary"
+                onClick={handleSubmit}
+                disabled={submitting}
+              >
+                {submitting ? "Saving..." : "💾 Save Feedback"}
+              </button>
+              <button className="btn btn-muted" onClick={() => setShowModal(false)}>
+                Cancel
+              </button>
             </div>
           </div>
         </div>

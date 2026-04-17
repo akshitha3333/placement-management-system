@@ -47,14 +47,10 @@ function TutorStudents() {
       // 2. Get all students
       const studentRes  = await axios.get(rest.students, header);
       const allStudents = studentRes.data?.data || studentRes.data || [];
+      console.log(allStudents);
+    
 
-      // 3. Keep only students whose departmentId matches tutor's departmentId
-      const matched = allStudents.filter((student) => {
-        const studentDeptId = student?.departmentModel?.departmentId || student?.departmentId;
-        return String(studentDeptId) === String(tutorDeptId);
-      });
-
-      setStudents(matched);
+      setStudents(allStudents);
 
     } catch (err) {
       console.error("fetchStudents error:", err);
@@ -291,7 +287,7 @@ function TutorStudents() {
                             background: isPlaced ? "rgba(22,163,74,0.1)" : "rgba(107,114,128,0.1)",
                             color:      isPlaced ? "var(--success)"       : "var(--gray-500)",
                           }}>
-                          {isPlaced ? "✅ Placed" : "⏳ Unplaced"}
+                          {isPlaced ? "Placed" : "Unplaced"}
                         </span>
                       </td>
 
