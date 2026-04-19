@@ -6,11 +6,11 @@ const rest = require("../../../Rest");
 
 // ── Status badge config ────────────────────────────────
 const STATUS_CONFIG = {
-  APPLIED:              { label: "Applied",             color: "#325563", bg: "rgba(50,85,99,0.1)",   border: "rgba(50,85,99,0.3)",   icon: "📨" },
-  CANCELLED:            { label: "Cancelled",           color: "#dc2626", bg: "rgba(220,38,38,0.1)",  border: "rgba(220,38,38,0.3)",  icon: "❌" },
-  REJECTED:             { label: "Rejected",            color: "#f59e0b", bg: "rgba(245,158,11,0.1)", border: "rgba(245,158,11,0.3)", icon: "🚫" },
-  INTERVIEW_SCHEDULED:  { label: "Interview Scheduled", color: "#0ea5e9", bg: "rgba(14,165,233,0.1)", border: "rgba(14,165,233,0.3)", icon: "📅" },
-  SELECTED:             { label: "Selected 🎉",         color: "#16a34a", bg: "rgba(22,163,74,0.1)",  border: "rgba(22,163,74,0.3)",  icon: "🎉" },
+  APPLIED:             { label: "Applied",             color: "#325563", bg: "rgba(50,85,99,0.1)",   border: "rgba(50,85,99,0.3)",   icon: "📨" },
+  CANCELLED:           { label: "Cancelled",           color: "#dc2626", bg: "rgba(220,38,38,0.1)",  border: "rgba(220,38,38,0.3)",  icon: "❌" },
+  REJECTED:            { label: "Rejected",            color: "#f59e0b", bg: "rgba(245,158,11,0.1)", border: "rgba(245,158,11,0.3)", icon: "🚫" },
+  INTERVIEW_SCHEDULED: { label: "Interview Scheduled", color: "#0ea5e9", bg: "rgba(14,165,233,0.1)", border: "rgba(14,165,233,0.3)", icon: "📅" },
+  SELECTED:            { label: "Selected 🎉",         color: "#16a34a", bg: "rgba(22,163,74,0.1)",  border: "rgba(22,163,74,0.3)",  icon: "🎉" },
 };
 
 function StatusBadge({ status }) {
@@ -28,103 +28,100 @@ function StatusBadge({ status }) {
   );
 }
 
+// ── Helper: open resume from base64 ───────────────────
+const openResume = (resumeModel) => {
+  if (!resumeModel) return;
+  const base64 = resumeModel.resume2;
+  if (!base64) {
+    alert("No resume available.");
+    return;
+  }
+  // Fix mime type — backend may label it image/jpeg but it's a PDF
+  const pdfBase64 = base64.startsWith("data:")
+    ? base64.replace(/^data:[^;]+;base64,/, "data:application/pdf;base64,")
+    : `data:application/pdf;base64,${base64}`;
+  const win = window.open();
+  if (win) {
+    win.document.write(
+      `<iframe src="${pdfBase64}" style="width:100%;height:100vh;border:none;"></iframe>`
+    );
+    win.document.title = resumeModel.resumeTitle || "Resume";
+  }
+};
+
 // ── Main Component ─────────────────────────────────────
 function StudentApplications() {
   const location = useLocation();
-  const navigate  = useNavigate();
+  const navigate = useNavigate();
 
-  // Mode: "apply" (from Recommendations) or "list"
   const applyMode  = location.state?.applyMode  || false;
   const suggestion = location.state?.suggestion || null;
 
-  // Shared state
   const [resumes,        setResumes]        = useState([]);
   const [selectedResume, setSelectedResume] = useState(null);
 
-  // Apply-mode
   const [submitting,    setSubmitting]    = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [submitError,   setSubmitError]   = useState("");
 
-  // List-mode
-  const [applications,  setApplications]  = useState([]);
-  const [loading,       setLoading]       = useState(true);
-  const [listError,     setListError]     = useState("");
-  const [filterStatus,  setFilterStatus]  = useState("ALL");
-  const [search,        setSearch]        = useState("");
+  const [applications, setApplications] = useState([]);
+  const [loading,      setLoading]      = useState(true);
+  const [listError,    setListError]    = useState("");
+  const [filterStatus, setFilterStatus] = useState("ALL");
+  const [search,       setSearch]       = useState("");
 
   const jsonHeader = () => ({
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${Cookies.get("token") || localStorage.getItem("token") || ""}`,
+      Authorization: `Bearer ${Cookies.get("token")}`,
     },
   });
 
-  // ── Helpers ────────────────────────────────────────────
-  const jobTitle   = (job) => job?.tiitle || job?.title || "—";
-
-  const getTutorName = (sug) =>
-    sug?.tutorModel?.tutorName ||
-    sug?.tutorModel?.name      ||
-    sug?.tutorName             ||
-    "Your Tutor";
+  const jobTitle     = (job) => job?.tiitle || job?.title || "—";
+  const getTutorName = (src) =>
+    src?.tutorModel?.tutorName ||
+    src?.tutorModel?.name      ||
+    src?.jobSuggestionModel?.tutorModel?.tutorName ||
+    src?.jobSuggestionModel?.tutorModel?.name      ||
+    null;
 
   // ── Fetch resumes ──────────────────────────────────────
-  const fetchResumes = async () => {
+  const fetchResumes = async (signal) => {
     try {
-      const res  = await axios.get(rest.studentResume, jsonHeader());
+      const res  = await axios.get(rest.studentResume, { ...jsonHeader(), signal });
       const data = res.data?.data || res.data || [];
       setResumes(Array.isArray(data) ? data : []);
     } catch (err) {
+      if (axios.isCancel(err) || err.code === "ERR_CANCELED") return;
       console.error("fetchResumes:", err);
     }
   };
 
-  // ── Fetch applications via suggestions ────────────────
-  // GET /api/job/job-suggestions
-  // → for each: GET /api/job/job-suggestions/{id}/job-applications
-  const fetchApplications = async () => {
+  // ── Fetch applications ─────────────────────────────────
+  const fetchApplications = async (signal) => {
     try {
       setLoading(true);
       setListError("");
 
-      // Step 1 – get all suggestions for this student
-      const sugRes  = await axios.get(rest.jobSuggestions, jsonHeader());
-      const sugList = sugRes.data?.data || sugRes.data || [];
-      console.log("✅ Suggestions:", sugList);
-      const sugs    = Array.isArray(sugList) ? sugList : [];
+      const res  = await axios.get(rest.jobApplications, { ...jsonHeader(), signal });
+      console.log("🔥 RAW:", JSON.stringify(res.data, null, 2));
 
-      // Step 2 – for each suggestion, get applications
-      const appArrays = await Promise.all(
-        sugs.map(async (sug) => {
-          const sugId = sug.jobSuggestionId || sug.id;
-          console.log("➡️ Fetching applications for:", sug.jobSuggestionId);
-          try {
-            const res  = await axios.get(
-              `${rest.jobSuggestions}/${sugId}/job-applications`,
-              jsonHeader()
-            );
-            const apps = res.data?.data || res.data || [];
-            console.log("📦 Applications for", sugId, ":", apps);
-            return Array.isArray(apps)
-              ? apps.map((a) => ({
-                  ...a,
-                  // Enrich with suggestion data for display
-                  jobPostModel: a.jobPostModel || sug.jobPostModel || null,
-                  tutorModel:   a.tutorModel   || sug.tutorModel   || null,
-                  _sug:         sug,
-                }))
-              : [];
-          } catch {
-            return [];
-          }
-        })
-      );
+      const data = res.data?.data || res.data || [];
+      const apps = Array.isArray(data) ? data : [];
 
-      setApplications(appArrays.flat());
-      console.log("🔥 FINAL APPLICATIONS:", appArrays.flat());
+      const normalized = apps.map((app) => ({
+        ...app,
+        jobPostModel: app.jobSuggestionModel?.jobPostModel || null,
+        tutorModel:   app.jobSuggestionModel?.tutorModel   || null,
+        resumeModel:  app.resumeModel || null,
+      }));
+
+      console.log("✅ Normalized apps:", normalized.length, normalized);
+      setApplications(normalized);
+
     } catch (err) {
-      console.error("fetchApplications:", err);
+      if (axios.isCancel(err) || err.code === "ERR_CANCELED") return;
+      console.error("❌ fetchApplications:", err.response?.status, err.response?.data);
       setListError("Failed to load your applications. Please try again.");
     } finally {
       setLoading(false);
@@ -132,16 +129,17 @@ function StudentApplications() {
   };
 
   useEffect(() => {
-    fetchResumes();
+    const controller = new AbortController();
+    fetchResumes(controller.signal);
     if (!applyMode) {
-      fetchApplications();
+      fetchApplications(controller.signal);
     } else {
       setLoading(false);
     }
+    return () => controller.abort();
   }, [applyMode]); // eslint-disable-line
 
   // ── Submit application ─────────────────────────────────
-  // POST /api/job/job-suggestions/{jobSuggestionId}/job-applications
   const handleSubmit = async () => {
     if (!selectedResume) {
       setSubmitError("⚠️ Please select a resume before submitting.");
@@ -161,7 +159,6 @@ function StudentApplications() {
       );
       setSubmitSuccess(true);
     } catch (err) {
-      console.error("submit application:", err);
       const msg =
         err?.response?.data?.message ||
         err?.response?.data?.error    ||
@@ -181,54 +178,62 @@ function StudentApplications() {
     return matchQ && matchS;
   });
 
+  // ── Status counts ──────────────────────────────────────
+  const statusCounts = Object.keys(STATUS_CONFIG).reduce((acc, key) => {
+    acc[key] = applications.filter((a) => a.status === key).length;
+    return acc;
+  }, {});
+
   // ══════════════════════════════════════════════════════
-  // APPLY MODE
+  // APPLY MODE — success screen
+  // ══════════════════════════════════════════════════════
+  if (applyMode && suggestion && submitSuccess) {
+    const job = suggestion.jobPostModel || {};
+    return (
+      <div className="p-4" style={{ height: "calc(100vh - 70px)", overflowY: "auto" }}>
+        <div className="card p-5 text-center" style={{ maxWidth: 540, margin: "60px auto" }}>
+          <div style={{ fontSize: "4rem", marginBottom: 16 }}>🎉</div>
+          <h3 className="bold mb-2" style={{ color: "var(--success)" }}>Application Submitted!</h3>
+          <p className="fs-p9 text-secondary mb-1">
+            You've successfully applied for <strong>{jobTitle(job)}</strong>
+          </p>
+          <p className="fs-p9 text-secondary mb-4">
+            at <strong>{job.companyModel?.companyName}</strong>
+          </p>
+          <div style={{
+            background: "rgba(22,163,74,0.07)", border: "1px solid rgba(22,163,74,0.2)",
+            borderRadius: 10, padding: "14px 18px", marginBottom: 24, textAlign: "left",
+          }}>
+            <p className="fs-p8 bold mb-1" style={{ color: "var(--success)" }}>📄 Resume Used</p>
+            <p className="fs-p9">{selectedResume?.resumeTitle}</p>
+          </div>
+          <div className="row g-2">
+            <button
+              className="btn btn-primary"
+              onClick={() => navigate("/student-page/applications", { replace: true })}
+            >
+              📄 View My Applications
+            </button>
+            <button
+              className="btn btn-muted"
+              onClick={() => navigate("/student-page/student-recommended")}
+            >
+              ← Back to Recommendations
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ══════════════════════════════════════════════════════
+  // APPLY MODE — form
   // ══════════════════════════════════════════════════════
   if (applyMode && suggestion) {
     const job = suggestion.jobPostModel || {};
-
-    if (submitSuccess) {
-      return (
-        <div className="p-4" style={{ height: "calc(100vh - 70px)", overflowY: "auto" }}>
-          <div className="card p-5 text-center" style={{ maxWidth: 540, margin: "60px auto" }}>
-            <div style={{ fontSize: "4rem", marginBottom: 16 }}>🎉</div>
-            <h3 className="bold mb-2" style={{ color: "var(--success)" }}>Application Submitted!</h3>
-            <p className="fs-p9 text-secondary mb-1">
-              You've successfully applied for <strong>{jobTitle(job)}</strong>
-            </p>
-            <p className="fs-p9 text-secondary mb-4">
-              at <strong>{job.companyModel?.companyName}</strong>
-            </p>
-            <div style={{
-              background: "rgba(22,163,74,0.07)", border: "1px solid rgba(22,163,74,0.2)",
-              borderRadius: 10, padding: "14px 18px", marginBottom: 24, textAlign: "left",
-            }}>
-              <p className="fs-p8 bold mb-1" style={{ color: "var(--success)" }}>📄 Resume Used</p>
-              <p className="fs-p9">{selectedResume?.resumeTitle}</p>
-            </div>
-            <div className="row g-2">
-              <button
-                className="btn btn-primary"
-                onClick={() => navigate("/student-page/applications", { replace: true })}
-              >
-                📄 View My Applications
-              </button>
-              <button
-                className="btn btn-muted"
-                onClick={() => navigate("/student-page/student-recommended")}
-              >
-                ← Back to Recommendations
-              </button>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
     return (
       <div className="p-4" style={{ height: "calc(100vh - 70px)", overflowY: "auto" }}>
 
-        {/* Breadcrumb */}
         <div className="row items-center mb-4" style={{ gap: 8 }}>
           <button
             className="btn btn-muted w-auto"
@@ -242,7 +247,7 @@ function StudentApplications() {
 
         <div className="row g-4" style={{ alignItems: "flex-start" }}>
 
-          {/* ── LEFT: Job Info ── */}
+          {/* LEFT: Job Info */}
           <div className="col-5">
             <div className="card p-4">
               <p className="fs-p8 text-secondary mb-3" style={{
@@ -250,13 +255,10 @@ function StudentApplications() {
               }}>
                 📋 Job Details
               </p>
-
               <h3 className="bold mb-1">{jobTitle(job)}</h3>
               <p className="fs-p9 text-secondary mb-3">
                 🏢 {job.companyModel?.companyName} &nbsp;·&nbsp; 📍 {job.companyModel?.location}
               </p>
-
-              {/* Recommended by */}
               <div style={{
                 background: "rgba(50,85,99,0.07)", borderRadius: 8,
                 padding: "10px 14px", marginBottom: 16,
@@ -267,17 +269,15 @@ function StudentApplications() {
                   color: "#fff", display: "flex", alignItems: "center", justifyContent: "center",
                   fontWeight: 700, fontSize: "0.85rem", flexShrink: 0,
                 }}>
-                  {getTutorName(suggestion).charAt(0).toUpperCase()}
+                  {(getTutorName(suggestion) || "T").charAt(0).toUpperCase()}
                 </div>
                 <div>
                   <p className="fs-p8 text-secondary" style={{ lineHeight: 1.2 }}>Recommended by</p>
                   <p className="bold fs-p9" style={{ color: "var(--primary)" }}>
-                    {getTutorName(suggestion)}
+                    {getTutorName(suggestion) || "Your Tutor"}
                   </p>
                 </div>
               </div>
-
-              {/* Meta grid */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
                 {[
                   { icon: "👥", label: "Openings",    value: job.requiredCandidate },
@@ -291,8 +291,6 @@ function StudentApplications() {
                   </div>
                 ))}
               </div>
-
-              {/* Description */}
               {job.description && (
                 <div>
                   <p className="fs-p8 text-secondary mb-1">📄 Description</p>
@@ -302,15 +300,12 @@ function StudentApplications() {
             </div>
           </div>
 
-          {/* ── RIGHT: Application Form ── */}
+          {/* RIGHT: Application Form */}
           <div className="col-7">
             <div className="card p-4">
               <h4 className="bold mb-1">🚀 Submit Your Application</h4>
-              <p className="fs-p9 text-secondary mb-4">
-                Select your resume to apply for this position.
-              </p>
+              <p className="fs-p9 text-secondary mb-4">Select your resume to apply for this position.</p>
 
-              {/* Error */}
               {submitError && (
                 <div style={{
                   background: "rgba(220,38,38,0.08)", border: "1px solid rgba(220,38,38,0.25)",
@@ -320,12 +315,10 @@ function StudentApplications() {
                 </div>
               )}
 
-              {/* Resume Selector */}
               <div className="form-group mb-4">
                 <label className="form-control-label mb-2">
                   📄 Select Resume <span style={{ color: "var(--danger)" }}>*</span>
                 </label>
-
                 {resumes.length === 0 ? (
                   <div style={{
                     padding: 16, borderRadius: 8,
@@ -333,9 +326,7 @@ function StudentApplications() {
                     textAlign: "center",
                   }}>
                     <p className="fs-p9 bold mb-1" style={{ color: "#dc2626" }}>No resumes found</p>
-                    <p className="fs-p9 text-secondary mb-3">
-                      Please upload a resume in your Profile before applying.
-                    </p>
+                    <p className="fs-p9 text-secondary mb-3">Please upload a resume in your Profile before applying.</p>
                     <button
                       className="btn btn-primary w-auto"
                       style={{ padding: "6px 18px", fontSize: "0.85rem", margin: "0 auto" }}
@@ -366,9 +357,7 @@ function StudentApplications() {
                             color: isSel ? "#fff" : "#6b7280",
                             display: "flex", alignItems: "center", justifyContent: "center",
                             fontWeight: 700, fontSize: "0.7rem",
-                          }}>
-                            PDF
-                          </div>
+                          }}>PDF</div>
                           <div style={{ flex: 1 }}>
                             <p className="bold fs-p9">{r.resumeTitle || `Resume ${r.resumeId}`}</p>
                             <p className="fs-p8 text-secondary">{r.date || "Uploaded"}</p>
@@ -389,7 +378,6 @@ function StudentApplications() {
                 )}
               </div>
 
-              {/* Summary */}
               {selectedResume && (
                 <div style={{
                   background: "rgba(50,85,99,0.05)", border: "1px solid rgba(50,85,99,0.15)",
@@ -413,7 +401,6 @@ function StudentApplications() {
                 </div>
               )}
 
-              {/* Buttons */}
               <div className="row g-2">
                 <button
                   className="btn btn-primary"
@@ -446,11 +433,6 @@ function StudentApplications() {
   // ══════════════════════════════════════════════════════
   // LIST MODE
   // ══════════════════════════════════════════════════════
-  const statusCounts = Object.keys(STATUS_CONFIG).reduce((acc, key) => {
-    acc[key] = applications.filter((a) => a.status === key).length;
-    return acc;
-  }, {});
-
   return (
     <div className="p-4" style={{ height: "calc(100vh - 70px)", overflowY: "auto" }}>
 
@@ -469,14 +451,14 @@ function StudentApplications() {
         </button>
       </div>
 
-      {/* Status stat cards */}
+      {/* Stat cards */}
       <div className="row g-3 mb-4">
         {[
-          { label: "Total",     value: applications.length,                                              color: "var(--primary)", icon: "📄" },
-          { label: "Applied",   value: statusCounts.APPLIED || 0,                                        color: "#325563",        icon: "📨" },
-          { label: "Interview", value: statusCounts.INTERVIEW_SCHEDULED || 0,                            color: "var(--info)",    icon: "📅" },
-          { label: "Selected",  value: statusCounts.SELECTED || 0,                                       color: "var(--success)", icon: "🎉" },
-          { label: "Rejected",  value: (statusCounts.REJECTED || 0) + (statusCounts.CANCELLED || 0),    color: "var(--danger)",  icon: "🚫" },
+          { label: "Total",     value: applications.length,                                           color: "var(--primary)", icon: "📄" },
+          { label: "Applied",   value: statusCounts.APPLIED || 0,                                     color: "#325563",        icon: "📨" },
+          { label: "Interview", value: statusCounts.INTERVIEW_SCHEDULED || 0,                         color: "var(--info)",    icon: "📅" },
+          { label: "Selected",  value: statusCounts.SELECTED || 0,                                    color: "var(--success)", icon: "🎉" },
+          { label: "Rejected",  value: (statusCounts.REJECTED || 0) + (statusCounts.CANCELLED || 0), color: "var(--danger)",  icon: "🚫" },
         ].map((s, i) => (
           <div className="col p-2" key={i}>
             <div className="card p-3 row items-center g-3">
@@ -515,15 +497,18 @@ function StudentApplications() {
         </div>
       </div>
 
-      {/* Applications list */}
+      {/* Content */}
       {loading ? (
         <div className="card p-5 text-center">
+          <div style={{ fontSize: "2rem", marginBottom: 12 }}>⏳</div>
           <p className="text-secondary">Loading your applications...</p>
         </div>
+
       ) : listError ? (
         <div className="card p-4" style={{ borderLeft: "4px solid var(--danger)" }}>
           <p style={{ color: "var(--danger)" }}>{listError}</p>
         </div>
+
       ) : filteredApps.length === 0 ? (
         <div className="card p-5 text-center">
           <p className="fs-4 mb-2">📭</p>
@@ -543,6 +528,7 @@ function StudentApplications() {
             </button>
           )}
         </div>
+
       ) : (
         <div className="card p-0" style={{ overflow: "hidden" }}>
 
@@ -562,7 +548,8 @@ function StudentApplications() {
 
           {/* Rows */}
           {filteredApps.map((app, i) => {
-            const job = app.jobPostModel || {};
+            const job       = app.jobPostModel || {};
+            const tutorName = getTutorName(app);
             return (
               <div
                 key={app.jobApplicationId || i}
@@ -575,16 +562,16 @@ function StudentApplications() {
                 onMouseEnter={(e) => e.currentTarget.style.background = "rgba(50,85,99,0.02)"}
                 onMouseLeave={(e) => e.currentTarget.style.background = "#fff"}
               >
-                {/* Job title */}
+                {/* Job title + tutor badge */}
                 <div className="col-3">
                   <p className="bold fs-p9 mb-1">{jobTitle(job)}</p>
-                  {app.tutorModel && (
+                  {tutorName && (
                     <span style={{
                       fontSize: "0.7rem", padding: "2px 8px", borderRadius: 10,
                       background: "rgba(88,60,160,0.08)", color: "#483b8f",
                       border: "1px solid rgba(88,60,160,0.2)",
                     }}>
-                      👨‍🏫 {app.tutorModel?.tutorName || app.tutorModel?.name}
+                      👨‍🏫 {tutorName}
                     </span>
                   )}
                 </div>
@@ -597,21 +584,33 @@ function StudentApplications() {
                   📍 {job.companyModel?.location || "—"}
                 </div>
 
-                {/* Resume */}
+                {/* Resume — clickable to open PDF */}
                 <div className="col-2">
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <div style={{
-                      width: 28, height: 28, borderRadius: 6, flexShrink: 0,
-                      background: "#325563", color: "#fff",
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      fontSize: "0.6rem", fontWeight: 700,
-                    }}>
+                    <div
+                      onClick={() => openResume(app.resumeModel)}
+                      title="Click to view resume"
+                      style={{
+                        width: 28, height: 28, borderRadius: 6, flexShrink: 0,
+                        background: "#325563", color: "#fff",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        fontSize: "0.6rem", fontWeight: 700,
+                        cursor: "pointer", transition: "opacity 0.15s",
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.opacity = "0.75"}
+                      onMouseLeave={(e) => e.currentTarget.style.opacity = "1"}
+                    >
                       PDF
                     </div>
-                    <p className="fs-p9" style={{
-                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                    }}>
-                      {app.resumeModel?.resumeTitle || `Resume #${app.resumeId}` || "—"}
+                    <p
+                      className="fs-p9"
+                      style={{
+                        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                        color: "#325563", cursor: "pointer", textDecoration: "underline",
+                      }}
+                      onClick={() => openResume(app.resumeModel)}
+                    >
+                      {app.resumeModel?.resumeTitle || (app.resumeId ? `Resume #${app.resumeId}` : "—")}
                     </p>
                   </div>
                 </div>

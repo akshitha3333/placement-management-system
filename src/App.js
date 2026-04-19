@@ -43,6 +43,7 @@ import StudentOffers from './Components/student/StudentPages/StudentOffers';
 import StudentMeetings from './Components/student/StudentPages/StudentMeetings';
 import StudentProfile from './Components/student/StudentPages/StudentProfile';
 
+
 // Tutor
 import TutorLogin from './Components/Tutor/TutorLogin';
 import TutorPage from './Components/Tutor/TutorPages/TutorPage';
@@ -52,6 +53,7 @@ import TutorFeedback from './Components/Tutor/TutorPages/TutorFeedback';
 import TutorJobposts from './Components/Tutor/TutorPages/TutorJobposts'
 import TutorMeetings from './Components/Tutor/TutorPages/TutorMeetings';
 import TutorPlacementReport from './Components/Tutor/TutorPages/TutorPlacementReport';
+import TutorStudentLocation from "./Components/Tutor/TutorPages/TutorStudentLocation";
 
 
 function App() {
@@ -118,6 +120,7 @@ function App() {
             <Route path='feedback' element={<TutorFeedback />} />
             <Route path='meetings' element={<TutorMeetings />} />
             <Route path='placement-report' element={<TutorPlacementReport />} />
+            <Route path='student-location' element={<TutorStudentLocation />} />
             </Route>            
           </Routes>
       </div>

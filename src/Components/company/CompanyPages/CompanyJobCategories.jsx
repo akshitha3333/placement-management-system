@@ -12,6 +12,7 @@ const getHeader = () => ({
 });
 
 function CompanyJobCategories() {
+  const [fetchFresh, setFetchFresh] = useState(true);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading]       = useState(true);
   const [showModal, setShowModal]   = useState(false);
@@ -29,6 +30,7 @@ function CompanyJobCategories() {
                    : [];
         setCategories(list);
         setLoading(false);
+        setFetchFresh(false);
       })
       .catch(err => {
         console.error("Fetch error:", err);
@@ -36,7 +38,7 @@ function CompanyJobCategories() {
       });
   };
 
-  useEffect(() => { fetchCategories(); }, []);
+  useEffect(() => { fetchCategories(); }, [fetchFresh]);
 
   const handleSubmit = () => {
     if (!categoryName.trim()) {
@@ -54,6 +56,7 @@ function CompanyJobCategories() {
         setShowModal(false);
         setSuccessMsg("Category added successfully!");
         setTimeout(() => setSuccessMsg(""), 3000);
+        setFetchFresh(true);
       })
       .catch(err => {
         console.error("Add error:", err);
