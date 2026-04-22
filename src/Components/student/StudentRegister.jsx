@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom"
 import axios from "axios";
-import { useEffect } from "react";
 const rest = require("../../Rest")
+
 function StudentRegister() {
     const [departments, setDepartments] = useState([]);
     const [nameError, setNameError] = useState("");
@@ -19,11 +19,11 @@ function StudentRegister() {
     const validateName = (e) => {
         const name = e.target.value.trim();
         if (name === "") {
-            setNameError("Name is requried");
+            setNameError("Name is required");
         } else if (name.length <= 3) {
-            setNameError("Name must ne atleast 3 characters")
+            setNameError("Name must be atleast 3 characters")
         } else if (!/^[A-Za-z\s.&-]+$/.test(name)) {
-            setNameError("only letters, spaces, ., & and - are allowed")
+            setNameError("Only letters, spaces, ., & and - are allowed")
         } else {
             setNameError("");
         }
@@ -52,9 +52,7 @@ function StudentRegister() {
         }
     }
     const validateRollNumber = (e) => {
-
         const roll = e.target.value.trim();
-
         if (roll === "") {
             setRollError("Roll number is required");
         }
@@ -67,38 +65,32 @@ function StudentRegister() {
         else {
             setRollError("");
         }
-
     }
     const validateDepartment = (e) => {
-
         const department = e.target.value;
-
         if (department === "") {
             setDepartmentError("Please select a department");
         }
         else {
             setDepartmentError("");
         }
-
     }
-
     const validateYear = (e) => {
-
         const year = e.target.value;
-
         if (year === "") {
             setYearError("Please select your year");
         }
         else {
             setYearError("");
         }
-
     }
 
-   const header = {
-           headers: {
-               "Content-Type": "application/json"           }
-       };
+    const header = {
+        headers: {
+            "Content-Type": "application/json"
+        }
+    };
+
     const studentRegistration = (e) => {
         e.preventDefault();
         let name = document.getElementById("name").value;
@@ -114,37 +106,32 @@ function StudentRegister() {
             "name": name,
             "phone": phone,
             "email": email,
-            "password":password,
-            "percentage":percentage,
+            "password": password,
+            "percentage": percentage,
             "rollNumber": rollNumber,
             "year": year,
             "departmentId": departmentId
         }
-        if (
-          nameError || emailError || phoneError || rollError ||
-          departmentError || yearError
-        ) {
-          setMessage("Please fix validation errors");
-          setMsgType("error");
-          return;
+
+        if (nameError || emailError || phoneError || rollError || departmentError || yearError) {
+            setMessage("Please fix the validation errors before submitting.");
+            setMsgType("error");
+            return;
         }
+
         axios.post(rest.student, data, header)
             .then(response => {
                 console.log(response.data);
-
-                // ✅ FIX: use response.data.message not response.message
                 const msg     = response.data.message || "";
                 const success = response.data.success;
 
-                if (success && msg === "Student Added Successfully.") {
-                    setMessage("✔ Registered successfully! Redirecting to login...");
+                if (success) {
+                    setMessage("Registered successfully! Redirecting to login...");
                     setMsgType("success");
                     setTimeout(() => navigate("/student-login"), 1500);
-
-                } else if (msg === "Student Already Exists") {
-                    setMessage("⚠ This email or roll number is already registered. Please login.");
+                } else if (msg.toLowerCase().includes("exist")) {
+                    setMessage("This email or roll number is already registered. Please login.");
                     setMsgType("error");
-
                 } else {
                     setMessage(msg || "Registration completed.");
                     setMsgType("success");
@@ -153,32 +140,43 @@ function StudentRegister() {
             })
             .catch(error => {
                 console.log(error);
-                setMessage("Something went wrong. Please try again.");
+                setMessage(error.response?.data?.message || "Something went wrong. Please try again.");
                 setMsgType("error");
             });
     };
-   const fetchDepartments = async () => {
-     try {
-       const res = await axios.get(rest.departments, header); // make sure this API exists
-        setDepartments(res.data?.data || res.data);
-     } catch (err) {
-       console.log(err);
-     }
-   };
-useEffect(() => {
-  fetchDepartments();
-}, []);
+
+    const fetchDepartments = async () => {
+        try {
+            const res = await axios.get(rest.departments, header);
+            setDepartments(res.data?.data || res.data);
+        } catch (err) {
+            console.log(err);
+        }
+    };
+
+    useEffect(() => {
+        fetchDepartments();
+    }, []);
+
     return (
         <div className="">
             <div className="card w-50 m-auto p-5">
                 <div className="text-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" fill="currentColor" className="bi bi-buildings" viewBox="0 0 16 16">
-                        <path d="M14.763.075A.5.5 0 0 1 15 .5v15a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5V14h-1v1.5a.5.5 0 0 1-.5.5h-9a.5.5 0 0 1-.5-.5V10a.5.5 0 0 1 .342-.474L6 7.64V4.5a.5.5 0 0 1 .276-.447l8-4a.5.5 0 0 1 .487.022M6 8.694 1 10.36V15h5zM7 15h2v-1.5a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 .5.5V15h2V1.309l-7 3.5z" />
-                        <path d="M2 11h1v1H2zm2 0h1v1H4zm-2 2h1v1H2zm2 0h1v1H4zm4-4h1v1H8zm2 0h1v1h-1zm-2 2h1v1H8zm2 0h1v1h-1zm2-2h1v1h-1zm0 2h1v1h-1zM8 7h1v1H8zm2 0h1v1h-1zm2 0h1v1h-1zM8 5h1v1H8zm2 0h1v1h-1zm2 0h1v1h-1zm0-2h1v1h-1z" />
+                    <svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" fill="currentColor" className="bi bi-mortarboard" viewBox="0 0 16 16">
+                        <path d="M8.211 2.047a.5.5 0 0 0-.422 0l-7.5 3.5a.5.5 0 0 0 .025.917l7.5 3a.5.5 0 0 0 .372 0L14 7.14V13a1 1 0 0 0-1 1v2h3v-2a1 1 0 0 0-1-1V6.739l.686-.275a.5.5 0 0 0 .025-.917zM8 8.46 1.758 5.965 8 3.052l6.242 2.913z"/>
+                        <path d="M4.176 9.032a.5.5 0 0 0-.656.327l-.5 1.7a.5.5 0 0 0 .294.605l4.5 1.8a.5.5 0 0 0 .372 0l4.5-1.8a.5.5 0 0 0 .294-.605l-.5-1.7a.5.5 0 0 0-.656-.327L8 10.466zm-.068 1.873.22-.748 3.496 1.311a.5.5 0 0 0 .352 0l3.496-1.311.22.748L8 12.46z"/>
                     </svg>
                     <h2>Student Registration</h2>
-                    <p className="sub-text">Create your placement account</p>
-                    {message && <p className={` text-danger alert-${msgType}`}>{message}</p>}
+                    <p className="text-secondary fs-p9">Create your placement account</p>
+
+                    {message && (
+                        <div className={msgType === "success" ? "alert-success mt-3" : "alert-danger mt-3"}>
+                            <p className={msgType === "success" ? "text-success" : "text-danger"}>
+                                {message}
+                            </p>
+                        </div>
+                    )}
+
                 </div>
                 <form onSubmit={studentRegistration} method="post">
                     <div className="row">
@@ -186,14 +184,14 @@ useEffect(() => {
                             <div className="form-group">
                                 <label className="form-control-label">Full Name</label>
                                 <input className="form-control" type="text" id="name" placeholder="Enter your Name" onKeyUp={validateName} />
-                                <p className="text-danger">{nameError}</p>
+                                {nameError && <p className="text-danger fs-p8 mt-1">{nameError}</p>}
                             </div>
                         </div>
                         <div className="col-6 p-3">
                             <div className="form-group">
                                 <label className="form-control-label">Email Address</label>
-                                <input className="form-control" type="email" id="email" placeholder="hr@company.com" onKeyUp={validateEmail} />
-                                <p className="text-danger">{emailError}</p>
+                                <input className="form-control" type="email" id="email" placeholder="student@college.com" onKeyUp={validateEmail} />
+                                {emailError && <p className="text-danger fs-p8 mt-1">{emailError}</p>}
                             </div>
                         </div>
                     </div>
@@ -202,40 +200,33 @@ useEffect(() => {
                             <div className="form-group">
                                 <label className="form-control-label">Phone Number</label>
                                 <input className="form-control" type="text" id="phone" placeholder="Phone Number" onChange={validatePhone} />
-                                <p className="text-danger fs-p8">{phoneError}</p>
+                                {phoneError && <p className="text-danger fs-p8 mt-1">{phoneError}</p>}
                             </div>
                         </div>
                         <div className="col-6 p-3">
                             <div className="form-group">
                                 <label className="form-control-label">Roll Number</label>
                                 <input className="form-control" type="text" id="rollNumber" placeholder="Roll Number" onChange={validateRollNumber} />
-                                <p className="text-danger fs-p8">{rollError}</p>
+                                {rollError && <p className="text-danger fs-p8 mt-1">{rollError}</p>}
                             </div>
                         </div>
-
                     </div>
-
                     <div className="row">
-                        <div className=" col-6 p-3">
+                        <div className="col-6 p-3">
                             <div className="form-group">
-                                <label className="form-control-label">Departments</label>
-                                <select
-                                      className="form-control"
-                                      id="departmentId"
-                                      onChange={validateDepartment}
-                                    >
-                                      <option value="">Select Department</option>
-
-                                      {departments.map((dept) => (
+                                <label className="form-control-label">Department</label>
+                                <select className="form-control" id="departmentId" onChange={validateDepartment}>
+                                    <option value="">Select Department</option>
+                                    {departments.map((dept) => (
                                         <option key={dept.departmentId} value={dept.departmentId}>
-                                          {dept.departmentName}
+                                            {dept.departmentName}
                                         </option>
-                                      ))}
+                                    ))}
                                 </select>
-                                <p className="text-danger fs-p8">{departmentError}</p>
+                                {departmentError && <p className="text-danger fs-p8 mt-1">{departmentError}</p>}
                             </div>
                         </div>
-                        <div className=" col-6 p-3">
+                        <div className="col-6 p-3">
                             <div className="form-group">
                                 <label className="form-control-label">Year</label>
                                 <select className="form-control" id="year" onChange={validateYear}>
@@ -245,27 +236,26 @@ useEffect(() => {
                                     <option value="3">3rd Year</option>
                                     <option value="4">4th Year</option>
                                 </select>
-                                <p className="text-danger">{yearError}</p>
+                                {yearError && <p className="text-danger fs-p8 mt-1">{yearError}</p>}
                             </div>
                         </div>
                     </div>
                     <div className="row">
-                        <div className=" col-6 p-3">
+                        <div className="col-6 p-3">
                             <div className="form-group">
                                 <label className="form-control-label">Percentage</label>
-                                <input className="form-control" type="text" id="percentage" placeholder="Enter percentage" />
+                                <input className="form-control" type="text" id="percentage" placeholder="e.g. 85" />
                             </div>
                         </div>
                         <div className="col-6 p-3">
-                        <div className="form-group">
-                          <label className="form-control-label">Password</label>
-                          <input className="form-control" type="password" id="password" placeholder="Enter password" />
+                            <div className="form-group">
+                                <label className="form-control-label">Password</label>
+                                <input className="form-control" type="password" id="password" placeholder="Enter password" />
+                            </div>
                         </div>
-                      </div>
                     </div>
-                
-                    <div>
-                        <input className="btn btn-primary mt-5" type="submit" name="Register" value="Register" />
+                    <div className="p-3">
+                        <input className="btn btn-primary" type="submit" name="Register" value="Register" />
                     </div>
                 </form>
                 <div className="fs-p7 text-center text-link mt-2" >

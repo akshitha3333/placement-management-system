@@ -59,7 +59,7 @@ function AdminNav({ children }) {
           📹 Meetings
         </div>
 
-        {/* SYSTEM */}
+        {/* SYSTEM
         <p className="fs-p8 text-gray-300 mb-2">SYSTEM</p>
 
         <div className="p-1 hover-bg cursor-pointer"
@@ -70,7 +70,7 @@ function AdminNav({ children }) {
         <div className="p-1 hover-bg cursor-pointer"
           onClick={() => navigate("/notifications")}>
           🔔 Notifications
-        </div>
+        </div> */}
 
         {/* Sign Out */}
         <div className="mt-6 p-1 hover-bg cursor-pointer text-gray-300"

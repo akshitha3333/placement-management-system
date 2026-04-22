@@ -1,79 +1,151 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
+import Cookies from "js-cookie";
+const rest = require("../../../Rest");
+
+const baseInteractions = rest.jobApplications.replace("/job/job-applications", "/interactions");
+
+const getHeaders = () => ({
+  headers: {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${Cookies.get("token") || ""}`,
+  },
+});
 
 function StudentMeetings() {
   const [meetings, setMeetings] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  const header = { headers: { Authorization: `Bearer ${localStorage.getItem("studentToken")}` } };
+  const [loading,  setLoading]  = useState(true);
+  const [error,    setError]    = useState("");
 
   useEffect(() => {
-    axios.get("/api/student/meetings", header)
-      .then(res => { setMeetings(res.data.data || res.data || []); setLoading(false); })
-      .catch(() => setLoading(false));
+    fetchMeetings();
   }, []);
 
-  const upcoming = meetings.filter(m => new Date(`${m.meetingDate} ${m.meetingTime}`) >= new Date());
-  const past = meetings.filter(m => new Date(`${m.meetingDate} ${m.meetingTime}`) < new Date());
+  const fetchMeetings = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const res  = await axios.get(`${baseInteractions}/meetings`, getHeaders());
+      const data = res.data?.data || res.data || [];
+      console.log("Student meetings response:", res.data);
+      console.log("Student meetings data:", data);
+      setMeetings(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error("fetchMeetings error:", err.response?.data || err.message);
+      setError("Failed to load meetings.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatTime = (t) => {
+    if (!t) return "—";
+    try {
+      if (Array.isArray(t)) {
+        const [h, m] = t;
+        const d = new Date();
+        d.setHours(h, m, 0);
+        return d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+      }
+      const [h, m] = String(t).split(":");
+      const d = new Date();
+      d.setHours(Number(h), Number(m), 0);
+      return d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+    } catch { return t; }
+  };
+
+  const getTutorName   = (m) => m.tutorModel?.tutorName    || `Tutor #${m.tutorId || "—"}`;
+  const getCompanyName = (m) => m.companyModel?.companyName || `Company #${m.companyId || "—"}`;
+
+  if (loading) {
+    return <div className="p-4"><p className="text-secondary">Loading meetings...</p></div>;
+  }
 
   return (
-    <div className="p-4">
-      <h2 className="fs-5 bold mb-1">Meetings</h2>
-      <p className="fs-p9 text-secondary mb-4">View scheduled meetings from admin and companies</p>
+    <div className="p-4" style={{ height: "calc(100vh - 70px)", overflowY: "auto" }}>
 
-      {loading ? <p>Loading...</p> : (
-        <>
-          <h4 className="mb-3">📅 Upcoming Meetings</h4>
-          {upcoming.length === 0 ? (
-            <div className="card p-4 mb-4 text-center">
-              <p className="text-secondary">No upcoming meetings</p>
-            </div>
-          ) : (
-            <div className="row mb-5" style={{ gap: "16px" }}>
-              {upcoming.map((m, i) => (
-                <div key={m.id || i} className="card p-4 stat-card" style={{ width: "calc(48% - 16px)", borderLeft: "4px solid #325563" }}>
-                  <div className="row space-between items-center mb-2">
-                    <span className="bold">{m.title}</span>
-                    <span className="status-item fs-p8" style={{ background: "rgba(14,165,233,0.1)", color: "#0ea5e9" }}>
-                      {m.meetingDate}
-                    </span>
-                  </div>
-                  <p className="fs-p9 text-secondary">🕐 {m.meetingTime}</p>
-                  {m.organizer && <p className="fs-p9 text-secondary mt-1">👤 By: {m.organizer}</p>}
-                  {m.notes && <p className="fs-p9 mt-1">{m.notes}</p>}
-                  {m.link && (
-                    <a href={m.link} target="_blank" rel="noreferrer"
-                      className="btn btn-primary w-auto mt-2"
-                      style={{ padding: "6px 16px", fontSize: "0.85rem", textDecoration: "none", display: "inline-block" }}>
-                      🔗 Attend Meeting
-                    </a>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
+      {/* Header */}
+      <div className="row space-between items-center mb-4">
+        <div>
+          <h2 className="fs-5 bold mb-1">My Meetings</h2>
+          <p className="fs-p9 text-secondary">Meetings scheduled for you by your tutor</p>
+        </div>
+        <button className="btn btn-muted w-auto" style={{ padding: "8px 16px" }}
+          onClick={fetchMeetings}>
+          Refresh
+        </button>
+      </div>
 
-          {past.length > 0 && (
-            <>
-              <h4 className="mb-3">🕐 Past Meetings</h4>
-              <div className="card p-2">
-                <table className="w-100">
-                  <thead><tr><th>Title</th><th>Date</th><th>Time</th><th>By</th></tr></thead>
-                  <tbody>
-                    {past.map((m, i) => (
-                      <tr key={m.id || i} className="hover-bg">
-                        <td className="bold">{m.title}</td>
-                        <td>{m.meetingDate}</td>
-                        <td>{m.meetingTime}</td>
-                        <td className="fs-p9 text-secondary">{m.organizer || "—"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+      {error && (
+        <div className="alert-danger mb-4">
+          <p className="fs-p9" style={{ color: "var(--danger)" }}>{error}</p>
+        </div>
+      )}
+
+      {/* Stats */}
+      <div className="row mb-4" style={{ gap: 10 }}>
+        {[
+          { label: "Total Meetings", value: meetings.length, color: "var(--primary)" },
+        ].map((s, i) => (
+          <div key={i} style={{ flex: "0 0 160px" }}>
+            <div className="card p-3 text-center stat-card">
+              <h2 className="bold" style={{ color: s.color }}>{s.value}</h2>
+              <p className="fs-p9 text-secondary">{s.label}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Cards view */}
+      {meetings.length === 0 ? (
+        <div className="card p-5 text-center">
+          <p className="bold mb-1">No meetings yet</p>
+          <p className="fs-p9 text-secondary">Your tutor will schedule meetings for you.</p>
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {meetings.map((m, idx) => (
+            <div key={m.meetingId || idx} className="card p-4"
+              style={{ borderLeft: "4px solid var(--primary)" }}>
+
+              <div className="row space-between items-center mb-3">
+                <h4 className="bold">{m.meetingTitle || "Meeting"}</h4>
+                <span style={{
+                  fontSize: "0.75rem", fontWeight: 600, padding: "4px 10px", borderRadius: 10,
+                  background: "rgba(50,85,99,0.1)", color: "var(--primary)",
+                }}>
+                  {formatTime(m.startTime)} — {formatTime(m.endTime)}
+                </span>
               </div>
-            </>
-          )}
-        </>
+
+              {/* Details grid */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: 12 }}>
+                <div style={{ background: "var(--gray-100)", borderRadius: 8, padding: "8px 12px" }}>
+                  <p className="fs-p8 text-secondary">Tutor</p>
+                  <p className="bold fs-p9">{getTutorName(m)}</p>
+                </div>
+                <div style={{ background: "var(--gray-100)", borderRadius: 8, padding: "8px 12px" }}>
+                  <p className="fs-p8 text-secondary">Company</p>
+                  <p className="bold fs-p9">{getCompanyName(m)}</p>
+                </div>
+                <div style={{ background: "var(--gray-100)", borderRadius: 8, padding: "8px 12px" }}>
+                  <p className="fs-p8 text-secondary">Duration</p>
+                  <p className="bold fs-p9">{formatTime(m.startTime)} to {formatTime(m.endTime)}</p>
+                </div>
+              </div>
+
+              {m.meetingDescription && (
+                <div style={{
+                  background: "rgba(50,85,99,0.04)", border: "1px solid rgba(50,85,99,0.12)",
+                  borderRadius: 8, padding: "8px 12px",
+                }}>
+                  <p className="fs-p8 text-secondary" style={{ marginBottom: 2 }}>Description</p>
+                  <p className="fs-p9">{m.meetingDescription}</p>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );

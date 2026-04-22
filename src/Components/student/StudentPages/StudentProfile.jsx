@@ -1,643 +1,867 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import Cookies from "js-cookie";
 const rest = require("../../../Rest");
 
-function StudentRecommended() {
+// ── Static suggestion lists ────────────────────────────
+const SUGGESTED_SKILLS = [
+  "JavaScript","TypeScript","Python","Java","C++","React","Node.js",
+  "MongoDB","Docker","Kubernetes","Machine Learning","SQL","Git","Figma","Data Analysis",
+  "Spring Boot","Django","Flutter","AWS","Linux"
+];
 
-  // ── State ──────────────────────────────────────────────
-  const [suggestions,    setSuggestions]    = useState([]);
-  const [resumes,        setResumes]        = useState([]);
-  const [loading,        setLoading]        = useState(true);
-  const [error,          setError]          = useState("");
-  const [search,         setSearch]         = useState("");
-  const [expandedId,     setExpandedId]     = useState(null);
-  const [appliedIds,     setAppliedIds]     = useState({});   // { jobSuggestionId: true }
-  const [applying,       setApplying]       = useState(null);
-  const [showModal,      setShowModal]      = useState(null); // sug object
-  const [selectedResume, setSelectedResume] = useState(null);
-  const [coverLetter,    setCoverLetter]    = useState("");
-  const [submitError,    setSubmitError]    = useState("");
+const SUGGESTED_CERTS = [
+  "AWS Cloud Practitioner","AWS Solutions Architect","Google Cloud Professional",
+  "Microsoft Azure Fundamentals","Meta Front-End Developer","IBM Data Science",
+  "Coursera Machine Learning","NPTEL Python","Google Analytics","Cisco CCNA"
+];
 
-  // ── Auth Header ────────────────────────────────────────
-  const header = {
+const TABS = ["Personal", "Academic", "Skills & Certs", "Resumes", "About"];
+
+// ── Small reusable Tag chip ────────────────────────────
+function Tag({ label, onRemove, editing, variant = "skill" }) {
+  const colors = variant === "skill"
+    ? { bg: "rgba(50,85,99,0.1)",    color: "#325563",  border: "rgba(50,85,99,0.3)"    }
+    : { bg: "rgba(88,60,160,0.1)",   color: "#483b8f",  border: "rgba(88,60,160,0.3)"   };
+  return (
+    <span style={{
+      display: "inline-flex", alignItems: "center", gap: 5,
+      background: colors.bg, color: colors.color,
+      border: `1px solid ${colors.border}`,
+      borderRadius: 16, padding: "4px 12px", fontSize: "0.8rem", fontWeight: 600,
+    }}>
+      {label}
+      {editing && (
+        <span
+          onClick={() => onRemove(label)}
+          style={{ cursor: "pointer", color: "var(--danger)", fontSize: "0.75rem", lineHeight: 1 }}
+        >✕</span>
+      )}
+    </span>
+  );
+}
+
+// ── Read-only display value ────────────────────────────
+function DisplayVal({ value }) {
+  return (
+    <div style={{
+      fontSize: "0.9rem", padding: "0.65rem 0.75rem",
+      background: "var(--gray-100)", borderRadius: "8px",
+      color: value ? "var(--text-primary)" : "var(--gray-400)",
+      minHeight: "38px",
+    }}>
+      {value || "Not set"}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────
+export default function StudentProfile() {
+  const [activeTab,     setActiveTab]     = useState("Personal");
+  const [editing,       setEditing]       = useState(false);
+  const [loading,       setLoading]       = useState(true);
+  const [saving,        setSaving]        = useState(false);
+  const [message,       setMessage]       = useState("");
+  const [msgType,       setMsgType]       = useState("");
+
+  // ── Raw student object from API (for ID + read-only fields)
+  const [studentData,   setStudentData]   = useState(null);
+
+  // ── Editable form state (mirrors PATCH-able fields)
+  const [form, setForm] = useState({
+    name: "", phone: "", rollNumber: "", percentage: "",
+    year: "", skills: "", about: "", linkedin: "", github: "",
+  });
+
+  // ── Derived lists
+  const [skills,        setSkills]        = useState([]);
+  const [newSkill,      setNewSkill]      = useState("");
+  const [certs,         setCerts]         = useState([]);
+  const [newCert,       setNewCert]       = useState("");
+
+  // ── Resume state
+  const [resumes,       setResumes]       = useState([]);  // existing from API
+  const [resumeTitle,   setResumeTitle]   = useState("");  // title input before upload
+  const [uploading,     setUploading]     = useState(false);
+  const [dragging,      setDragging]      = useState(false);
+  const [resumeMsg,     setResumeMsg]     = useState("");
+  const [resumeMsgType, setResumeMsgType] = useState("");
+  const fileInputRef = useRef();
+
+  const jsonHeader = {
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${Cookies.get("token")}`,
+      Authorization:  `Bearer ${Cookies.get("token")}`,
     },
   };
 
-  // ── Fetch: GET /api/job/job-suggestions ───────────────
-  const fetchSuggestions = async () => {
-    try {
-      const res  = await axios.get(rest.jobSuggestions, header);
-      const list = res.data?.data || res.data || [];
-      const arr  = Array.isArray(list) ? list : [];
-      setSuggestions(arr);
-
-      // Pre-mark applied suggestions from suggestions list
-      const already = {};
-      arr.forEach((s) => {
-        if (s.applied || (s.jobApplications && s.jobApplications.length > 0)) {
-          already[s.jobSuggestionId] = true;
-        }
-      });
-      setAppliedIds(already);
-      return arr;
-    } catch (err) {
-      console.error("fetchSuggestions:", err);
-      setError("Failed to load recommended jobs.");
-      return [];
-    }
+  const multipartHeader = {
+    headers: {
+      "Content-Type": "multipart/form-data",
+      Authorization:  `Bearer ${Cookies.get("token")}`,
+    },
   };
 
-  // ── Fetch: GET /api/actors/student-resume ─────────────
-  const fetchResumes = async () => {
-    try {
-      const res  = await axios.get(rest.studentResume, header);
-      const data = res.data?.data || res.data || [];
-      setResumes(Array.isArray(data) ? data : []);
-    } catch (err) {
-      console.error("fetchResumes:", err);
-    }
-  };
-
-  // ── Verify applied status per suggestion ──────────────
-  // GET /api/job/job-suggestions/{id}/job-applications
-  const verifyApplied = async (sugs) => {
-    if (!sugs.length) return;
-    const results = await Promise.all(
-      sugs.map(async (sug) => {
-        try {
-          const res  = await axios.get(
-            `${rest.jobSuggestions}/${sug.jobSuggestionId}/job-applications`,
-            header
-          );
-          const apps = res.data?.data || res.data || [];
-          return { id: sug.jobSuggestionId, applied: Array.isArray(apps) && apps.length > 0 };
-        } catch {
-          return { id: sug.jobSuggestionId, applied: false };
-        }
-      })
-    );
-    const extra = {};
-    results.forEach((r) => { if (r.applied) extra[r.id] = true; });
-    setAppliedIds((prev) => ({ ...prev, ...extra }));
-  };
-
+  // ── GET /api/actors/students → load own profile ───────
   useEffect(() => {
-    const init = async () => {
-      setLoading(true);
-      const [sugs] = await Promise.all([fetchSuggestions(), fetchResumes()]);
-      await verifyApplied(sugs);
-      setLoading(false);
+    const fetchProfile = async () => {
+      try {
+        const res  = await axios.get(rest.students, jsonHeader);
+        const list = res.data?.data || res.data || [];
+        const me   = Array.isArray(list) ? list[0] : list;
+        setStudentData(me);
+
+        // Populate editable form
+        setForm({
+          name:       me?.name        || "",
+          phone:      me?.phone       || "",
+          rollNumber: me?.rollNumber  || "",
+          percentage: me?.percentage  || "",
+          year:       me?.year        || "",
+          skills:     me?.skills      || "",
+          about:      me?.about       || "",
+          linkedin:   me?.linkedin    || "",
+          github:     me?.github      || "",
+        });
+
+        // Populate skill/cert chips from comma-separated strings
+        if (me?.skills) {
+          setSkills(me.skills.split(",").map((s) => s.trim()).filter(Boolean));
+        }
+        if (me?.certifications) {
+          setCerts(me.certifications.split(",").map((c) => c.trim()).filter(Boolean));
+        }
+
+        // Populate resumes from resumeModel if present
+        const resumeList = me?.resumeModels || (me?.resumeModel ? [me.resumeModel] : []);
+        setResumes(resumeList);
+      } catch (err) {
+        console.error("fetchProfile:", err);
+        setMessage("Failed to load profile.");
+        setMsgType("error");
+      } finally {
+        setLoading(false);
+      }
     };
-    init();
+    fetchProfile();
   }, []);
 
-  // ── POST /api/job/job-suggestions/{id}/job-applications ──
-  const applyToJob = async () => {
-    if (!showModal) return;
-    if (!selectedResume) {
-      setSubmitError("Please select a resume before submitting.");
+  // ── PATCH /api/actors/students/{studentId} ────────────
+  const handleSave = async () => {
+    setSaving(true);
+    setMessage("");
+    try {
+      const studentId = studentData?.studentId || studentData?.id;
+      const payload   = {
+        ...form,
+        skills:           skills.join(", "),
+        certifications:   certs.join(", "),
+      };
+      await axios.patch(`${rest.students}/${studentId}`, payload, jsonHeader);
+      // Refresh local studentData with saved values
+      setStudentData((prev) => ({ ...prev, ...payload }));
+      setEditing(false);
+      setMessage("Profile saved successfully!");
+      setMsgType("success");
+      setTimeout(() => setMessage(""), 3500);
+    } catch (err) {
+      console.error("saveProfile:", err);
+      setMessage(err.response?.data?.message || "Failed to save profile.");
+      setMsgType("error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const cancelEdit = () => {
+    // Reset form to current studentData
+    if (studentData) {
+      setForm({
+        name:       studentData.name        || "",
+        phone:      studentData.phone       || "",
+        rollNumber: studentData.rollNumber  || "",
+        percentage: studentData.percentage  || "",
+        year:       studentData.year        || "",
+        skills:     studentData.skills      || "",
+        about:      studentData.about       || "",
+        linkedin:   studentData.linkedin    || "",
+        github:     studentData.github      || "",
+      });
+      if (studentData.skills) {
+        setSkills(studentData.skills.split(",").map((s) => s.trim()).filter(Boolean));
+      }
+      if (studentData.certifications) {
+        setCerts(studentData.certifications.split(",").map((c) => c.trim()).filter(Boolean));
+      }
+    }
+    setEditing(false);
+    setMessage("");
+  };
+
+  const handleChange = (e) =>
+    setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+
+  // ── Skills ────────────────────────────────────────────
+  const addSkill = () => {
+    const val = newSkill.trim();
+    if (!val || skills.includes(val)) return;
+    setSkills((prev) => [...prev, val]);
+    setNewSkill("");
+  };
+  const removeSkill = (s) => setSkills((prev) => prev.filter((x) => x !== s));
+  const addSuggestedSkill = (s) => {
+    if (!skills.includes(s)) setSkills((prev) => [...prev, s]);
+  };
+
+  // ── Certifications ────────────────────────────────────
+  const addCert = () => {
+    const val = newCert.trim();
+    if (!val || certs.includes(val)) return;
+    setCerts((prev) => [...prev, val]);
+    setNewCert("");
+  };
+  const removeCert = (c) => setCerts((prev) => prev.filter((x) => x !== c));
+  const addSuggestedCert = (c) => {
+    if (!certs.includes(c)) setCerts((prev) => [...prev, c]);
+  };
+
+  // ── Resume upload: POST /api/actors/student-resume ────
+  // Backend requires resumeTitle as @RequestParam (query param)
+  const uploadResume = async (file) => {
+    if (!file || file.type !== "application/pdf") {
+      setResumeMsg("Only PDF files are accepted.");
+      setResumeMsgType("error");
       return;
     }
-    setSubmitError("");
-    const { jobSuggestionId } = showModal;
-    setApplying(jobSuggestionId);
-
+    if (file.size > 5 * 1024 * 1024) {
+      setResumeMsg(`${file.name} exceeds the 5 MB limit.`);
+      setResumeMsgType("error");
+      return;
+    }
+    const title = resumeTitle.trim() || file.name.replace(/\.pdf$/i, "");
+    setUploading(true);
+    setResumeMsg("");
     try {
-      const payload = { resumeId: selectedResume.resumeId };
-      if (coverLetter.trim()) payload.coverLetter = coverLetter.trim();
+      const formData = new FormData();
+      formData.append("resume", file);
 
-      await axios.post(
-        `${rest.jobSuggestions}/${jobSuggestionId}/job-applications`,
-        payload,
-        header
+      const res = await axios.post(
+        `${rest.studentResume}?resumeTitle=${encodeURIComponent(title)}`,
+        formData,
+        multipartHeader
       );
-
-      setAppliedIds((prev) => ({ ...prev, [jobSuggestionId]: true }));
-      setShowModal(null);
-      setCoverLetter("");
-      setSelectedResume(null);
-      alert("Application submitted successfully! View it in My Applications.");
+      const saved = res.data?.data || res.data;
+      setResumes((prev) => [...prev, saved]);
+      setResumeTitle(""); // clear title input after successful upload
+      setResumeMsg("Resume uploaded successfully!");
+      setResumeMsgType("success");
+      setTimeout(() => setResumeMsg(""), 3000);
     } catch (err) {
-      console.error("applyToJob:", err);
-      const msg =
-        err?.response?.data?.message ||
-        err?.response?.data?.error ||
-        "Failed to submit application. Please try again.";
-      setSubmitError(msg);
+      console.error("uploadResume:", err);
+      setResumeMsg(err.response?.data?.message || "Upload failed. Please try again.");
+      setResumeMsgType("error");
     } finally {
-      setApplying(null);
+      setUploading(false);
     }
   };
 
-  const openModal = (sug) => {
-    setShowModal(sug);
-    setCoverLetter("");
-    setSelectedResume(null);
-    setSubmitError("");
+  const processFiles = (files) => {
+    const pdfs = Array.from(files).filter((f) => f.type === "application/pdf");
+    if (pdfs.length === 0) {
+      setResumeMsg("Please select PDF files only.");
+      setResumeMsgType("error");
+      return;
+    }
+    pdfs.forEach((f) => uploadResume(f));
   };
 
-  const closeModal = () => {
-    setShowModal(null);
-    setSubmitError("");
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setDragging(false);
+    processFiles(e.dataTransfer.files);
   };
 
-  // ── Helpers ────────────────────────────────────────────
-  const getTutorName = (sug) =>
-    sug?.tutorModel?.tutorName ||
-    sug?.tutorModel?.name ||
-    sug?.tutorName ||
-    sug?.recommendedBy ||
-    "Your Tutor";
-
-  const getJobTitle = (sug) =>
-    sug?.jobPostModel?.title ||
-    sug?.jobPostModel?.tiitle ||
-    "—";
-
-  const matchColor = (score) =>
-    score >= 80 ? "var(--success)" : score >= 60 ? "var(--warning)" : "var(--danger)";
-
-  const daysLeft = (dateStr) => {
-    if (!dateStr) return null;
-    return Math.ceil((new Date(dateStr) - new Date()) / (1000 * 60 * 60 * 24));
+  // ── Helpers ───────────────────────────────────────────
+  const formatSize = (bytes) => {
+    if (!bytes) return "—";
+    return bytes > 1048576
+      ? (bytes / 1048576).toFixed(1) + " MB"
+      : (bytes / 1024).toFixed(0) + " KB";
   };
 
-  // ── Search filter ──────────────────────────────────────
-  const filtered = suggestions.filter((sug) => {
-    const term    = search.toLowerCase();
-    const company = (sug.jobPostModel?.companyModel?.companyName || "").toLowerCase();
-    const title   = getJobTitle(sug).toLowerCase();
-    return company.includes(term) || title.includes(term);
-  });
+  // Field component — edit mode shows input, view mode shows display div
+  const Field = ({ label, name, type = "text", options, readOnly = false }) => (
+    <div className="form-group mb-3">
+      <label className="form-control-label">{label}</label>
+      {editing && !readOnly ? (
+        type === "select" ? (
+          <select className="form-control" name={name} value={form[name] || ""} onChange={handleChange}>
+            <option value="">Select</option>
+            {options.map((o) => <option key={o}>{o}</option>)}
+          </select>
+        ) : type === "textarea" ? (
+          <textarea
+            className="form-control"
+            name={name}
+            rows={4}
+            value={form[name] || ""}
+            onChange={handleChange}
+            placeholder={`Enter ${label.toLowerCase()}...`}
+            style={{ resize: "vertical" }}
+          />
+        ) : (
+          <input
+            type={type}
+            className="form-control"
+            name={name}
+            value={form[name] || ""}
+            onChange={handleChange}
+          />
+        )
+      ) : (
+        <DisplayVal value={form[name] || (readOnly ? studentData?.[name] : "")} />
+      )}
+    </div>
+  );
 
-  const totalApplied = Object.keys(appliedIds).length;
-  const totalPending = suggestions.length - totalApplied;
+  // Read-only row (always display, never editable)
+  const ReadOnlyField = ({ label, value }) => (
+    <div className="form-group mb-3">
+      <label className="form-control-label">{label}</label>
+      <DisplayVal value={value} />
+    </div>
+  );
 
-  // ── Render ─────────────────────────────────────────────
+  // Profile completeness
+  const checks = [
+    { label: "Full Name",   done: !!form.name       },
+    { label: "Phone",       done: !!form.phone       },
+    { label: "Roll Number", done: !!form.rollNumber  },
+    { label: "CGPA/Marks",  done: !!form.percentage  },
+    { label: "Skills",      done: skills.length > 0  },
+    { label: "Resume",      done: resumes.length > 0 },
+  ];
+  const pct = Math.round((checks.filter((c) => c.done).length / checks.length) * 100);
+
+  const dept  = studentData?.departmentModel?.departmentName || "—";
+  const email = studentData?.userModel?.email || studentData?.email || "—";
+
+  // ── Loading ───────────────────────────────────────────
+  if (loading) {
+    return (
+      <div className="p-5 text-center">
+        <p className="text-secondary">Loading profile...</p>
+      </div>
+    );
+  }
+
+  // ═══════════════ RENDER ═══════════════════════════════
   return (
-    <div className="p-4" style={{ height: "calc(100vh - 70px)", overflowY: "auto" }}>
+    <div className="p-4" style={{ background: "var(--bg-color)", minHeight: "100vh" }}>
 
-      {/* ── Page Header ── */}
+      {/* ── Top Bar ── */}
       <div className="row space-between items-center mb-4">
         <div>
-          <h2 className="fs-5 bold mb-1">🎯 Recommended Jobs</h2>
-          <p className="fs-p9 text-secondary">
-            Jobs handpicked by your tutor — review and apply directly
-          </p>
+          <h2 className="fs-5 bold">My Profile</h2>
+          <p className="fs-p9 text-secondary">Keep your profile updated for better job matches</p>
+        </div>
+        <div className="row" style={{ gap: "10px" }}>
+          {editing ? (
+            <>
+              <button
+                className="btn btn-primary w-auto"
+                style={{ padding: "8px 20px" }}
+                onClick={handleSave}
+                disabled={saving}
+              >
+                {saving ? "Saving..." : "💾 Save"}
+              </button>
+              <button
+                className="btn btn-muted w-auto"
+                style={{ padding: "8px 20px" }}
+                onClick={cancelEdit}
+              >
+                Cancel
+              </button>
+            </>
+          ) : (
+            <button
+              className="btn btn-primary w-auto"
+              style={{ padding: "8px 20px" }}
+              onClick={() => setEditing(true)}
+            >
+              ✏️ Edit Profile
+            </button>
+          )}
         </div>
       </div>
 
-      {error && <div className="alert-danger mb-4">⚠️ {error}</div>}
+      {/* ── Global Message ── */}
+      {message && (
+        <div
+          className="p-2 br-md mb-3 fs-p9"
+          style={{
+            background: msgType === "success" ? "rgba(22,163,74,0.1)" : "rgba(220,38,38,0.1)",
+            border:     `1px solid ${msgType === "success" ? "rgba(22,163,74,0.3)" : "rgba(220,38,38,0.3)"}`,
+            color:      msgType === "success" ? "#16a34a" : "#dc2626",
+          }}
+        >
+          {msgType === "success" ? "✅" : "⚠️"} {message}
+        </div>
+      )}
 
-      {/* ── Stats Row ── */}
-      <div className="row g-3 mb-4">
-        {[
-          { label: "Recommended", value: suggestions.length, icon: "🎯", color: "var(--primary)" },
-          { label: "Applied",     value: totalApplied,        icon: "✅", color: "var(--success)" },
-          { label: "Pending",     value: totalPending,        icon: "⏳", color: "var(--warning)" },
-        ].map((stat, i) => (
-          <div className="col-4 p-2" key={i}>
-            <div className="card p-3 stat-card row items-center g-3">
-              <div className="fs-4">{stat.icon}</div>
-              <div>
-                <p className="fs-p8 text-secondary">{stat.label}</p>
-                <h3 className="bold" style={{ color: stat.color }}>{stat.value}</h3>
+      {/* ── Header Card ── */}
+      <div className="card p-4 mb-4" style={{ background: "linear-gradient(135deg,#f9fafb,#e8f4f8)" }}>
+        <div className="row items-center" style={{ gap: "16px" }}>
+          {/* Avatar */}
+          <div
+            className="bg-primary text-white br-circle"
+            style={{
+              width: 72, height: 72, display: "flex",
+              alignItems: "center", justifyContent: "center",
+              fontSize: "1.8rem", flexShrink: 0, fontWeight: "bold",
+            }}
+          >
+            {form.name?.charAt(0)?.toUpperCase() || "S"}
+          </div>
+
+          {/* Info */}
+          <div style={{ flex: 1 }}>
+            <h3 className="bold">{form.name || "Student Name"}</h3>
+            <p className="fs-p9 text-secondary">
+              {dept} &nbsp;|&nbsp; Roll No: {form.rollNumber || "—"}
+            </p>
+            <p className="fs-p9 text-secondary">{email}</p>
+          </div>
+
+          {/* CGPA + completeness */}
+          <div style={{ textAlign: "right", flexShrink: 0 }}>
+            <div className="bold" style={{ color: "#325563", fontSize: "1.6rem" }}>
+              {form.percentage || "—"}
+            </div>
+            <p className="fs-p8 text-secondary">Percentage / CGPA</p>
+            <div className="mt-2">
+              <div style={{ height: "6px", width: "100px", background: "#e5e7eb", borderRadius: "3px" }}>
+                <div style={{ width: `${pct}%`, height: "6px", background: "#325563", borderRadius: "3px" }} />
               </div>
+              <p className="fs-p8 text-secondary mt-1">Profile {pct}% complete</p>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* ── Tabs ── */}
+      <div className="row mb-3" style={{ borderBottom: "2px solid var(--border-color)" }}>
+        {TABS.map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            style={{
+              padding: "10px 18px", border: "none", background: "none",
+              cursor: "pointer", fontSize: "0.9rem",
+              fontWeight:   activeTab === tab ? 600 : 400,
+              color:        activeTab === tab ? "#325563" : "var(--text-secondary)",
+              borderBottom: activeTab === tab ? "2px solid #325563" : "2px solid transparent",
+              marginBottom: -2, transition: "all 0.2s",
+            }}
+          >
+            {tab}
+          </button>
         ))}
       </div>
 
-      {/* ── Search ── */}
-      <div className="w-40 mb-3">
-        <input
-          type="text"
-          className="form-control"
-          placeholder="🔍 Search by company or job title..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-      </div>
-
-      {/* ── Content ── */}
-      {loading ? (
-        <div className="card p-5 text-center">
-          <p className="text-secondary">Loading recommendations...</p>
-        </div>
-      ) : filtered.length === 0 ? (
-        <div className="card p-5 text-center">
-          <p className="fs-4">📭</p>
-          <p className="bold mt-2">No recommendations yet</p>
-          <p className="fs-p9 text-secondary mt-1">
-            Your tutor hasn't suggested any jobs yet. Check back soon!
-          </p>
-        </div>
-      ) : (
-        <div className="card p-0" style={{ overflow: "hidden" }}>
-
-          {/* ── Table Header ── */}
-          <div
-            className="row items-center"
-            style={{
-              background: "var(--gray-100)",
-              padding: "10px 16px",
-              borderBottom: "1px solid var(--border-color)",
-              fontSize: "0.75rem",
-              fontWeight: 600,
-              color: "var(--text-secondary)",
-            }}
-          >
-            <div className="col-3">Job Title</div>
-            <div className="col-2">Company</div>
-            <div className="col-2">Location</div>
-            <div className="col-1 text-center">Openings</div>
-            <div className="col-1 text-center">Match</div>
-            <div className="col-1 text-center">Status</div>
-            <div className="col-2 text-center">Deadline / Action</div>
+      {/* ════════ TAB: Personal ════════ */}
+      {activeTab === "Personal" && (
+        <div className="row" style={{ gap: "16px" }}>
+          <div className="col-6" style={{ paddingRight: "8px" }}>
+            <div className="card p-4">
+              <h4 className="mb-3 fs-p9 bold" style={{ color: "var(--gray-600)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                👤 Personal Information
+              </h4>
+              <Field label="Full Name"  name="name"  />
+              <ReadOnlyField label="Email (registered)" value={email} />
+              <Field label="Phone"      name="phone" />
+              <Field label="LinkedIn"   name="linkedin" />
+              <Field label="GitHub"     name="github" />
+            </div>
           </div>
 
-          {/* ── Rows ── */}
-          {filtered.map((sug) => {
-            const job       = sug.jobPostModel || {};
-            const isOpen    = expandedId === sug.jobSuggestionId;
-            const isApplied = !!appliedIds[sug.jobSuggestionId];
-            const days      = daysLeft(job.lastDateToApply);
-            const deadlineFmt =
-              days == null
-                ? (job.lastDateToApply || "—")
-                : days > 0
-                ? `${days}d left`
-                : "Closed";
-            const deadlineColor =
-              days == null
-                ? "var(--text-secondary)"
-                : days <= 3
-                ? "var(--danger)"
-                : days <= 7
-                ? "var(--warning)"
-                : "var(--success)";
+          <div className="col-6" style={{ paddingLeft: "8px" }}>
+            <div className="card p-4">
+              <h4 className="mb-3 fs-p9 bold" style={{ color: "var(--gray-600)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                🏫 Department
+              </h4>
+              <ReadOnlyField label="Department" value={dept} />
+              <p className="fs-p8 text-secondary" style={{ marginTop: "-8px", marginBottom: "16px" }}>
+                Department is assigned by admin and cannot be edited here.
+              </p>
 
-            return (
-              <div key={sug.jobSuggestionId}>
+              {/* Profile Completion Checklist */}
+              <h4 className="mb-2 fs-p9 bold" style={{ color: "var(--gray-600)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                ✅ Profile Completion
+              </h4>
+              {checks.map((c, i) => (
+                <div key={i} className="row items-center mb-1" style={{ gap: "8px" }}>
+                  <span style={{ color: c.done ? "#16a34a" : "#dc2626" }}>
+                    {c.done ? "✅" : "⭕"}
+                  </span>
+                  <span className="fs-p9" style={{ color: c.done ? "inherit" : "#9ca3af" }}>
+                    {c.label}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
-                {/* ── Collapsed Row ── */}
-                <div
-                  className="row items-center"
-                  style={{
-                    padding: "12px 16px",
-                    borderBottom: isOpen ? "none" : "1px solid var(--border-color)",
-                    background: isOpen ? "rgba(50,85,99,0.03)" : "#fff",
-                  }}
-                >
-                  <div className="col-3">
-                    <p className="bold fs-p9">{getJobTitle(sug)}</p>
-                    {sug.matchScore != null && (
-                      <span
-                        style={{
-                          fontSize: "0.7rem",
-                          background: "var(--gray-100)",
-                          color: matchColor(sug.matchScore),
-                          padding: "1px 7px",
-                          borderRadius: 10,
-                          fontWeight: 600,
-                        }}
-                      >
-                        {sug.matchScore}% match
-                      </span>
-                    )}
-                  </div>
-                  <div className="col-2 fs-p9 text-secondary">
-                    {job.companyModel?.companyName || "—"}
-                  </div>
-                  <div className="col-2 fs-p9 text-secondary">
-                    📍 {job.companyModel?.location || "—"}
-                  </div>
-                  <div className="col-1 text-center fs-p9">
-                    👥 {job.requiredCandidate || "—"}
-                  </div>
-                  <div className="col-1 text-center">
-                    {sug.matchScore != null ? (
-                      <span className="bold" style={{ fontSize: "0.78rem", color: matchColor(sug.matchScore) }}>
-                        {sug.matchScore}%
-                      </span>
-                    ) : (
-                      <span className="fs-p9 text-secondary">—</span>
-                    )}
-                  </div>
-                  <div className="col-1 text-center">
+      {/* ════════ TAB: Academic ════════ */}
+      {activeTab === "Academic" && (
+        <div className="row" style={{ gap: "16px" }}>
+          <div className="col-6" style={{ paddingRight: "8px" }}>
+            <div className="card p-4">
+              <h4 className="mb-3 fs-p9 bold" style={{ color: "var(--gray-600)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                🎓 Academic Details
+              </h4>
+              <ReadOnlyField label="Department" value={dept} />
+              <Field label="Roll Number"       name="rollNumber"  />
+              <Field label="Percentage / CGPA" name="percentage"  />
+              <Field
+                label="Current Year"
+                name="year"
+                type="select"
+                options={["1", "2", "3", "4"]}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ════════ TAB: Skills & Certs ════════ */}
+      {activeTab === "Skills & Certs" && (
+        <div className="row" style={{ gap: "16px" }}>
+
+          {/* Skills */}
+          <div className="col-6" style={{ paddingRight: "8px" }}>
+            <div className="card p-4">
+              <h4 className="mb-3 fs-p9 bold" style={{ color: "var(--gray-600)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                🛠️ Skills
+              </h4>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
+                {skills.length === 0
+                  ? <p className="fs-p9 text-secondary">No skills added yet</p>
+                  : skills.map((s) => (
+                      <Tag key={s} label={s} onRemove={removeSkill} editing={editing} variant="skill" />
+                    ))
+                }
+              </div>
+              {editing && (
+                <div className="row mb-3" style={{ gap: "8px" }}>
+                  <input
+                    className="form-control"
+                    style={{ flex: 1 }}
+                    placeholder="Type skill and press Enter…"
+                    value={newSkill}
+                    onChange={(e) => setNewSkill(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && addSkill()}
+                  />
+                  <button
+                    className="btn btn-primary w-auto"
+                    style={{ padding: "8px 16px" }}
+                    onClick={addSkill}
+                  >
+                    Add
+                  </button>
+                </div>
+              )}
+              <div style={{ borderTop: "1px solid var(--border-color)", paddingTop: 12 }}>
+                <p className="fs-p8 text-secondary mb-2">Suggested skills</p>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
+                  {SUGGESTED_SKILLS.filter((s) => !skills.includes(s)).map((s) => (
                     <span
+                      key={s}
+                      onClick={() => editing && addSuggestedSkill(s)}
                       style={{
-                        fontSize: "0.72rem",
-                        fontWeight: 600,
-                        padding: "3px 10px",
-                        borderRadius: 12,
-                        background: isApplied ? "rgba(22,163,74,0.12)" : "rgba(50,85,99,0.1)",
-                        color:      isApplied ? "var(--success)"        : "var(--primary)",
-                        border:     `1px solid ${isApplied ? "rgba(22,163,74,0.3)" : "rgba(50,85,99,0.3)"}`,
+                        fontSize: "0.8rem", padding: "3px 10px", borderRadius: 12,
+                        background: "var(--gray-100)", color: "var(--gray-600)",
+                        border: "1px solid var(--gray-300)",
+                        cursor: editing ? "pointer" : "default",
+                        opacity: editing ? 1 : 0.55,
+                        transition: "all 0.15s",
                       }}
                     >
-                      {isApplied ? "Applied" : "Pending"}
+                      {s} {editing && "+"}
                     </span>
-                  </div>
-                  <div className="col-2 row items-center justify-center g-2">
-                    <span className="fs-p8 bold" style={{ color: deadlineColor }}>
-                      {deadlineFmt}
-                    </span>
-                    <button
-                      className={`btn w-auto ${isOpen ? "btn-muted" : "btn-primary"}`}
-                      style={{ padding: "5px 12px", fontSize: "0.78rem" }}
-                      onClick={() => setExpandedId(isOpen ? null : sug.jobSuggestionId)}
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Certifications */}
+          <div className="col-6" style={{ paddingLeft: "8px" }}>
+            <div className="card p-4">
+              <h4 className="mb-3 fs-p9 bold" style={{ color: "var(--gray-600)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                🏅 Certifications
+              </h4>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
+                {certs.length === 0
+                  ? <p className="fs-p9 text-secondary">No certifications added yet</p>
+                  : certs.map((c) => (
+                      <Tag key={c} label={c} onRemove={removeCert} editing={editing} variant="cert" />
+                    ))
+                }
+              </div>
+              {editing && (
+                <div className="row mb-3" style={{ gap: "8px" }}>
+                  <input
+                    className="form-control"
+                    style={{ flex: 1 }}
+                    placeholder="Type certification and press Enter…"
+                    value={newCert}
+                    onChange={(e) => setNewCert(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && addCert()}
+                  />
+                  <button
+                    className="btn btn-primary w-auto"
+                    style={{ padding: "8px 16px" }}
+                    onClick={addCert}
+                  >
+                    Add
+                  </button>
+                </div>
+              )}
+              <div style={{ borderTop: "1px solid var(--border-color)", paddingTop: 12 }}>
+                <p className="fs-p8 text-secondary mb-2">Common certifications</p>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
+                  {SUGGESTED_CERTS.filter((c) => !certs.includes(c)).map((c) => (
+                    <span
+                      key={c}
+                      onClick={() => editing && addSuggestedCert(c)}
+                      style={{
+                        fontSize: "0.8rem", padding: "3px 10px", borderRadius: 12,
+                        background: "rgba(88,60,160,0.07)", color: "#483b8f",
+                        border: "1px solid rgba(88,60,160,0.2)",
+                        cursor: editing ? "pointer" : "default",
+                        opacity: editing ? 1 : 0.55,
+                        transition: "all 0.15s",
+                      }}
                     >
-                      {isOpen ? "✕ Close" : "👁 View"}
-                    </button>
-                  </div>
+                      {c} {editing && "+"}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ════════ TAB: Resumes ════════ */}
+      {activeTab === "Resumes" && (
+        <div className="card p-4">
+          <div className="row space-between items-center mb-3">
+            <h4 className="fs-p9 bold" style={{ color: "var(--gray-600)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              📄 Resumes
+            </h4>
+            <span className="fs-p8 text-secondary">
+              {resumes.length} uploaded · PDF only · Max 5 MB each
+            </span>
+          </div>
+
+          {/* Resume message */}
+          {resumeMsg && (
+            <div
+              className="p-2 br-md mb-3 fs-p9"
+              style={{
+                background: resumeMsgType === "success" ? "rgba(22,163,74,0.1)" : "rgba(220,38,38,0.1)",
+                border:     `1px solid ${resumeMsgType === "success" ? "rgba(22,163,74,0.3)" : "rgba(220,38,38,0.3)"}`,
+                color:      resumeMsgType === "success" ? "#16a34a" : "#dc2626",
+              }}
+            >
+              {resumeMsgType === "success" ? "✅" : "⚠️"} {resumeMsg}
+            </div>
+          )}
+
+          {/* Existing resumes from API */}
+          {resumes.length === 0 && !uploading && (
+            <div className="text-center p-3 mb-3">
+              <p className="text-secondary fs-p9">No resumes uploaded yet</p>
+            </div>
+          )}
+
+          {resumes.map((r, i) => {
+            const resumeId  = r.resumeId  || r.id  || i;
+            const resumeName = r.resumeName || r.name || `Resume ${i + 1}`;
+            const resumeUrl  = r.resumeUrl  || r.url  || null;
+            const resumeSize = r.resumeSize || r.size || null;
+
+            return (
+              <div
+                key={resumeId}
+                className="row items-center mb-2"
+                style={{
+                  padding:    "10px 14px",
+                  borderRadius: 10,
+                  border:     "1px solid var(--border-color)",
+                  background: i === 0 ? "rgba(50,85,99,0.05)" : "var(--gray-100)",
+                  gap:        "12px",
+                }}
+              >
+                {/* PDF icon */}
+                <div style={{
+                  width: 40, height: 40, borderRadius: 8, background: "#325563",
+                  color: "#fff", display: "flex", alignItems: "center",
+                  justifyContent: "center", fontSize: "0.75rem", fontWeight: 700, flexShrink: 0,
+                }}>
+                  PDF
                 </div>
 
-                {/* ── Expanded Panel ── */}
-                {isOpen && (
-                  <div
-                    style={{
-                      background: "rgba(50,85,99,0.02)",
-                      borderTop: "1px dashed var(--border-color)",
-                      borderBottom: "1px solid var(--border-color)",
-                      padding: "20px",
-                    }}
+                {/* Info */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p className="fs-p9 bold" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {resumeName}
+                  </p>
+                  <p className="fs-p8 text-secondary">
+                    {resumeSize ? formatSize(resumeSize) : "—"} · Uploaded
+                  </p>
+                </div>
+
+                {/* Primary badge */}
+                {i === 0 && (
+                  <span style={{
+                    fontSize: "0.75rem", padding: "3px 10px",
+                    background: "rgba(50,85,99,0.15)", color: "#325563",
+                    borderRadius: 12, fontWeight: 600,
+                  }}>
+                    Primary
+                  </span>
+                )}
+
+                {/* View link */}
+                {resumeUrl && (
+                  <a
+                    href={resumeUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="btn btn-muted w-auto"
+                    style={{ padding: "4px 12px", fontSize: "0.8rem", textDecoration: "none" }}
                   >
-                    <div className="row g-5">
-
-                      {/* LEFT — Job Details */}
-                      <div className="col-6">
-                        <h4 className="bold mb-1">{getJobTitle(sug)}</h4>
-                        <p className="fs-p9 text-secondary mb-3">
-                          🏢 {job.companyModel?.companyName || "—"} &nbsp;|&nbsp; 📍 {job.companyModel?.location || "—"}
-                        </p>
-
-                        {job.companyModel && (
-                          <div className="card p-3 mb-3 row items-center g-3" style={{ background: "var(--gray-100)" }}>
-                            <div
-                              className="bg-primary text-white br-circle bold"
-                              style={{ width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.85rem", flexShrink: 0 }}
-                            >
-                              {(job.companyModel.companyName || "C").charAt(0).toUpperCase()}
-                            </div>
-                            <div>
-                              <p className="bold fs-p9">{job.companyModel.companyName}</p>
-                              {job.companyModel.email && (
-                                <p className="fs-p8 text-secondary">{job.companyModel.email}</p>
-                              )}
-                            </div>
-                          </div>
-                        )}
-
-                        {job.description && (
-                          <div className="card p-3 mb-3" style={{ background: "var(--gray-100)" }}>
-                            <p className="fs-p8 bold mb-1">📄 Job Description</p>
-                            <p className="fs-p9" style={{ lineHeight: 1.7 }}>{job.description}</p>
-                          </div>
-                        )}
-
-                        <div className="row g-2 flex-wrap">
-                          {[
-                            { icon: "👥", label: "Openings",    value: job.requiredCandidate },
-                            { icon: "📊", label: "Eligibility", value: job.eligiblePercentage ? `${job.eligiblePercentage}%` : null },
-                            { icon: "📅", label: "Posted",      value: job.postedDate },
-                            { icon: "⏰", label: "Last Date",   value: job.lastDateToApply },
-                          ].filter((m) => m.value).map((m) => (
-                            <div key={m.label} className="card p-2" style={{ minWidth: 110, flex: 1 }}>
-                              <p className="fs-p8 text-secondary">{m.icon} {m.label}</p>
-                              <p className="bold fs-p8 mt-1">{m.value}</p>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Divider */}
-                      <div style={{ width: 1, background: "var(--border-color)" }} />
-
-                      {/* RIGHT — Recommendation + Apply */}
-                      <div className="col-6">
-
-                        <div className="row space-between items-center mb-3">
-                          <h5 className="bold">📋 Recommendation Details</h5>
-                          <div
-                            className="row items-center g-2"
-                            style={{ background: "rgba(50,85,99,0.08)", borderRadius: 8, padding: "6px 12px" }}
-                          >
-                            <div
-                              className="bg-primary text-white br-circle bold"
-                              style={{ width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.8rem", flexShrink: 0 }}
-                            >
-                              {getTutorName(sug).charAt(0).toUpperCase()}
-                            </div>
-                            <div>
-                              <p className="fs-p8 text-secondary" style={{ lineHeight: 1 }}>Recommended by</p>
-                              <p className="bold fs-p9" style={{ color: "var(--primary)" }}>{getTutorName(sug)}</p>
-                            </div>
-                          </div>
-                        </div>
-
-                        {sug.note && (
-                          <div className="alert-info mb-3">
-                            <p className="fs-p8 bold mb-1">💬 Tutor's Note</p>
-                            <p className="fs-p9">{sug.note}</p>
-                          </div>
-                        )}
-
-                        {sug.matchScore != null && (
-                          <div className="card p-3 mb-3">
-                            <div className="row space-between items-center mb-2">
-                              <p className="fs-p9 bold">🤖 Match Score</p>
-                              <p className="bold fs-3" style={{ color: matchColor(sug.matchScore) }}>
-                                {sug.matchScore}%
-                              </p>
-                            </div>
-                            <div style={{ height: 6, background: "var(--gray-200)", borderRadius: 999, overflow: "hidden" }}>
-                              <div style={{ width: `${sug.matchScore}%`, height: "100%", background: matchColor(sug.matchScore), borderRadius: 999 }} />
-                            </div>
-                            <p className="fs-p8 text-secondary mt-2">Score based on your profile and skills overlap</p>
-                          </div>
-                        )}
-
-                        {days != null && days <= 7 && days > 0 && (
-                          <div className="alert-info mb-3">
-                            <p className="fs-p8 text-info">
-                              ⏰ Only <strong>{days} day{days !== 1 ? "s" : ""}</strong> left to apply!
-                            </p>
-                          </div>
-                        )}
-
-                        {isApplied ? (
-                          <div className="alert-success">
-                            <p className="fs-p9 bold" style={{ color: "var(--success)" }}>
-                              ✅ Application submitted. Check <strong>My Applications</strong> for status updates.
-                            </p>
-                          </div>
-                        ) : days !== null && days <= 0 ? (
-                          <div className="alert-danger">
-                            <p className="fs-p9" style={{ color: "var(--danger)" }}>
-                              ❌ Application deadline has passed.
-                            </p>
-                          </div>
-                        ) : (
-                          <button
-                            className="btn btn-primary"
-                            style={{ marginTop: 8 }}
-                            onClick={() => openModal(sug)}
-                          >
-                            🚀 Apply Now
-                          </button>
-                        )}
-
-                        <div className="alert-info mt-3">
-                          <p className="fs-p8 text-info">
-                            🎯 Recommended by <strong>{getTutorName(sug)}</strong>. Apply before the deadline to maximise your chances.
-                          </p>
-                        </div>
-                      </div>
-
-                    </div>
-                  </div>
+                    👁 View
+                  </a>
                 )}
               </div>
             );
           })}
+
+          {/* Uploading indicator */}
+          {uploading && (
+            <div
+              className="p-3 br-md mb-2 text-center"
+              style={{ border: "1px dashed var(--border-color)", background: "rgba(50,85,99,0.03)" }}
+            >
+              <p className="fs-p9 text-secondary">⏳ Uploading resume...</p>
+            </div>
+          )}
+
+          {/* Resume title input + drop zone */}
+          <div className="mt-3">
+            <div className="form-group mb-2">
+              <label className="form-control-label">
+                Resume Title
+                <span className="fs-p8 text-secondary" style={{ fontWeight: 400, marginLeft: 6 }}>
+                  (optional — defaults to filename)
+                </span>
+              </label>
+              <input
+                className="form-control"
+                placeholder="e.g. Software Engineer Resume, Internship CV..."
+                value={resumeTitle}
+                onChange={(e) => setResumeTitle(e.target.value)}
+                disabled={uploading}
+              />
+            </div>
+
+          {/* Drop zone */}
+          <div
+            onClick={() => !uploading && fileInputRef.current.click()}
+            onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={handleDrop}
+            style={{
+              border:       `2px dashed ${dragging ? "#325563" : "var(--border-color)"}`,
+              borderRadius: 12,
+              padding:      "2rem",
+              textAlign:    "center",
+              cursor:       uploading ? "not-allowed" : "pointer",
+              background:   dragging ? "rgba(50,85,99,0.05)" : "transparent",
+              opacity:      uploading ? 0.5 : 1,
+              transition:   "all 0.2s",
+            }}
+          >
+            <div style={{ fontSize: "2rem", opacity: 0.35, marginBottom: 6 }}>⬆</div>
+            <p className="fs-p9" style={{ fontWeight: 600, color: "var(--gray-600)" }}>
+              {dragging ? "Drop PDF here!" : "Drop PDF here or click to upload"}
+            </p>
+            <p className="fs-p8 text-secondary mt-1">PDF files only · Max 5 MB each</p>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf"
+              style={{ display: "none" }}
+              onChange={(e) => processFiles(e.target.files)}
+            />
+          </div>
+          </div>
         </div>
       )}
 
-      {/* ── Apply Modal ── */}
-      {showModal && (
-        <div className="modal-overlay" onClick={closeModal}>
-          <div
-            className="card p-5"
-            style={{ width: 520, maxWidth: "95%", maxHeight: "90vh", overflowY: "auto" }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header */}
-            <div className="row space-between items-center mb-2">
-              <h4 className="bold">🚀 Apply for Job</h4>
-              <span className="cursor-pointer fs-4 text-secondary" onClick={closeModal}>✕</span>
-            </div>
-
-            <p className="bold fs-p9 mb-1">{getJobTitle(showModal)}</p>
-            <p className="fs-p8 text-secondary mb-1">
-              🏢 {showModal.jobPostModel?.companyModel?.companyName || "—"}
-            </p>
-
-            <div
-              className="row items-center g-2 mb-4"
-              style={{ background: "rgba(50,85,99,0.06)", borderRadius: 8, padding: "8px 12px", display: "inline-flex" }}
-            >
-              <span className="fs-p8">👨‍🏫 Recommended by</span>
-              <span className="bold fs-p8" style={{ color: "var(--primary)" }}>
-                {getTutorName(showModal)}
-              </span>
-            </div>
-
-            {/* ── Select Resume ── */}
-            <div className="form-group mb-3">
-              <label className="form-control-label mb-2">
-                📄 Select Resume <span style={{ color: "var(--danger)" }}>*</span>
-              </label>
-
-              {resumes.length === 0 ? (
-                <div className="alert-info">
-                  <p className="fs-p9 text-info">
-                    💡 No resumes found. Please upload one in <strong>My Profile</strong> first.
-                  </p>
-                </div>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: "8px", maxHeight: 200, overflowY: "auto" }}>
-                  {resumes.map((r) => (
-                    <div
-                      key={r.resumeId}
-                      onClick={() => setSelectedResume(r)}
-                      style={{
-                        padding: "10px 14px",
-                        borderRadius: "8px",
-                        cursor: "pointer",
-                        border: selectedResume?.resumeId === r.resumeId
-                          ? "2px solid #325563"
-                          : "1px solid var(--border-color)",
-                        background: selectedResume?.resumeId === r.resumeId
-                          ? "rgba(50,85,99,0.06)"
-                          : "#fff",
-                        transition: "all 0.15s",
-                      }}
-                    >
-                      <div className="row space-between items-center">
-                        <div>
-                          <p className="bold fs-p9">
-                            {r.resumeTitle || r.fileName || `Resume ${r.resumeId}`}
-                          </p>
-                          <p className="fs-p8 text-secondary">
-                            {r.uploadedDate || r.date || r.createdAt || "Uploaded"}
-                          </p>
-                        </div>
-                        {selectedResume?.resumeId === r.resumeId && (
-                          <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--success)" }}>
-                            ✓ Selected
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* ── Cover Letter ── */}
-            <div className="form-group mb-4">
-              <label className="form-control-label mb-1">
-                ✍️ Cover Letter
-                <span className="fs-p8 text-secondary" style={{ fontWeight: 400, marginLeft: 6 }}>(optional)</span>
-              </label>
+      {/* ════════ TAB: About ════════ */}
+      {activeTab === "About" && (
+        <div className="card p-4">
+          <h4 className="mb-3 fs-p9 bold" style={{ color: "var(--gray-600)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+            📝 About Me
+          </h4>
+          <div className="form-group mb-3">
+            <label className="form-control-label">Bio / Summary</label>
+            {editing ? (
               <textarea
                 className="form-control"
-                rows={4}
-                placeholder="Hi, I'd love to apply for this role because..."
-                value={coverLetter}
-                onChange={(e) => setCoverLetter(e.target.value)}
+                name="about"
+                rows={6}
+                value={form.about || ""}
+                onChange={handleChange}
+                placeholder="Tell recruiters about yourself — your strengths, interests, career goals..."
                 style={{ resize: "vertical" }}
               />
-              <p className="fs-p8 text-secondary mt-1" style={{ textAlign: "right" }}>
-                {coverLetter.length} characters
-              </p>
-            </div>
-
-            {submitError && (
-              <div className="alert-danger mb-3">
-                <p className="fs-p9" style={{ color: "var(--danger)" }}>⚠️ {submitError}</p>
-              </div>
+            ) : (
+              <DisplayVal value={form.about} />
             )}
-
-            <div className="row g-2">
-              <button
-                className="btn btn-primary"
-                onClick={applyToJob}
-                disabled={applying === showModal.jobSuggestionId || !selectedResume}
-                style={{ opacity: !selectedResume ? 0.6 : 1 }}
-              >
-                {applying === showModal.jobSuggestionId ? "Submitting..." : "✅ Submit Application"}
-              </button>
-              <button className="btn btn-muted" onClick={closeModal}>Cancel</button>
-            </div>
-
-            {!selectedResume && resumes.length > 0 && (
-              <p className="fs-p8 mt-2" style={{ color: "var(--danger)" }}>
-                ⚠️ Please select a resume to continue.
-              </p>
-            )}
-
           </div>
+
+          {/* Social links summary */}
+          {(form.linkedin || form.github) && (
+            <div className="mt-3 p-3 br-md" style={{ background: "var(--gray-100)", borderRadius: "10px" }}>
+              <p className="fs-p8 bold text-secondary mb-2">🔗 Links</p>
+              {form.linkedin && (
+                <p className="fs-p9 mb-1">
+                  <a href={form.linkedin} target="_blank" rel="noreferrer" className="text-link">
+                    💼 LinkedIn: {form.linkedin}
+                  </a>
+                </p>
+              )}
+              {form.github && (
+                <p className="fs-p9">
+                  <a href={form.github} target="_blank" rel="noreferrer" className="text-link">
+                    🐙 GitHub: {form.github}
+                  </a>
+                </p>
+              )}
+            </div>
+          )}
         </div>
       )}
 
     </div>
   );
 }
-
-export default StudentRecommended;

@@ -11,39 +11,38 @@ function CompanyLogin() {
      const [msgType, setMsgType] = useState("");
      const navigate = useNavigate();
 
-         const validateEmail= (e)=>{
-            const email= e.target.value;
-            const emailPattern=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-            if(email ===""){
-                setEmailError("Email is required");
-            }else if(!emailPattern.test(email)){
-                setEmailError("Invalid Email Format");   
-            }else{
-                setEmailError("valid Email");
-            }
+     const validateEmail= (e)=>{
+        const email= e.target.value;
+        const emailPattern=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if(email ===""){
+            setEmailError("Email is required");
+        }else if(!emailPattern.test(email)){
+            setEmailError("Invalid Email Format");   
+        }else{
+            setEmailError("");
         }
-        const validatePassword = (e) => {
+    }
+    const validatePassword = (e) => {
         const password = e.target.value;
         const pattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&]).{8,}$/;
         if(password === ""){
             setPasswordError("Password is required");
         }
         else if(!pattern.test(password)){
-            setPasswordError(
-            "Password must contain 8 characters, uppercase, lowercase, number and special character"
-            );
+            setPasswordError("Password must contain 8 characters, uppercase, lowercase, number and special character");
         }
         else{
             setPasswordError("");
         }
-    
     }
-     let header = {
+
+    let header = {
         headers: {
             "Content-type": "Application/json"
         }
     }
-     const CompanyLogin = (e) => {
+
+    const CompanyLogin = (e) => {
         e.preventDefault();
         let email = document.getElementById("Email").value;
         let password=document.getElementById("Password").value;
@@ -51,37 +50,30 @@ function CompanyLogin() {
                 "email": email,
                 "password": password,
             };
-         axios.post(rest.login, data, header)
+        axios.post(rest.login, data, header)
             .then(response => {
                 console.log(response.data);
-                localStorage.setItem("token", response.data.data.token);
                 const success = response.data.success;
-                const msg     = response.data.message || "";
-                const token   = response.data.data;    
+                const token   = response.data.data;
 
                 if (success && token) {
-                    // save token — same way your admin login saves it
                     Cookies.set("token", token);
                     localStorage.setItem("token", token);
-
-                    setMessage(" Login successful!");
+                    setMessage("Login successful! Redirecting...");
                     setMsgType("success");
-
-                    setTimeout(() => navigate("/company-page"), 1000);
-
+                    setTimeout(() => navigate("/company-page"), 1500);
                 } else {
-                    // show the message string, never the whole object
-                    setMessage(msg || "Login failed. Please check your credentials.");
+                    setMessage(response.data.message || "Invalid credentials. Please try again.");
                     setMsgType("error");
                 }
             })
             .catch(error => {
                 console.log(error);
-                const errMsg = error.response?.data?.message || "Something went wrong. Please try again.";
-                setMessage(errMsg); // always a string
+                setMessage(error.response?.data?.message || "Something went wrong. Please try again.");
                 setMsgType("error");
             });
     };
+
     return (
         <div className="">
             <div className="card w-30 m-auto p-5">
@@ -92,33 +84,36 @@ function CompanyLogin() {
                     </svg>
                      <h2 className="mt-2">Company Login</h2>
                      <p className="mt-2">Access your recruiter portal</p>
+
                     {message && (
-                      <p className={msgType === "success" ? "text-sucess" : "text-danger"}>
-                        {message}
-                      </p>
-                    )}  
+                        <div className={msgType === "success" ? "alert-success mt-3" : "alert-danger mt-3"}>
+                            <p className={msgType === "success" ? "text-success" : "text-danger"}>
+                                {message}
+                            </p>
+                        </div>
+                    )}
+
                 </div>
                <form onSubmit={CompanyLogin} method="post">
                 <div className="form-group mt-5">
                     <label className="form-control-label" htmlFor="Email">Email Address</label>
                     <input  className="form-control" type="email" name="Email" id="Email" placeholder="Enter your email" onKeyUp={validateEmail} />
-                    <p className="text-danger">{emailError}</p>
+                    {emailError && <p className="text-danger fs-p8 mt-1">{emailError}</p>}
                 </div>
                  <div className="form-group mt-5">
                     <label className="form-control-label" htmlFor="Password">Password</label>
                     <input  className="form-control" type="password" name="password" id="Password" placeholder="Enter your Password" onKeyUp={validatePassword} />
-                    <p className="text-danger">{passwordError}</p>
+                    {passwordError && <p className="text-danger fs-p8 mt-1">{passwordError}</p>}
                 </div>
                 <div>
                     <input  className="btn btn-primary mt-5" type="submit" name="Login" value="Login" />
                 </div>
                </form>
                 <div className="fs-p7 text-center text-link mt-2" >
-                    <a   href="/roleselection">Back to role Selection</a>
+                    <a href="/roleselection">Back to role Selection</a>
                 </div>
             </div>
         </div>
-            
     )
 }
-export default CompanyLogin; 
+export default CompanyLogin;

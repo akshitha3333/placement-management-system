@@ -104,7 +104,7 @@ function CompanyApplications() {
       const payload = {
         interviewInstructions: interviewForm.interviewInstructions,
         interviewMode:         interviewForm.interviewMode,
-        interviewDateTime:     new Date(interviewForm.interviewDateTime).toISOString(),
+        InterviewDateTime:     new Date(interviewForm.interviewDateTime).toISOString(),
         latitude:              interviewForm.latitude  || null,
         longitude:             interviewForm.longitude || null,
         status:                "Scheduled",

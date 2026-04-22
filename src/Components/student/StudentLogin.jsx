@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import Cookies from 'js-cookie';
 import axios from "axios";
 const rest = require("../../Rest")
+
 function StudentLogin() {
     const [emailError, setEmailError] = useState("");
     const [passwordError, setPasswordError] = useState("");
@@ -23,19 +24,11 @@ function StudentLogin() {
     }
     const validatePassword = (e) => {
         const password = e.target.value;
-        const pattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&]).{8,}$/;
-        // if (password === "") {
-        //     setPasswordError("Password is required");
-        // }
-        // else if (!pattern.test(password)) {
-        //     setPasswordError(
-        //         "Password must contain 8 characters, uppercase, lowercase, number and special character"
-        //     );
-        // }
-        // else {
-        //     setPasswordError("");
-        // }
-
+        if (password === "") {
+            setPasswordError("Password is required");
+        } else {
+            setPasswordError("");
+        }
     }
 
     let header = {
@@ -43,6 +36,7 @@ function StudentLogin() {
             "Content-type": "Application/json"
         }
     }
+
     const StudentLogin = (e) => {
         e.preventDefault();
         let email = document.getElementById("Email").value;
@@ -53,26 +47,25 @@ function StudentLogin() {
         }
         axios.post(rest.login, data, header)
             .then(response => {
-            if (response.data.success) {
-                Cookies.set("token", response.data.data, { path: "/" });
-                console.log("cookie saved:", Cookies.get("token")); 
-                   setMessage(response.data.message);
+                console.log(response.data);
+                if (response.data.success && response.data.data) {
+                    Cookies.set("token", response.data.data, { path: "/" });
+                    console.log("cookie saved:", Cookies.get("token")); 
+                    setMessage("Login successful! Redirecting...");
                     setMsgType("success");
-                    setTimeout(() => {
-                        navigate("/student-page");
-                    }, 1500);
-
+                    setTimeout(() => navigate("/student-page"), 1500);
                 } else {
-                    setMessage(response.data.message);
+                    setMessage(response.data.message || "Invalid credentials. Please try again.");
                     setMsgType("error");
                 }
             })
             .catch(error => {
                 console.log(error);
-                setMessage("Something Went Wrong");
+                setMessage(error.response?.data?.message || "Something went wrong. Please try again.");
                 setMsgType("error");
             });
     }
+
     return (
         <div className="card w-30 m-auto p-5">
             <div className="text-center">
@@ -82,28 +75,35 @@ function StudentLogin() {
                 </svg>
                 <h2 className="mt-2">Student Login</h2>
                 <p className="mt-2">Access your placement portal</p>
-                {message && <p className={`text-danger alert-${msgType}`}>{message}</p>}
+
+                {message && (
+                    <div className={msgType === "success" ? "alert-success mt-3" : "alert-danger mt-3"}>
+                        <p className={msgType === "success" ? "text-success" : "text-danger"}>
+                            {message}
+                        </p>
+                    </div>
+                )}
+
             </div>
             <form onSubmit={StudentLogin} method="post">
                 <div className="form-group mt-5">
                     <label className="form-control-label" htmlFor="Email">Email Address</label>
                     <input className="form-control" type="email" name="Email" id="Email" placeholder="Enter your email" onKeyUp={validateEmail} />
-                    <p className="text-danger">{emailError}</p>
+                    {emailError && <p className="text-danger fs-p8 mt-1">{emailError}</p>}
                 </div>
                 <div className="form-group mt-5">
                     <label className="form-control-label" htmlFor="Password">Password</label>
                     <input className="form-control" type="password" name="password" id="Password" placeholder="Enter your Password" onKeyUp={validatePassword} />
-                    <p className="text-danger">{passwordError}</p>
+                    {passwordError && <p className="text-danger fs-p8 mt-1">{passwordError}</p>}
                 </div>
                 <div>
                     <input className="btn btn-primary mt-5" type="submit" name="Login" value="Login" />
                 </div>
             </form>
-
             <div className="fs-p7 text-center text-link mt-2" >
                 <a href="/roleselection">Back to role Selection</a>
             </div>
         </div>
     )
 }
-export default StudentLogin; 
+export default StudentLogin;

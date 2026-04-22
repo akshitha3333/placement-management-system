@@ -10,39 +10,34 @@ function TutorLogin() {
     const [message, setMessage] = useState("");
     const [msgType, setMsgType] = useState("");
     const navigate = useNavigate();
-            const validateEmail= (e)=>{
-            const email= e.target.value;
-            const emailPattern=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-            if(email ===""){
-                setEmailError("Email is required");
-            }else if(!emailPattern.test(email)){
-                setEmailError("Invalid Email Format");   
-            }else{
-                setEmailError("");
-            }
+
+    const validateEmail= (e)=>{
+        const email= e.target.value;
+        const emailPattern=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if(email ===""){
+            setEmailError("Email is required");
+        }else if(!emailPattern.test(email)){
+            setEmailError("Invalid Email Format");   
+        }else{
+            setEmailError("");
         }
-        const validatePassword = (e) => {
-        const password = e.target.value;
-        const pattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&]).{8,}$/;
-        // if(password === ""){
-        //     setPasswordError("Password is required");
-        // }
-        // else if(!pattern.test(password)){
-        //     setPasswordError(
-        //     "Password must contain 8 characters, uppercase, lowercase, number and special character"
-        //     );
-        // }
-        // else{
-        //     setPasswordError("");
-        // }
-    
     }
+    const validatePassword = (e) => {
+        const password = e.target.value;
+        if(password === ""){
+            setPasswordError("Password is required");
+        }else{
+            setPasswordError("");
+        }
+    }
+
     let header = {
         headers: {
                 "Content-Type": "application/json"
         }
     }
-      const TutorLogin = (e) => {
+
+    const TutorLogin = (e) => {
         e.preventDefault();
         let email = document.getElementById("Email").value;
         let password=document.getElementById("Password").value;
@@ -55,25 +50,23 @@ function TutorLogin() {
         axios.post(rest.login, data, header)
         .then(response => {
             console.log(response.data);
-            
-            if (response.data.message === "Login Success.") {
-
-             Cookies.set("token",response.data.data);
-             console.log(response.data);
-            
-                setMessage(response.data.message);
+            if (response.data.success && response.data.data) {
+                Cookies.set("token", response.data.data);
+                setMessage("Login successful! Redirecting...");
                 setMsgType("success");
-
-                setTimeout(() => {
-                    navigate("/tutor-page");
-                }, 1500);
-
-                } else {
-                setMessage("Invalid Credentials");
+                setTimeout(() => navigate("/tutor-page"), 1500);
+            } else {
+                setMessage(response.data.message || "Invalid credentials. Please try again.");
                 setMsgType("error");
-                }
-            })
+            }
+        })
+        .catch(error => {
+            console.log(error);
+            setMessage(error.response?.data?.message || "Something went wrong. Please try again.");
+            setMsgType("error");
+        });
     }
+
     return (
             <div className="card w-30 m-auto p-5">
                 <div className="text-center">
@@ -82,28 +75,35 @@ function TutorLogin() {
                     </svg>
                      <h2 className="mt-2">Tutor Login</h2>
                      <p className="mt-2">Access Your tutor Portal</p>
-                     {message && <p className={` text-danger alert-${msgType}`}>{message}</p>}
+
+                    {message && (
+                        <div className={msgType === "success" ? "alert-success mt-3" : "alert-danger mt-3"}>
+                            <p className={msgType === "success" ? "text-success" : "text-danger"}>
+                                {message}
+                            </p>
+                        </div>
+                    )}
+
                 </div>
                 <form onSubmit={TutorLogin} method="post">
                     <div className="form-group mt-5">
-                    <label className="form-control-label" htmlFor="Email">Email Address</label>
-                    <input  className="form-control" type="email" name="Email" id="Email" placeholder="Enter your email" onKeyUp={validateEmail} />
-                    <p className="error">{emailError}</p>
-                </div>
-                 <div className="form-group mt-5">
-                    <label className="form-control-label" htmlFor="Password">Password</label>
-                    <input  className="form-control" type="password" name="password" id="Password" placeholder="Enter your Password" onKeyUp={validatePassword} />
-                    <p className="error text-danger ">{passwordError}</p>
-                </div>
-                <div>
-                    <input  className="btn btn-primary mt-5" type="submit" name="Login" value="Login" />
-                </div>
+                        <label className="form-control-label" htmlFor="Email">Email Address</label>
+                        <input  className="form-control" type="email" name="Email" id="Email" placeholder="Enter your email" onKeyUp={validateEmail} />
+                        {emailError && <p className="text-danger fs-p8 mt-1">{emailError}</p>}
+                    </div>
+                    <div className="form-group mt-5">
+                        <label className="form-control-label" htmlFor="Password">Password</label>
+                        <input  className="form-control" type="password" name="password" id="Password" placeholder="Enter your Password" onKeyUp={validatePassword} />
+                        {passwordError && <p className="text-danger fs-p8 mt-1">{passwordError}</p>}
+                    </div>
+                    <div>
+                        <input  className="btn btn-primary mt-5" type="submit" name="Login" value="Login" />
+                    </div>
                 </form>
                 <div className="fs-p7 text-center text-link mt-2" >
-                    <a   href="/roleselection">Back to role Selection</a>
+                    <a href="/roleselection">Back to role Selection</a>
                 </div>
             </div>
-
     )
 }
-export default TutorLogin; 
+export default TutorLogin;

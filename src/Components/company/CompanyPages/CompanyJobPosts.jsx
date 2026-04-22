@@ -35,7 +35,11 @@ function CompanyJobPosts() {
   const [skillInput, setSkillInput]       = useState("");
 
   useEffect(() => {
-    axios.get(rest.jobPost, header)
+    axios.get(rest.jobPost,  {
+    headers: {
+      Authorization: `Bearer ${Cookies.get("token")}`
+    }
+  })
       .then(res => {
         const list = Array.isArray(res.data.data) ? res.data.data
                    : Array.isArray(res.data)       ? res.data
@@ -107,12 +111,7 @@ function CompanyJobPosts() {
   // Append file
   formData.append("poster", form.poster);
 
-  axios.post(rest.jobPost, formData, {
-    headers: {
-      Authorization: `Bearer ${Cookies.get("token")}`
-      // ❌ DO NOT set Content-Type manually
-    }
-  })
+  axios.post(rest.jobPost, formData, header)
   .then(res => {
     const newPost = res.data.data || res.data;
 
