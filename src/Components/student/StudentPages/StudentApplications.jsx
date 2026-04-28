@@ -32,20 +32,25 @@ function StatusBadge({ status }) {
 const openResume = (resumeModel) => {
   if (!resumeModel) return;
   const base64 = resumeModel.resume2;
-  if (!base64) {
-    alert("No resume available.");
-    return;
-  }
-  // Fix mime type — backend may label it image/jpeg but it's a PDF
-  const pdfBase64 = base64.startsWith("data:")
-    ? base64.replace(/^data:[^;]+;base64,/, "data:application/pdf;base64,")
-    : `data:application/pdf;base64,${base64}`;
-  const win = window.open();
-  if (win) {
-    win.document.write(
-      `<iframe src="${pdfBase64}" style="width:100%;height:100vh;border:none;"></iframe>`
-    );
-    win.document.title = resumeModel.resumeTitle || "Resume";
+  if (!base64) { alert("No resume available."); return; }
+  try {
+    const raw    = base64.startsWith("data:") ? base64.split(",")[1] : base64;
+    const binary = atob(raw);
+    const bytes  = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    const blob    = new Blob([bytes], { type: "application/pdf" });
+    const blobUrl = URL.createObjectURL(blob);
+    const win = window.open(blobUrl, "_blank");
+    if (!win) {
+      const a = document.createElement("a");
+      a.href     = blobUrl;
+      a.download = (resumeModel.resumeTitle || "Resume") + ".pdf";
+      a.click();
+    }
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+  } catch (err) {
+    console.error("openResume error:", err);
+    alert("Could not open resume. Please try again.");
   }
 };
 

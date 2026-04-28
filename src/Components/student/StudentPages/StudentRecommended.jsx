@@ -5,440 +5,409 @@ import Cookies from "js-cookie";
 const rest = require("../../../Rest");
 
 function StudentRecommendations() {
-
   const navigate = useNavigate();
 
-  // ── State ──────────────────────────────────────────────────
   const [suggestions,    setSuggestions]    = useState([]);
-  const [myProfile,      setMyProfile]      = useState(null);
   const [loading,        setLoading]        = useState(true);
   const [error,          setError]          = useState("");
   const [search,         setSearch]         = useState("");
-  const [expandedId,     setExpandedId]     = useState(null);
-  const [applied,        setApplied]        = useState({});
+  const [expandedId,     setExpandedId]     = useState(null); // which row is open
+  const [applied,        setApplied]        = useState({});   // { [jobSuggestionId]: true }
   const [applying,       setApplying]       = useState(null);
-  const [showModal,      setShowModal]      = useState(null);
+  const [showModal,      setShowModal]      = useState(null); // suggestion object
   const [resumes,        setResumes]        = useState([]);
   const [selectedResume, setSelectedResume] = useState(null);
 
-  // ── Auth header ────────────────────────────────────────────
-  const authHeader = () => ({
+  const getHeaders = () => ({
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${Cookies.get("token")}`,
+      Authorization: `Bearer ${Cookies.get("token") || ""}`,
     },
   });
 
-  // ── Fetch: job suggestions ─────────────────────────────────
- const fetchSuggestions = async () => {
-  try {
-    const res  = await axios.get(rest.jobSuggestions, authHeader());
-    const list = res.data?.data || res.data || [];
-    const arr  = Array.isArray(list) ? list : [];
-    setSuggestions(arr);
-
-    // 🔥 Load from localStorage FIRST
-    const storedApplied = JSON.parse(localStorage.getItem("appliedJobs") || "{}");
-
-    const alreadyApplied = { ...storedApplied };
-
-    arr.forEach((s) => {
-      if (s.applied || s.jobApplications?.length > 0) {
-        alreadyApplied[s.jobSuggestionId] = true;
-      }
-    });
-
-    // 🔥 Save again (important)
-    localStorage.setItem("appliedJobs", JSON.stringify(alreadyApplied));
-
-    setApplied(alreadyApplied);
-
-  } catch (err) {
-    console.error("fetchSuggestions error:", err);
-    setError("Failed to load recommendations.");
-  }
-};
-
-  // ── Fetch: own student profile ─────────────────────────────
-  const fetchProfile = async () => {
+  // ── Fetch suggestions — derive applied state from backend only ────────────
+  const fetchSuggestions = async () => {
     try {
-      const res     = await axios.get(rest.students, authHeader());
-      const stuList = res.data?.data || res.data || [];
-      const me      = Array.isArray(stuList) ? stuList[0] : stuList;
-      setMyProfile(me);
+      const res  = await axios.get(rest.jobSuggestions, getHeaders());
+      const list = res.data?.data || res.data || [];
+      const arr  = Array.isArray(list) ? list : [];
+      console.log("Suggestions raw:", arr);
+      setSuggestions(arr);
+
+      // Build applied map ONLY from backend data — never from localStorage
+      const appliedMap = {};
+      arr.forEach((s) => {
+        // backend marks applied via jobApplications array or an applied flag
+        if (s.applied === true || (Array.isArray(s.jobApplications) && s.jobApplications.length > 0)) {
+          appliedMap[s.jobSuggestionId] = true;
+        }
+      });
+      console.log("Applied map from backend:", appliedMap);
+      setApplied(appliedMap);
     } catch (err) {
-      console.error("fetchProfile error:", err);
+      console.error("fetchSuggestions error:", err.response?.data || err.message);
+      setError("Failed to load recommendations.");
     }
   };
 
-  // ── Fetch: resumes list ────────────────────────────────────
+  // ── Fetch resumes for apply modal ─────────────────────────────────────────
   const fetchResumes = async () => {
     try {
-      const res  = await axios.get(rest.studentResume, authHeader());
+      const res  = await axios.get(rest.studentResume, getHeaders());
       const data = res.data?.data || res.data || [];
-      setResumes(Array.isArray(data) ? data : []);
+      const list = Array.isArray(data) ? data : [];
+      console.log("Resumes:", list);
+      setResumes(list);
     } catch (err) {
-      console.error("fetchResumes error:", err);
+      console.error("fetchResumes error:", err.response?.data || err.message);
     }
   };
 
   useEffect(() => {
     const init = async () => {
       setLoading(true);
-      await Promise.all([fetchSuggestions(), fetchProfile(), fetchResumes()]);
+      await Promise.all([fetchSuggestions(), fetchResumes()]);
       setLoading(false);
     };
     init();
   }, []);
 
-  // ── Apply: POST JSON { resumeId } ─────────────────────────
+  // ── Submit application ────────────────────────────────────────────────────
   const applyToJob = async () => {
-    if (!showModal) return;
-
+    if (!showModal || !selectedResume) return;
     const { jobSuggestionId } = showModal;
 
-    if (!selectedResume) {
-      alert("⚠️ Please select a resume before submitting.");
-      return;
-    }
-
     setApplying(jobSuggestionId);
-
     try {
-      const payload = {
-        resumeId: selectedResume.resumeId,
-      };
+      const payload = { resumeId: selectedResume.resumeId };
+      console.log("Applying — suggestionId:", jobSuggestionId, "payload:", payload);
 
-     console.log("🚀 Applying to:", jobSuggestionId);
+      const res = await axios.post(
+        `${rest.jobSuggestions}/${jobSuggestionId}/job-applications`,
+        payload,
+        getHeaders()
+      );
+      console.log("Apply response:", res.data);
 
-const response = await axios.post(
-  `${rest.jobSuggestions}/${jobSuggestionId}/job-applications`,
-  payload,
-  authHeader()
-);
-
-console.log("📥 Apply response:", response);
-
-      setApplied((prev) => {
-        const updated = { ...prev, [jobSuggestionId]: true };
-      
-        // persist
-        localStorage.setItem("appliedJobs", JSON.stringify(updated));
-      
-        return updated;
-      });      setShowModal(null);
+      // Mark as applied in state (no localStorage)
+      setApplied((prev) => ({ ...prev, [jobSuggestionId]: true }));
+      setShowModal(null);
       setSelectedResume(null);
-      alert("✅ Application submitted successfully!");
-
+      setExpandedId(null);
+      alert("Application submitted successfully!");
     } catch (err) {
-      console.error("applyToJob error:", err);
-      const serverMsg = err?.response?.data?.message || err?.response?.data?.error;
-      alert(serverMsg ? `Failed: ${serverMsg}` : "Failed to submit application. Please try again.");
+      console.error("applyToJob error:", err.response?.data || err.message);
+      const msg = err?.response?.data?.message || err?.response?.data?.error;
+      alert(msg ? `Failed: ${msg}` : "Failed to submit application. Please try again.");
     } finally {
       setApplying(null);
     }
   };
 
-  // ── Filter ─────────────────────────────────────────────────
-  const filteredSuggestions = suggestions.filter((sug) => {
-    const company = sug.jobPostModel?.companyModel?.companyName || "";
-    const title   = sug.jobPostModel?.title || sug.jobPostModel?.tiitle || "";
-    const term    = search.toLowerCase();
-    return company.toLowerCase().includes(term) || title.toLowerCase().includes(term);
+  // ── Helpers ───────────────────────────────────────────────────────────────
+  const jobTitle   = (job) => job?.tiitle || job?.title || "—";
+  const getTutorName = (sug) =>
+    sug?.tutorModel?.tutorName || sug?.tutorModel?.name || "Your Tutor";
+
+  const filtered = suggestions.filter((sug) => {
+    const q = search.toLowerCase();
+    if (!q) return true;
+    const company = (sug.jobPostModel?.companyModel?.companyName || "").toLowerCase();
+    const title   = jobTitle(sug.jobPostModel).toLowerCase();
+    return company.includes(q) || title.includes(q);
   });
 
-  // ── Stats ──────────────────────────────────────────────────
-  const totalSuggested = suggestions.length;
-  const totalApplied   = Object.keys(applied).length;
-  const totalPending   = totalSuggested - totalApplied;
+  const totalApplied = Object.keys(applied).length;
+  const totalPending = suggestions.length - totalApplied;
 
-  // ── Helpers ────────────────────────────────────────────────
-  const matchColor = (m) =>
-    m >= 80 ? "var(--success)" : m >= 60 ? "var(--warning)" : "var(--danger)";
-
-  const getTutorName = (sug) =>
-    sug?.tutorModel?.tutorName ||
-    sug?.tutorModel?.name      ||
-    sug?.tutorName             ||
-    sug?.recommendedBy         ||
-    "Your Tutor";
-
-  const jobTitle = (job) => job?.title || job?.tiitle || "—";
-
-  // ── Render ─────────────────────────────────────────────────
   return (
     <div className="p-4" style={{ height: "calc(100vh - 70px)", overflowY: "auto" }}>
 
-      {/* Page Title */}
+      {/* Header */}
       <div className="row space-between items-center mb-4">
         <div>
-          <h2 className="fs-5 bold mb-1">🎯 Tutor Recommendations</h2>
+          <h2 className="fs-5 bold mb-1">Tutor Recommendations</h2>
           <p className="fs-p9 text-secondary">
-            Jobs your tutor handpicked for you — review and apply directly
+            Jobs your tutor handpicked — click View to read details, then Apply
           </p>
         </div>
         <button
-          className="btn btn-muted"
-          style={{ padding: "8px 16px", fontSize: "0.82rem", display: "flex", alignItems: "center", gap: 6 }}
-          onClick={() => navigate("student-page/applications")}
+          className="btn btn-muted w-auto"
+          style={{ padding: "8px 16px", fontSize: "0.82rem" }}
+          onClick={() => navigate("/student-page/applications")}
         >
-          📋 View My Applications
+          My Applications
         </button>
       </div>
 
-      {error && <div className="alert-danger mb-4">⚠️ {error}</div>}
+      {error && (
+        <div className="alert-danger mb-4">
+          <p className="text-danger fs-p9">{error}</p>
+        </div>
+      )}
 
-      {/* Stats Row */}
-      <div className="row g-3 mb-4">
+      {/* Stats */}
+      <div className="row mb-4" style={{ gap: 10 }}>
         {[
-          { label: "Recommended", value: totalSuggested, icon: "🎯", color: "var(--primary)" },
-          { label: "Applied",     value: totalApplied,   icon: "✅", color: "var(--success)" },
-          { label: "Pending",     value: totalPending,   icon: "⏳", color: "var(--warning)" },
-        ].map((stat, i) => (
-          <div className="col-4 p-2" key={i}>
-            <div className="card p-3 stat-card row items-center g-3">
-              <div className="fs-4">{stat.icon}</div>
-              <div>
-                <p className="fs-p8 text-secondary">{stat.label}</p>
-                <h3 className="bold" style={{ color: stat.color }}>{stat.value}</h3>
-              </div>
+          { label: "Recommended", value: suggestions.length, color: "var(--primary)" },
+          { label: "Applied",     value: totalApplied,       color: "var(--success)" },
+          { label: "Pending",     value: totalPending,       color: "var(--warning)" },
+        ].map((s, i) => (
+          <div key={i} style={{ flex: "0 0 140px" }}>
+            <div className="card p-3 text-center stat-card">
+              <h2 className="bold" style={{ color: s.color }}>{s.value}</h2>
+              <p className="fs-p9 text-secondary">{s.label}</p>
             </div>
           </div>
         ))}
       </div>
 
       {/* Search */}
-      <div className="w-40 mb-3">
+      <div style={{ maxWidth: 340, marginBottom: 16 }}>
         <input
           type="text"
           className="form-control"
-          placeholder="🔍 Search by company or job title..."
+          placeholder="Search by company or job title..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
       </div>
 
-      {/* Suggestion List */}
+      {/* List */}
       {loading ? (
         <p className="text-secondary p-4">Loading recommendations...</p>
-      ) : filteredSuggestions.length === 0 ? (
+      ) : filtered.length === 0 ? (
         <div className="card p-5 text-center">
-          <p className="fs-4">📭</p>
           <p className="bold mt-2">No recommendations yet</p>
-          <p className="fs-p9 text-secondary">Your tutor hasn't suggested any jobs yet. Check back soon!</p>
+          <p className="fs-p9 text-secondary mt-1">
+            Your tutor hasn't suggested any jobs yet. Check back soon!
+          </p>
         </div>
       ) : (
         <div className="card p-0" style={{ overflow: "hidden" }}>
 
-          {/* Table Header */}
-          <div className="row items-center"
-            style={{
-              background: "var(--gray-100)", padding: "10px 16px",
-              borderBottom: "1px solid var(--border-color)",
-              fontSize: "0.75rem", fontWeight: 600, color: "var(--text-secondary)"
-            }}>
-            <div className="col-3">Job Title</div>
-            <div className="col-2">Company</div>
-            <div className="col-2">Location</div>
-            <div className="col-1 text-center">Openings</div>
-            <div className="col-1 text-center">Eligibility</div>
-            <div className="col-1 text-center">Status</div>
-            <div className="col-2 text-center">Last Date / Action</div>
+          {/* Table header */}
+          <div className="row items-center" style={{
+            background: "var(--gray-100)", padding: "10px 16px",
+            borderBottom: "1px solid var(--border-color)",
+            fontSize: "0.75rem", fontWeight: 600, color: "var(--text-secondary)",
+          }}>
+            <div style={{ width: 36 }}>#</div>
+            <div style={{ flex: 3 }}>Job Title</div>
+            <div style={{ flex: 2 }}>Company</div>
+            <div style={{ flex: 2 }}>Location</div>
+            <div style={{ flex: 1, textAlign: "center" }}>Seats</div>
+            <div style={{ flex: 1, textAlign: "center" }}>Min %</div>
+            <div style={{ flex: 1, textAlign: "center" }}>Status</div>
+            <div style={{ flex: 2, textAlign: "center" }}>Actions</div>
           </div>
 
-          {/* Suggestion Rows */}
-          {filteredSuggestions.map((sug) => {
+          {filtered.map((sug, idx) => {
             const job       = sug.jobPostModel || {};
+            const company   = job.companyModel  || {};
             const isOpen    = expandedId === sug.jobSuggestionId;
             const isApplied = !!applied[sug.jobSuggestionId];
 
             return (
               <div key={sug.jobSuggestionId}>
 
-                {/* Collapsed Row */}
-                <div className="row items-center"
+                {/* Collapsed row */}
+                <div
+                  className="row items-center"
                   style={{
                     padding: "12px 16px",
                     borderBottom: isOpen ? "none" : "1px solid var(--border-color)",
-                    background: isOpen ? "rgba(50,85,99,0.03)" : "#fff"
-                  }}>
-                  <div className="col-3 bold fs-p9">{jobTitle(job)}</div>
-                  <div className="col-2 fs-p9 text-secondary">{job.companyModel?.companyName || "—"}</div>
-                  <div className="col-2 fs-p9 text-secondary">📍 {job.companyModel?.location || "—"}</div>
-                  <div className="col-1 text-center fs-p9">👥 {job.requiredCandidate || "—"}</div>
-                  <div className="col-1 text-center fs-p9">
+                    background: isOpen ? "rgba(50,85,99,0.03)" : "#fff",
+                    borderLeft: isApplied ? "4px solid var(--success)" : "4px solid transparent",
+                  }}
+                >
+                  <div style={{ width: 36 }} className="fs-p9 text-secondary">{idx + 1}</div>
+                  <div style={{ flex: 3 }}>
+                    <p className="bold fs-p9">{jobTitle(job)}</p>
+                    <p className="fs-p8 text-secondary">By: {getTutorName(sug)}</p>
+                  </div>
+                  <div style={{ flex: 2 }} className="fs-p9 text-secondary">{company.companyName || "—"}</div>
+                  <div style={{ flex: 2 }} className="fs-p9 text-secondary">{company.location || "—"}</div>
+                  <div style={{ flex: 1, textAlign: "center" }} className="fs-p9">{job.requiredCandidate || "—"}</div>
+                  <div style={{ flex: 1, textAlign: "center" }} className="fs-p9">
                     {job.eligiblePercentage ? `${job.eligiblePercentage}%` : "—"}
                   </div>
-                  <div className="col-1 text-center">
+
+                  {/* Status badge */}
+                  <div style={{ flex: 1, textAlign: "center" }}>
                     <span style={{
                       fontSize: "0.72rem", fontWeight: 600, padding: "3px 10px", borderRadius: 12,
                       background: isApplied ? "rgba(22,163,74,0.12)" : "rgba(50,85,99,0.1)",
                       color:      isApplied ? "var(--success)"        : "var(--primary)",
-                      border:     `1px solid ${isApplied ? "rgba(22,163,74,0.3)" : "rgba(50,85,99,0.3)"}`,
                     }}>
                       {isApplied ? "Applied" : "Pending"}
                     </span>
                   </div>
-                  <div className="col-2 row items-center justify-center g-2">
-                    <span className="fs-p8 text-secondary">{job.lastDateToApply || "—"}</span>
+
+                  {/* Action buttons */}
+                  <div style={{ flex: 2, textAlign: "center", display: "flex", gap: 6, justifyContent: "center" }}>
+                    {/* VIEW button — always shown, toggles the expanded panel */}
+                    <button
+                      className="btn btn-muted w-auto"
+                      style={{ padding: "5px 12px", fontSize: "0.78rem" }}
+                      onClick={() => setExpandedId(isOpen ? null : sug.jobSuggestionId)}
+                    >
+                      {isOpen ? "Close" : "View"}
+                    </button>
+
+                    {/* APPLY button — only shown if NOT yet applied */}
                     {!isApplied && (
                       <button
-                        className={`btn w-auto ${isOpen ? "btn-muted" : "btn-primary"}`}
+                        className="btn btn-primary w-auto"
                         style={{ padding: "5px 12px", fontSize: "0.78rem" }}
-                        onClick={() => setExpandedId(isOpen ? null : sug.jobSuggestionId)}
+                        onClick={() => {
+                          setShowModal(sug);
+                          setSelectedResume(null);
+                        }}
                       >
-                        {isOpen ? "✕ Close" : "👁 View"}
+                        Apply
                       </button>
                     )}
+
+                    {/* Already applied — link to applications */}
                     {isApplied && (
                       <button
                         className="btn w-auto"
-                        style={{ padding: "5px 12px", fontSize: "0.78rem", background: "var(--success)", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", whiteSpace: "nowrap" }}
+                        style={{
+                          padding: "5px 12px", fontSize: "0.78rem",
+                          background: "var(--success)", color: "#fff",
+                          border: "none", borderRadius: 6, cursor: "pointer",
+                        }}
                         onClick={() => navigate("/student-page/applications")}
                       >
-                        📋 My Application
+                        View Application
                       </button>
                     )}
                   </div>
                 </div>
 
-                {/* Expanded Panel */}
+                {/* Expanded detail panel */}
                 {isOpen && (
                   <div style={{
+                    padding: "20px 24px",
+                    borderBottom: "1px solid var(--border-color)",
                     background: "rgba(50,85,99,0.02)",
                     borderTop: "1px dashed var(--border-color)",
-                    borderBottom: "1px solid var(--border-color)",
-                    padding: "20px"
                   }}>
-                    <div className="row g-5">
+                    <div className="row" style={{ gap: 24 }}>
 
-                      {/* LEFT — Job Details */}
-                      <div className="col-6">
-                        <h4 className="bold mb-1">{jobTitle(job)}</h4>
+                      {/* LEFT — job details */}
+                      <div style={{ flex: 1 }}>
+                        <h4 className="bold mb-2">{jobTitle(job)}</h4>
                         <p className="fs-p9 text-secondary mb-3">
-                          🏢 {job.companyModel?.companyName} &nbsp;|&nbsp; 📍 {job.companyModel?.location}
+                          {company.companyName} · {company.location}
                         </p>
 
                         {job.description && (
-                          <div className="card p-3 mb-3" style={{ background: "var(--gray-100)" }}>
-                            <p className="fs-p8 bold mb-1">📄 Job Description</p>
+                          <div style={{
+                            background: "var(--gray-100)", borderRadius: 8,
+                            padding: "12px 14px", marginBottom: 14,
+                          }}>
+                            <p className="fs-p8 bold mb-1">Description</p>
                             <p className="fs-p9" style={{ lineHeight: 1.7 }}>{job.description}</p>
                           </div>
                         )}
 
-                        <div className="row g-2 flex-wrap">
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                           {[
-                            { icon: "👥", label: "Openings",    value: job.requiredCandidate },
-                            { icon: "📊", label: "Eligibility", value: job.eligiblePercentage ? `${job.eligiblePercentage}%` : null },
-                            { icon: "📅", label: "Posted",      value: job.postedDate },
-                            { icon: "⏰", label: "Last Date",   value: job.lastDateToApply },
-                          ].filter((m) => m.value).map((m) => (
-                            <div key={m.label} className="card p-2" style={{ minWidth: 110, flex: 1 }}>
-                              <p className="fs-p8 text-secondary">{m.icon} {m.label}</p>
-                              <p className="bold fs-p8 mt-1">{m.value}</p>
+                            { label: "Openings",    value: job.requiredCandidate },
+                            { label: "Min %",       value: job.eligiblePercentage ? `${job.eligiblePercentage}%` : null },
+                            { label: "Posted",      value: job.postedDate },
+                            { label: "Last Date",   value: job.lastDateToApply },
+                          ].filter((f) => f.value).map((f) => (
+                            <div key={f.label} style={{
+                              background: "#fff", border: "1px solid var(--border-color)",
+                              borderRadius: 8, padding: "8px 12px",
+                            }}>
+                              <p className="fs-p8 text-secondary">{f.label}</p>
+                              <p className="bold fs-p9">{f.value}</p>
                             </div>
                           ))}
                         </div>
                       </div>
 
-                      {/* Divider */}
-                      <div style={{ width: 1, background: "var(--border-color)" }} />
-
-                      {/* RIGHT — Recommendation + Apply */}
-                      <div className="col-6">
-                        <div className="row space-between items-center mb-3">
-                          <h5 className="bold">📋 Recommendation Details</h5>
-                          <div className="row items-center g-2"
-                            style={{ background: "rgba(50,85,99,0.08)", borderRadius: 8, padding: "6px 12px" }}>
-                            <div className="bg-primary text-white br-circle bold"
-                              style={{ width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.8rem", flexShrink: 0 }}>
-                              {getTutorName(sug).charAt(0).toUpperCase()}
-                            </div>
-                            <div>
-                              <p className="fs-p8 text-secondary" style={{ lineHeight: 1 }}>Recommended by</p>
-                              <p className="bold fs-p9" style={{ color: "var(--primary)" }}>{getTutorName(sug)}</p>
-                            </div>
+                      {/* RIGHT — tutor note + apply button */}
+                      <div style={{ flex: 1 }}>
+                        <div style={{
+                          background: "rgba(50,85,99,0.06)", borderRadius: 8,
+                          padding: "12px 14px", marginBottom: 14,
+                          display: "flex", alignItems: "center", gap: 12,
+                        }}>
+                          <div style={{
+                            width: 36, height: 36, borderRadius: "50%", flexShrink: 0,
+                            background: "var(--primary)", color: "#fff",
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                            fontWeight: 700,
+                          }}>
+                            {getTutorName(sug).charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <p className="fs-p8 text-secondary">Recommended by</p>
+                            <p className="bold fs-p9" style={{ color: "var(--primary)" }}>
+                              {getTutorName(sug)}
+                            </p>
                           </div>
                         </div>
 
                         {sug.note && (
-                          <div className="alert-info mb-3">
-                            <p className="fs-p8 bold mb-1">💬 Tutor's Note</p>
+                          <div style={{
+                            background: "rgba(14,165,233,0.07)",
+                            border: "1px solid rgba(14,165,233,0.2)",
+                            borderRadius: 8, padding: "10px 14px", marginBottom: 14,
+                          }}>
+                            <p className="fs-p8 bold mb-1">Tutor's Note</p>
                             <p className="fs-p9">{sug.note}</p>
                           </div>
                         )}
 
-                        {sug.matchScore != null && (
-                          <div className="card p-3 mb-3">
-                            <div className="row space-between items-center mb-2">
-                              <p className="fs-p9 bold">🤖 Match Score</p>
-                              <p className="bold fs-3" style={{ color: matchColor(sug.matchScore) }}>
-                                {sug.matchScore}%
-                              </p>
-                            </div>
-                            <div style={{ height: 6, background: "var(--gray-200)", borderRadius: 999, overflow: "hidden" }}>
-                              <div style={{ width: `${sug.matchScore}%`, height: "100%", background: matchColor(sug.matchScore), borderRadius: 999 }} />
-                            </div>
-                            <p className="fs-p8 text-secondary mt-2">
-                              Based on your CGPA (70%) + skill keyword overlap (30%)
-                            </p>
-                          </div>
-                        )}
-
-                        {myProfile?.skills && (
-                          <div className="card p-3 mb-3">
-                            <p className="fs-p8 bold mb-2">🛠️ Your Skills</p>
-                            <div className="row g-1" style={{ flexWrap: "wrap" }}>
-                              {myProfile.skills.split(",").slice(0, 4).map((sk) => (
-                                <span key={sk} className="fs-p7 br-md"
-                                  style={{ background: "var(--gray-200)", padding: "2px 10px", color: "var(--gray-700)" }}>
-                                  {sk.trim()}
-                                </span>
-                              ))}
-                              {myProfile.skills.split(",").length > 4 && (
-                                <span className="fs-p7 text-secondary">
-                                  +{myProfile.skills.split(",").length - 4}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        )}
-
+                        {/* Apply / already applied */}
                         {isApplied ? (
                           <div>
-                            <div className="alert-success mb-2">
-                              <p className="fs-p9 bold" style={{ color: "var(--success)" }}>
-                                ✅ You have already applied to this job.
+                            <div className="alert-success mb-3">
+                              <p className="fs-p9 bold text-success">
+                                You have already applied to this job.
                               </p>
                             </div>
                             <button
-                              className="btn"
-                              style={{ padding: "8px 16px", fontSize: "0.82rem", background: "var(--success)", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}
+                              className="btn w-auto"
+                              style={{
+                                padding: "9px 20px", background: "var(--success)",
+                                color: "#fff", border: "none", borderRadius: 8,
+                                cursor: "pointer", fontWeight: 600,
+                              }}
                               onClick={() => navigate("/student-page/applications")}
                             >
-                              📋 View My Application
+                              View My Application
                             </button>
                           </div>
                         ) : (
                           <button
                             className="btn btn-primary"
-                            style={{ marginTop: 8 }}
+                            style={{ padding: "10px 24px", fontSize: "0.9rem" }}
                             onClick={() => {
                               setShowModal(sug);
                               setSelectedResume(null);
                             }}
                           >
-                            🚀 Apply Now
+                            Apply Now
                           </button>
                         )}
 
-                        <div className="alert-info mt-3">
-                          <p className="fs-p8 text-info">
-                            🎯 <strong>Recommended by {getTutorName(sug)}.</strong> Apply before the deadline to maximise your chances.
+                        <div style={{
+                          marginTop: 14, background: "rgba(245,158,11,0.07)",
+                          border: "1px solid rgba(245,158,11,0.2)",
+                          borderRadius: 8, padding: "10px 14px",
+                        }}>
+                          <p className="fs-p8 text-secondary">
+                            Apply before <strong>{job.lastDateToApply || "the deadline"}</strong> to maximise your chances.
                           </p>
                         </div>
                       </div>
-
                     </div>
                   </div>
                 )}
@@ -456,71 +425,63 @@ console.log("📥 Apply response:", response);
             style={{ width: 500, maxWidth: "95%", maxHeight: "90vh", overflowY: "auto" }}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Header */}
-            <div className="row space-between items-center mb-1">
-              <h4 className="bold">🚀 Apply for Job</h4>
-              <span className="cursor-pointer fs-4 text-secondary" onClick={() => setShowModal(null)}>✕</span>
+            <div className="row space-between items-center mb-3">
+              <h4 className="bold">Apply for Job</h4>
+              <span className="cursor-pointer fs-4 text-secondary" onClick={() => setShowModal(null)}>x</span>
             </div>
 
             <p className="bold fs-p9 mb-1">{jobTitle(showModal.jobPostModel)}</p>
-            <p className="fs-p8 text-secondary mb-3">
-              🏢 {showModal.jobPostModel?.companyModel?.companyName}
+            <p className="fs-p8 text-secondary mb-1">
+              {showModal.jobPostModel?.companyModel?.companyName}
+            </p>
+            <p className="fs-p8 text-secondary mb-4">
+              Recommended by: {getTutorName(showModal)}
             </p>
 
-            <div className="row items-center g-2 mb-4"
-              style={{ background: "rgba(50,85,99,0.06)", borderRadius: 8, padding: "8px 12px", display: "inline-flex" }}>
-              <span className="fs-p8">👨‍🏫 Recommended by</span>
-              <span className="bold fs-p8" style={{ color: "var(--primary)" }}>{getTutorName(showModal)}</span>
-            </div>
-
-            {/* ── Select Resume ── */}
+            {/* Resume picker */}
             <div className="form-group mb-4">
               <label className="form-control-label mb-2">
-                📄 Select Resume <span style={{ color: "var(--danger)" }}>*</span>
+                Select Resume <span style={{ color: "var(--danger)" }}>*</span>
               </label>
 
               {resumes.length === 0 ? (
-                <p className="fs-p9 text-secondary">
-                  No resumes found. Please upload a resume in your Profile first.
-                </p>
+                <div className="alert-info">
+                  <p className="fs-p9" style={{ color: "var(--info)" }}>
+                    No resumes found. Please upload a resume in your Profile first.
+                  </p>
+                </div>
               ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                  {resumes.map((res) => {
-                    const isSelected = selectedResume?.resumeId === res.resumeId;
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {resumes.map((r) => {
+                    const isSel = selectedResume?.resumeId === r.resumeId;
                     return (
                       <div
-                        key={res.resumeId}
-                        onClick={() => setSelectedResume(res)}
+                        key={r.resumeId}
+                        onClick={() => setSelectedResume(r)}
                         style={{
-                          padding: "12px 14px",
-                          borderRadius: "8px",
-                          border: isSelected
-                            ? "2px solid var(--primary)"
-                            : "1px solid var(--border-color)",
+                          padding: "12px 14px", borderRadius: 8,
+                          border: isSel ? "2px solid var(--primary)" : "1px solid var(--border-color)",
                           cursor: "pointer",
-                          background: isSelected ? "rgba(50,85,99,0.06)" : "#fff",
-                          display: "flex",
-                          alignItems: "center",
+                          background: isSel ? "rgba(50,85,99,0.06)" : "#fff",
+                          display: "flex", alignItems: "center",
                           justifyContent: "space-between",
-                          transition: "all 0.15s ease",
                         }}
                       >
                         <div>
-                          <p className="bold fs-p9">{res.resumeTitle || "Untitled Resume"}</p>
+                          <p className="bold fs-p9">{r.resumeTitle || "Resume"}</p>
                           <p className="fs-p8 text-secondary">
-                            {res.date || "Uploaded"} &nbsp;·&nbsp;
-                            <span style={{ color: "var(--primary)", fontWeight: 600 }}>
-                              ID: {res.resumeId}
-                            </span>
+                            ID: {r.resumeId}{r.date ? ` · ${r.date}` : ""}
                           </p>
                         </div>
-                        {isSelected && (
-                          <span style={{
+                        {isSel && (
+                          <div style={{
+                            width: 22, height: 22, borderRadius: "50%",
                             background: "var(--primary)", color: "#fff",
-                            borderRadius: "50%", width: 22, height: 22,
                             display: "flex", alignItems: "center", justifyContent: "center",
-                            fontSize: "0.7rem", fontWeight: 700, flexShrink: 0
-                          }}>✓</span>
+                            fontWeight: 700, fontSize: "0.7rem", flexShrink: 0,
+                          }}>
+                            ✓
+                          </div>
                         )}
                       </div>
                     );
@@ -529,42 +490,40 @@ console.log("📥 Apply response:", response);
               )}
 
               {selectedResume && (
-                <div className="mt-2" style={{
-                  background: "rgba(22,163,74,0.08)", border: "1px solid rgba(22,163,74,0.3)",
-                  borderRadius: 6, padding: "6px 12px"
-                }}>
-                  <p className="fs-p8" style={{ color: "var(--success)" }}>
-                    ✅ Selected: <strong>{selectedResume.resumeTitle}</strong> — resumeId: <strong>{selectedResume.resumeId}</strong>
+                <div className="alert-success mt-2">
+                  <p className="fs-p9 text-success bold">
+                    Selected: {selectedResume.resumeTitle} (ID: {selectedResume.resumeId})
                   </p>
                 </div>
               )}
             </div>
 
-            {/* Buttons */}
-            <div className="row g-2">
+            {!selectedResume && (
+              <div className="alert-danger mb-3">
+                <p className="fs-p9 text-danger">Please select a resume to submit.</p>
+              </div>
+            )}
+
+            <div style={{ display: "flex", gap: 8 }}>
               <button
                 className="btn btn-primary"
                 onClick={applyToJob}
                 disabled={applying === showModal.jobSuggestionId || !selectedResume}
-                style={{ opacity: !selectedResume ? 0.6 : 1 }}
+                style={{ flex: 1, opacity: !selectedResume ? 0.6 : 1 }}
               >
-                {applying === showModal.jobSuggestionId ? "Submitting..." : "✅ Submit Application"}
+                {applying === showModal.jobSuggestionId ? "Submitting..." : "Submit Application"}
               </button>
-              <button className="btn btn-muted" onClick={() => setShowModal(null)}>
+              <button
+                className="btn btn-muted"
+                style={{ flex: 1 }}
+                onClick={() => setShowModal(null)}
+              >
                 Cancel
               </button>
             </div>
-
-            {!selectedResume && (
-              <p className="fs-p8 mt-2" style={{ color: "var(--danger)" }}>
-                ⚠️ Please select a resume to submit the application.
-              </p>
-            )}
-
           </div>
         </div>
       )}
-
     </div>
   );
 }

@@ -4,40 +4,55 @@ import { useNavigate } from "react-router-dom";
 import Cookies from "js-cookie";
 const rest = require("../../../Rest");
 
+const getHeader = () => ({
+  headers: {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${Cookies.get("token") || ""}`,
+  },
+});
+
 function StudentDashboard() {
   const navigate = useNavigate();
   const [jobs,        setJobs]        = useState([]);
   const [suggestions, setSuggestions] = useState([]);
+  const [apps,        setApps]        = useState([]);
   const [profile,     setProfile]     = useState(null);
   const [loading,     setLoading]     = useState(true);
-
-  const header = {
-    headers: {
-      "Content-Type": "application/json",
-      Authorization:  `Bearer ${Cookies.get("token")}`,
-    },
-  };
 
   useEffect(() => {
     const init = async () => {
       try {
-        const [jobRes, sugRes, stuRes] = await Promise.all([
-          axios.get(rest.jobPost,        header),
-          axios.get(rest.jobSuggestions, header),
-          axios.get(rest.students,       header),
+        const [jobRes, sugRes, appRes, stuRes] = await Promise.allSettled([
+          axios.get(rest.jobPost,        getHeader()),
+          axios.get(rest.jobSuggestions, getHeader()),
+          axios.get(rest.jobApplications,getHeader()),
+          axios.get(rest.students,       getHeader()),
         ]);
 
-        const jobList = jobRes.data?.data || jobRes.data || [];
-        setJobs(Array.isArray(jobList) ? jobList : []);
-
-        const sugList = sugRes.data?.data || sugRes.data || [];
-        setSuggestions(Array.isArray(sugList) ? sugList : []);
-
-        const stuList = stuRes.data?.data || stuRes.data || [];
-        const me      = Array.isArray(stuList) ? stuList[0] : stuList;
-        setProfile(me);
+        if (jobRes.status === "fulfilled") {
+          const d = jobRes.value.data?.data || jobRes.value.data || [];
+          setJobs(Array.isArray(d) ? d : []);
+          console.log("Jobs:", d.length);
+        }
+        if (sugRes.status === "fulfilled") {
+          const d = sugRes.value.data?.data || sugRes.value.data || [];
+          setSuggestions(Array.isArray(d) ? d : []);
+          console.log("Suggestions:", d.length);
+        }
+        if (appRes.status === "fulfilled") {
+          const d = appRes.value.data?.data || appRes.value.data || [];
+          setApps(Array.isArray(d) ? d : []);
+          console.log("Applications:", d.length);
+        }
+        if (stuRes.status === "fulfilled") {
+          const d = stuRes.value.data?.data || stuRes.value.data || [];
+          // students endpoint for STUDENT role returns only the logged-in student
+          const me = Array.isArray(d) ? d[0] : d;
+          setProfile(me);
+          console.log("Student profile:", me);
+        }
       } catch (err) {
-        console.error("StudentDashboard init:", err);
+        console.error("StudentDashboard error:", err);
       } finally {
         setLoading(false);
       }
@@ -45,53 +60,48 @@ function StudentDashboard() {
     init();
   }, []);
 
-  const activeJobs = jobs.filter(
-    (j) => !j.lastDateToApply || new Date(j.lastDateToApply) >= new Date()
-  );
+  const name       = profile?.name || "Student";
+  const dept       = profile?.departmentModel?.departmentName || "—";
+  const percentage = profile?.percentage || "—";
+  const rollNo     = profile?.rollNumber || "—";
+  const phone      = profile?.phone || "—";
 
-  const recentJobs = jobs.slice(0, 3);
+  const activeJobs  = jobs.filter((j) => !j.lastDateToApply || new Date(j.lastDateToApply) >= new Date());
+  const recentJobs  = jobs.slice(0, 4);
 
-  const name   = profile?.name || profile?.studentName || "Student";
-  const cgpa   = profile?.cgpa || profile?.marks || "—";
-  const dept   = profile?.departmentModel?.departmentName || "—";
-  const skills = profile?.skills ? profile.skills.split(",").filter(Boolean) : [];
-
-  // Profile completion score
-  const profileChecks = [
-    { label: "Basic Info",     done: !!(profile?.name) },
-    { label: "Department Set", done: !!(profile?.departmentModel?.departmentId) },
-    { label: "Skills Added",   done: skills.length > 0 },
-    { label: "CGPA Set",       done: !!(profile?.cgpa || profile?.marks) },
+  // Profile completion
+  const checks = [
+    { label: "Name",       done: !!profile?.name },
+    { label: "Department", done: !!profile?.departmentModel?.departmentId },
+    { label: "Phone",      done: !!profile?.phone },
+    { label: "Percentage", done: !!profile?.percentage },
+    { label: "Roll No",    done: !!profile?.rollNumber },
   ];
-  const completedCount = profileChecks.filter((c) => c.done).length;
-  const profilePct     = Math.round((completedCount / profileChecks.length) * 100);
-
-  const stats = [
-    { label: "Available Jobs",    value: activeJobs.length,   icon: "💼", color: "#325563", path: "/student-page/job-posts"          },
-    { label: "Recommended Jobs",  value: suggestions.length,  icon: "⭐", color: "#0ea5e9", path: "/student-page/student-recommended" },
-    { label: "Interviews",        value: "→",                 icon: "📅", color: "#f59e0b", path: "/student-page/interviews"         },
-    { label: "Offers",            value: "→",                 icon: "🎯", color: "#16a34a", path: "/student-page/offers"             },
-  ];
+  const completedCount = checks.filter((c) => c.done).length;
+  const profilePct     = Math.round((completedCount / checks.length) * 100);
 
   return (
-    <div>
-      {/* ── Welcome Banner ── */}
-      <div
-        className="card p-5 mb-4"
-        style={{ background: "linear-gradient(135deg, #0b2e40, #325563)", color: "white", border: "none" }}
-      >
+    <div className="p-4" style={{ overflowY: "auto", height: "calc(100vh - 70px)" }}>
+
+      {/* Welcome banner */}
+      <div className="card p-4 mb-4" style={{
+        background: "linear-gradient(135deg, #0b2e40, #325563)",
+        color: "#fff", border: "none",
+      }}>
         <div className="row space-between items-center">
           <div>
-            <h2 className="bold mb-1">
-              👋 Welcome back, {loading ? "…" : name}!
-            </h2>
-            <p className="fs-p9" style={{ opacity: 0.85 }}>
-              {dept} &nbsp;·&nbsp; CGPA: {cgpa} &nbsp;·&nbsp; Your placement journey is on track!
+            <h2 className="bold mb-1">Welcome, {loading ? "..." : name}!</h2>
+            <p className="fs-p9" style={{ opacity: 0.8 }}>
+              {dept} · Roll No: {rollNo} · {percentage !== "—" ? `${percentage}%` : ""}
             </p>
           </div>
           <button
-            className="btn w-auto"
-            style={{ background: "rgba(255,255,255,0.15)", color: "white", border: "1px solid rgba(255,255,255,0.3)", padding: "8px 20px" }}
+            style={{
+              padding: "8px 20px", borderRadius: 8,
+              background: "rgba(255,255,255,0.15)", color: "#fff",
+              border: "1px solid rgba(255,255,255,0.3)", cursor: "pointer",
+              fontWeight: 600, fontSize: "0.85rem",
+            }}
             onClick={() => navigate("/student-page/profile")}
           >
             My Profile
@@ -99,29 +109,36 @@ function StudentDashboard() {
         </div>
       </div>
 
-      {/* ── Stats ── */}
-      <div className="row mb-4">
-        {stats.map((s, i) => (
-          <div className="col-3 p-2" key={i}>
-            <div className="card p-4 stat-card cursor-pointer" onClick={() => navigate(s.path)}>
-              <div className="row space-between items-center mb-2">
-                <p className="fs-p9 text-secondary">{s.label}</p>
-                <span style={{ fontSize: "1.4rem" }}>{s.icon}</span>
-              </div>
-              <h2 className="bold" style={{ color: s.color }}>
-                {loading ? "…" : s.value}
-              </h2>
+      {/* Stat cards */}
+      <div className="row mb-4" style={{ gap: 12 }}>
+        {[
+          { label: "Available Jobs",   value: activeJobs.length,   sub: "open for application",    color: "var(--primary)", path: "/student-page/job-posts"          },
+          { label: "Recommended",      value: suggestions.length,  sub: "by your tutor",           color: "#0ea5e9",        path: "/student-page/student-recommended" },
+          { label: "My Applications",  value: apps.length,         sub: "submitted",               color: "var(--warning)", path: "/student-page/applications"        },
+          { label: "Offers",           value: "View",              sub: "check offer letters",     color: "var(--success)", path: "/student-page/offers"              },
+        ].map((s, i) => (
+          <div key={i} style={{ flex: 1 }}>
+            <div
+              className="card p-4 stat-card"
+              style={{ borderLeft: `4px solid ${s.color}`, cursor: "pointer" }}
+              onClick={() => navigate(s.path)}
+            >
+              <p className="fs-p9 text-secondary mb-2">{s.label}</p>
+              <h2 className="bold" style={{ color: s.color }}>{loading ? "..." : s.value}</h2>
+              <p className="fs-p9 text-secondary mt-1">{s.sub}</p>
             </div>
           </div>
         ))}
       </div>
 
-      {/* ── Recent Jobs + Profile ── */}
-      <div className="row">
-        <div className="col-8 p-2">
+      {/* Job posts + Profile sidebar */}
+      <div className="row" style={{ gap: 12 }}>
+
+        {/* Recent job posts */}
+        <div style={{ flex: 2 }}>
           <div className="card p-4">
             <div className="row space-between items-center mb-3">
-              <h4>💼 Recent Job Posts</h4>
+              <h4 className="bold">Recent Job Posts</h4>
               <button
                 className="btn btn-primary w-auto"
                 style={{ padding: "6px 14px", fontSize: "0.8rem" }}
@@ -135,46 +152,39 @@ function StudentDashboard() {
               <p className="text-secondary fs-p9">Loading...</p>
             ) : recentJobs.length === 0 ? (
               <div className="text-center p-4">
-                <p style={{ fontSize: "2rem" }}>💼</p>
-                <p className="bold mt-2">No job posts yet</p>
-                <p className="text-secondary fs-p9">Check back soon!</p>
+                <p className="bold">No job posts yet</p>
+                <p className="text-secondary fs-p9 mt-1">Check back soon!</p>
               </div>
             ) : (
               recentJobs.map((job, i) => {
-                const jid    = job.jobPostId || job.id;
-                const title  = job.title || job.tiitle;
                 const isOpen = !job.lastDateToApply || new Date(job.lastDateToApply) >= new Date();
                 return (
-                  <div
-                    key={jid || i}
-                    className="p-3 mb-2 hover-bg"
-                    style={{ border: "1px solid var(--border-color)", borderRadius: "10px" }}
-                  >
+                  <div key={job.jobPostId || i} className="p-3 mb-2 hover-bg" style={{
+                    border: "1px solid var(--border-color)", borderRadius: 8,
+                    borderLeft: `3px solid ${isOpen ? "var(--success)" : "var(--gray-400)"}`,
+                  }}>
                     <div className="row space-between items-center">
                       <div>
-                        <div className="bold">{title}</div>
-                        <div className="fs-p8 text-secondary">
-                          Min: {job.eligiblePercentage || "—"}% &nbsp;·&nbsp;
-                          Seats: {job.requiredCandidate || "—"}
-                        </div>
+                        <p className="bold fs-p9">{job.tiitle || job.title || "—"}</p>
+                        <p className="fs-p8 text-secondary">
+                          {job.companyModel?.companyName || "—"} · Min {job.eligiblePercentage || "—"}% · {job.requiredCandidate || "—"} seats
+                        </p>
                       </div>
-                      <div className="text-right">
-                        <div className="fs-p8 text-secondary mb-1">
-                          Deadline: {job.lastDateToApply || "Open"}
-                        </div>
+                      <div style={{ textAlign: "right" }}>
+                        <p className="fs-p8 text-secondary mb-1">Deadline: {job.lastDateToApply || "Open"}</p>
                         {isOpen ? (
                           <button
                             className="btn btn-primary w-auto"
-                            style={{ padding: "5px 14px", fontSize: "0.8rem" }}
+                            style={{ padding: "4px 12px", fontSize: "0.75rem" }}
                             onClick={() => navigate("/student-page/student-recommended")}
                           >
-                            Apply →
+                            Apply
                           </button>
                         ) : (
-                          <span
-                            className="status-item fs-p8"
-                            style={{ background: "rgba(220,38,38,0.1)", color: "#dc2626" }}
-                          >
+                          <span style={{
+                            fontSize: "0.72rem", fontWeight: 600, padding: "2px 8px", borderRadius: 10,
+                            background: "rgba(220,38,38,0.1)", color: "var(--danger)",
+                          }}>
                             Closed
                           </span>
                         )}
@@ -187,42 +197,37 @@ function StudentDashboard() {
           </div>
         </div>
 
-        <div className="col-4 p-2">
-          {/* Profile Strength */}
+        {/* Profile sidebar */}
+        <div style={{ flex: 1 }}>
+
+          {/* Profile strength */}
           <div className="card p-4 mb-3">
-            <h4 className="mb-3">👤 Profile Strength</h4>
-            <div
-              style={{ position: "relative", width: "80px", height: "80px", margin: "0 auto 16px" }}
-            >
-              <svg viewBox="0 0 36 36" style={{ transform: "rotate(-90deg)", width: "80px", height: "80px" }}>
-                <circle cx="18" cy="18" r="15.9" fill="none" stroke="#e5e7eb" strokeWidth="3" />
-                <circle
-                  cx="18" cy="18" r="15.9" fill="none"
-                  stroke="#325563" strokeWidth="3"
-                  strokeDasharray={`${profilePct} 100`}
-                  strokeLinecap="round"
-                />
+            <h4 className="bold mb-3">Profile Strength</h4>
+
+            {/* Circle gauge */}
+            <div style={{ position: "relative", width: 80, height: 80, margin: "0 auto 16px" }}>
+              <svg viewBox="0 0 36 36" style={{ transform: "rotate(-90deg)", width: 80, height: 80 }}>
+                <circle cx="18" cy="18" r="15.9" fill="none" stroke="var(--gray-200)" strokeWidth="3" />
+                <circle cx="18" cy="18" r="15.9" fill="none"
+                  stroke="var(--primary)" strokeWidth="3"
+                  strokeDasharray={`${profilePct} 100`} strokeLinecap="round" />
               </svg>
-              <div
-                style={{
-                  position:  "absolute",
-                  top:       "50%",
-                  left:      "50%",
-                  transform: "translate(-50%,-50%)",
-                  fontWeight:"bold",
-                  fontSize:  "1rem",
-                }}
-              >
+              <div style={{
+                position: "absolute", top: "50%", left: "50%",
+                transform: "translate(-50%,-50%)",
+                fontWeight: "bold", fontSize: "1rem",
+              }}>
                 {profilePct}%
               </div>
             </div>
 
-            {profileChecks.map((item, i) => (
-              <div key={i} className="row items-center mb-1" style={{ gap: "8px" }}>
-                <span style={{ color: item.done ? "#16a34a" : "#dc2626" }}>
-                  {item.done ? "✅" : "⭕"}
-                </span>
-                <span className="fs-p9" style={{ color: item.done ? "inherit" : "#6b7280" }}>
+            {checks.map((item, i) => (
+              <div key={i} className="row items-center mb-2" style={{ gap: 8 }}>
+                <div style={{
+                  width: 10, height: 10, borderRadius: "50%", flexShrink: 0,
+                  background: item.done ? "var(--success)" : "var(--gray-300)",
+                }} />
+                <span className="fs-p9" style={{ color: item.done ? "var(--text-primary)" : "var(--gray-500)" }}>
                   {item.label}
                 </span>
               </div>
@@ -237,26 +242,29 @@ function StudentDashboard() {
             </button>
           </div>
 
-          {/* Skills mini card */}
-          {skills.length > 0 && (
-            <div className="card p-4" style={{ background: "linear-gradient(135deg, #f0f9f4, #e8f4f8)", border: "none" }}>
-              <h4 className="mb-2">🛠️ Your Skills</h4>
-              <div className="row" style={{ flexWrap: "wrap", gap: "6px" }}>
-                {skills.slice(0, 6).map((sk, i) => (
-                  <span
-                    key={i}
-                    className="fs-p8"
-                    style={{ background: "white", borderRadius: "12px", padding: "3px 10px", border: "1px solid var(--border-color)" }}
-                  >
-                    {sk.trim()}
-                  </span>
-                ))}
-                {skills.length > 6 && (
-                  <span className="fs-p8 text-secondary">+{skills.length - 6} more</span>
-                )}
+          {/* Quick links */}
+          <div className="card p-4">
+            <h4 className="bold mb-3">Quick Access</h4>
+            {[
+              { label: "My Interviews",  path: "/student-page/interviews",         color: "var(--warning)"  },
+              { label: "My Offers",      path: "/student-page/offers",             color: "var(--success)"  },
+              { label: "Meetings",       path: "/student-page/meetings",           color: "#0ea5e9"          },
+              { label: "My Resume",      path: "/student-page/student-resume",     color: "var(--primary)"  },
+            ].map((a, i) => (
+              <div
+                key={i}
+                className="hover-bg"
+                onClick={() => navigate(a.path)}
+                style={{
+                  padding: "9px 12px", marginBottom: 6,
+                  border: "1px solid var(--border-color)", borderRadius: 8,
+                  cursor: "pointer", borderLeft: `3px solid ${a.color}`,
+                }}
+              >
+                <p className="fs-p9 bold" style={{ color: a.color }}>{a.label}</p>
               </div>
-            </div>
-          )}
+            ))}
+          </div>
         </div>
       </div>
     </div>

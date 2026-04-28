@@ -4,44 +4,54 @@ import { useNavigate } from "react-router-dom";
 import Cookies from "js-cookie";
 const rest = require("../../../Rest");
 
+const getHeader = () => ({
+  headers: {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${Cookies.get("token") || ""}`,
+  },
+});
+
 function TutorDashboard() {
   const navigate = useNavigate();
-  const [students,     setStudents]     = useState([]);
-  const [jobs,         setJobs]         = useState([]);
-  const [suggestions,  setSuggestions]  = useState([]);
-  const [tutor,        setTutor]        = useState(null);
-  const [loading,      setLoading]      = useState(true);
-
-  const header = {
-    headers: {
-      "Content-Type": "application/json",
-      Authorization:  `Bearer ${Cookies.get("token")}`,
-    },
-  };
+  const [tutor,       setTutor]       = useState(null);
+  const [students,    setStudents]    = useState([]);
+  const [jobs,        setJobs]        = useState([]);
+  const [suggestions, setSuggestions] = useState([]);
+  const [loading,     setLoading]     = useState(true);
 
   useEffect(() => {
     const init = async () => {
       try {
-        const [tutorRes, stuRes, jobRes, sugRes] = await Promise.all([
-          axios.get(rest.tutor,           header),
-          axios.get(rest.students,        header),
-          axios.get(rest.jobPost,         header),
-          axios.get(rest.jobSuggestions,  header),
+        const [tutorRes, stuRes, jobRes, sugRes] = await Promise.allSettled([
+          axios.get(rest.tutor,          getHeader()),
+          axios.get(rest.students,       getHeader()),
+          axios.get(rest.jobPost,        getHeader()),
+          axios.get(rest.jobSuggestions, getHeader()),
         ]);
 
-        const tutorList = tutorRes.data?.data || tutorRes.data || [];
-        setTutor(Array.isArray(tutorList) ? tutorList[0] : tutorList);
-
-        const stuList = stuRes.data?.data || stuRes.data || [];
-        setStudents(Array.isArray(stuList) ? stuList : []);
-
-        const jobList = jobRes.data?.data || jobRes.data || [];
-        setJobs(Array.isArray(jobList) ? jobList : []);
-
-        const sugList = sugRes.data?.data || sugRes.data || [];
-        setSuggestions(Array.isArray(sugList) ? sugList : []);
+        if (tutorRes.status === "fulfilled") {
+          const d = tutorRes.value.data?.data || tutorRes.value.data || [];
+          const me = Array.isArray(d) ? d[0] : d;
+          setTutor(me);
+          console.log("Tutor profile:", me);
+        }
+        if (stuRes.status === "fulfilled") {
+          const d = stuRes.value.data?.data || stuRes.value.data || [];
+          setStudents(Array.isArray(d) ? d : []);
+          console.log("Students:", d.length);
+        }
+        if (jobRes.status === "fulfilled") {
+          const d = jobRes.value.data?.data || jobRes.value.data || [];
+          setJobs(Array.isArray(d) ? d : []);
+          console.log("Jobs:", d.length);
+        }
+        if (sugRes.status === "fulfilled") {
+          const d = sugRes.value.data?.data || sugRes.value.data || [];
+          setSuggestions(Array.isArray(d) ? d : []);
+          console.log("Suggestions:", d.length);
+        }
       } catch (err) {
-        console.error("TutorDashboard init:", err);
+        console.error("TutorDashboard error:", err);
       } finally {
         setLoading(false);
       }
@@ -49,72 +59,86 @@ function TutorDashboard() {
     init();
   }, []);
 
-  const dept = tutor?.departmentModel?.departmentName || "";
+  // Tutor info — backend field is "tutorName" not "name"
+  const tutorName  = tutor?.tutorName  || tutor?.name || "Tutor";
+  const tutorDept  = tutor?.departmentModel?.departmentName || "—";
+  const tutorDeptId = tutor?.departmentModel?.departmentId  || tutor?.departmentId;
 
   // Filter students in tutor's department
   const myStudents = students.filter((s) => {
-    if (!tutor) return true;
-    const tutorDeptId  = tutor?.departmentModel?.departmentId || tutor?.departmentId;
-    const stuDeptId    = s?.departmentModel?.departmentId     || s?.departmentId;
-    return !tutorDeptId || String(stuDeptId) === String(tutorDeptId);
+    if (!tutorDeptId) return true;
+    const stuDeptId = s?.departmentModel?.departmentId || s?.departmentId;
+    return String(stuDeptId) === String(tutorDeptId);
   });
 
-  // Count students who have at least one accepted application
-  const assignedCount = suggestions.length;
+  const activeJobs     = jobs.filter((j) => !j.lastDateToApply || new Date(j.lastDateToApply) >= new Date());
+  const recentStudents = myStudents.slice(0, 5);
+  const recentJobs     = jobs.slice(0, 4);
+  const assignedCount  = suggestions.length;
 
-  // Recent 4 students
-  const recentStudents = myStudents.slice(0, 4);
-
-  const stats = [
-    { label: "My Students",     value: myStudents.length,  icon: "👨‍🎓", color: "#325563", path: "/tutor-page/students"         },
-    { label: "Active Jobs",     value: jobs.length,        icon: "💼",  color: "#0ea5e9", path: "/tutor-page/job-posts"         },
-    { label: "Assigned Jobs",   value: assignedCount,      icon: "✅",  color: "#16a34a", path: "/tutor-page/students"         },
-    { label: "Placement Report",value: "→",                icon: "📈",  color: "#f59e0b", path: "/tutor-page/placement-report" },
-  ];
+  const assignRate = myStudents.length > 0
+    ? Math.min(100, Math.round((assignedCount / myStudents.length) * 100))
+    : 0;
 
   return (
-    <div>
-      {/* ── Welcome Banner ── */}
-      <div
-        className="card p-5 mb-4"
-        style={{ background: "linear-gradient(135deg, #0b2e40, #325563)", color: "white", border: "none" }}
-      >
-        <h2 className="bold mb-1">
-          👋 Welcome, {tutor?.name || "Tutor"}!
-        </h2>
-        <p className="fs-p9" style={{ opacity: 0.85 }}>
-          {dept ? `Department: ${dept} — ` : ""}
-          Monitor your students' placement progress
-        </p>
+    <div className="p-4" style={{ overflowY: "auto", height: "calc(100vh - 70px)" }}>
+
+      {/* Welcome banner */}
+      <div className="card p-4 mb-4" style={{
+        background: "linear-gradient(135deg, #0b2e40, #325563)",
+        color: "#fff", border: "none",
+      }}>
+        <div className="row space-between items-center">
+          <div>
+            <h2 className="bold mb-1">Welcome, {loading ? "..." : tutorName}!</h2>
+            <p className="fs-p9" style={{ opacity: 0.8 }}>
+              Department: {tutorDept} · {myStudents.length} students assigned
+            </p>
+          </div>
+          <button
+            style={{
+              padding: "8px 20px", borderRadius: 8,
+              background: "rgba(255,255,255,0.15)", color: "#fff",
+              border: "1px solid rgba(255,255,255,0.3)", cursor: "pointer",
+              fontWeight: 600, fontSize: "0.85rem",
+            }}
+            onClick={() => navigate("/tutor-page/placement-report")}
+          >
+            Placement Report
+          </button>
+        </div>
       </div>
 
-      {/* ── Stats ── */}
-      <div className="row mb-5">
-        {stats.map((s, i) => (
-          <div className="col-3 p-2" key={i}>
+      {/* Stat cards */}
+      <div className="row mb-4" style={{ gap: 12 }}>
+        {[
+          { label: "My Students",      value: myStudents.length,  sub: `in ${tutorDept}`,          color: "var(--primary)", path: "/tutor-page/students"          },
+          { label: "Active Jobs",      value: activeJobs.length,  sub: `${jobs.length} total`,     color: "#0ea5e9",        path: "/tutor-page/job-posts"          },
+          { label: "Suggestions Made", value: assignedCount,      sub: "jobs recommended",         color: "var(--success)", path: "/tutor-page/students"           },
+          { label: "Meetings",         value: "View",             sub: "scheduled meetings",       color: "var(--warning)", path: "/tutor-page/meetings"           },
+        ].map((s, i) => (
+          <div key={i} style={{ flex: 1 }}>
             <div
-              className="card p-4 stat-card cursor-pointer"
+              className="card p-4 stat-card"
+              style={{ borderLeft: `4px solid ${s.color}`, cursor: "pointer" }}
               onClick={() => navigate(s.path)}
             >
-              <div className="row space-between items-center mb-2">
-                <p className="fs-p9 text-secondary">{s.label}</p>
-                <span style={{ fontSize: "1.4rem" }}>{s.icon}</span>
-              </div>
-              <h2 className="bold" style={{ color: s.color }}>
-                {loading ? "…" : s.value}
-              </h2>
+              <p className="fs-p9 text-secondary mb-2">{s.label}</p>
+              <h2 className="bold" style={{ color: s.color }}>{loading ? "..." : s.value}</h2>
+              <p className="fs-p9 text-secondary mt-1">{s.sub}</p>
             </div>
           </div>
         ))}
       </div>
 
-      {/* ── Recent Students + Job Posts ── */}
-      <div className="row">
-        {/* Students */}
-        <div className="col-7 p-2">
+      {/* Students list + Jobs + Progress */}
+      <div className="row" style={{ gap: 12 }}>
+
+        {/* My Students */}
+        <div style={{ flex: 2 }}>
           <div className="card p-4">
             <div className="row space-between items-center mb-3">
-              <h4>👨‍🎓 My Students</h4>
+              <h4 className="bold">My Students</h4>
               <button
                 className="btn btn-primary w-auto"
                 style={{ padding: "6px 14px", fontSize: "0.8rem" }}
@@ -127,46 +151,39 @@ function TutorDashboard() {
             {loading ? (
               <p className="text-secondary fs-p9">Loading...</p>
             ) : recentStudents.length === 0 ? (
-              <p className="text-secondary fs-p9 text-center p-3">No students found in your department.</p>
+              <p className="text-secondary fs-p9 text-center p-3">
+                No students found in your department.
+              </p>
             ) : (
               recentStudents.map((s, i) => {
-                const name  = s.name || s.studentName || "Student";
-                const dept2 = s.departmentModel?.departmentName || "—";
-                const cgpa  = s.cgpa || s.marks || "—";
-                const email = s.userModel?.email || s.email || "—";
+                const sName  = s.name || s.studentName || "Student";
+                const sDept  = s.departmentModel?.departmentName || "—";
+                const sPct   = s.percentage || "—";
+                const sEmail = s.email || s.userModel?.email || "—";
                 return (
-                  <div
-                    key={s.studentId || i}
-                    className="p-3 mb-2 hover-bg"
-                    style={{ border: "1px solid var(--border-color)", borderRadius: "10px" }}
-                  >
+                  <div key={s.studentId || i} className="p-3 mb-2 hover-bg" style={{
+                    border: "1px solid var(--border-color)", borderRadius: 8,
+                  }}>
                     <div className="row space-between items-center">
-                      <div className="row items-center" style={{ gap: "10px" }}>
-                        <div
-                          className="bg-primary text-white br-circle"
-                          style={{
-                            width:          "36px",
-                            height:         "36px",
-                            display:        "flex",
-                            alignItems:     "center",
-                            justifyContent: "center",
-                            fontWeight:     "bold",
-                            fontSize:       "0.9rem",
-                            flexShrink:     0,
-                          }}
-                        >
-                          {name.charAt(0).toUpperCase()}
+                      <div className="row items-center" style={{ gap: 10 }}>
+                        <div style={{
+                          width: 36, height: 36, borderRadius: "50%", flexShrink: 0,
+                          background: "var(--primary)", color: "#fff",
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          fontWeight: 700, fontSize: "0.85rem",
+                        }}>
+                          {sName.charAt(0).toUpperCase()}
                         </div>
                         <div>
-                          <div className="bold fs-p9">{name}</div>
-                          <div className="fs-p8 text-secondary">{dept2} &nbsp;·&nbsp; {email}</div>
+                          <p className="bold fs-p9">{sName}</p>
+                          <p className="fs-p8 text-secondary">{sDept} · {sEmail}</p>
                         </div>
                       </div>
-                      <span
-                        className="status-item fs-p8"
-                        style={{ background: "rgba(50,85,99,0.1)", color: "#325563" }}
-                      >
-                        CGPA: {cgpa}
+                      <span style={{
+                        fontSize: "0.72rem", fontWeight: 600, padding: "3px 10px", borderRadius: 10,
+                        background: "rgba(50,85,99,0.1)", color: "var(--primary)",
+                      }}>
+                        {sPct !== "—" ? `${sPct}%` : "—"}
                       </span>
                     </div>
                   </div>
@@ -176,11 +193,13 @@ function TutorDashboard() {
           </div>
         </div>
 
-        {/* Recent Job Posts */}
-        <div className="col-5 p-2">
-          <div className="card p-4 mb-3">
+        {/* Right column — Jobs + Progress */}
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 12 }}>
+
+          {/* Recent Job Posts */}
+          <div className="card p-4">
             <div className="row space-between items-center mb-3">
-              <h4>💼 Job Posts</h4>
+              <h4 className="bold">Job Posts</h4>
               <button
                 className="btn btn-primary w-auto"
                 style={{ padding: "6px 14px", fontSize: "0.8rem" }}
@@ -189,34 +208,33 @@ function TutorDashboard() {
                 View All
               </button>
             </div>
+
             {loading ? (
               <p className="fs-p9 text-secondary">Loading...</p>
-            ) : jobs.length === 0 ? (
-              <p className="fs-p9 text-secondary text-center p-3">No job posts available</p>
+            ) : recentJobs.length === 0 ? (
+              <p className="fs-p9 text-secondary text-center p-2">No job posts available.</p>
             ) : (
-              jobs.slice(0, 4).map((job, i) => {
-                const title  = job.title || job.tiitle;
+              recentJobs.map((job, i) => {
                 const isOpen = !job.lastDateToApply || new Date(job.lastDateToApply) >= new Date();
                 return (
-                  <div
-                    key={job.jobPostId || i}
-                    className="p-2 mb-2 hover-bg br-md"
-                    style={{ border: "1px solid var(--border-color)", borderRadius: "8px" }}
-                  >
+                  <div key={job.jobPostId || i} className="p-2 mb-2 hover-bg" style={{
+                    border: "1px solid var(--border-color)", borderRadius: 8,
+                    borderLeft: `3px solid ${isOpen ? "var(--success)" : "var(--gray-400)"}`,
+                  }}>
                     <div className="row space-between items-center">
-                      <div className="bold fs-p9">{title}</div>
-                      <span
-                        className="status-item fs-p8"
-                        style={{
-                          background: isOpen ? "rgba(22,163,74,0.1)"  : "rgba(220,38,38,0.1)",
-                          color:      isOpen ? "#16a34a"               : "#dc2626",
-                        }}
-                      >
+                      <div>
+                        <p className="bold fs-p9">{job.tiitle || job.title || "—"}</p>
+                        <p className="fs-p8 text-secondary">
+                          {job.companyModel?.companyName || "—"}
+                        </p>
+                      </div>
+                      <span style={{
+                        fontSize: "0.72rem", fontWeight: 600, padding: "2px 8px", borderRadius: 10,
+                        background: isOpen ? "rgba(22,163,74,0.1)" : "rgba(107,114,128,0.1)",
+                        color:      isOpen ? "var(--success)"      : "var(--gray-500)",
+                      }}>
                         {isOpen ? "Active" : "Closed"}
                       </span>
-                    </div>
-                    <div className="fs-p8 text-secondary">
-                      Deadline: {job.lastDateToApply || "Open"}
                     </div>
                   </div>
                 );
@@ -224,34 +242,45 @@ function TutorDashboard() {
             )}
           </div>
 
-          {/* Placement Rate Card */}
-          <div
-            className="card p-4"
-            style={{ background: "linear-gradient(135deg, #f0f9f4, #e8f4f8)", border: "none" }}
-          >
-            <h4 className="mb-2">📈 Assignment Rate</h4>
-            <div>
-              <div style={{ height: "10px", background: "#e5e7eb", borderRadius: "5px" }}>
-                <div
-                  style={{
-                    width:        myStudents.length
-                      ? `${Math.min(100, Math.round((assignedCount / myStudents.length) * 100))}%`
-                      : "0%",
-                    height:       "10px",
-                    background:   "#325563",
-                    borderRadius: "5px",
-                    transition:   "width 0.4s",
-                  }}
-                />
-              </div>
-              <p className="fs-p9 mt-1 text-secondary">
-                {assignedCount} of {myStudents.length} students assigned to jobs{" "}
-                <span className="bold" style={{ color: "#325563" }}>
-                  ({myStudents.length ? Math.round((assignedCount / myStudents.length) * 100) : 0}%)
-                </span>
+          {/* Assignment rate card */}
+          <div className="card p-4" style={{ background: "var(--gray-100)", border: "none" }}>
+            <h4 className="bold mb-3">Assignment Rate</h4>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
+              <h2 className="bold" style={{ color: "var(--primary)" }}>{assignRate}%</h2>
+              <p className="fs-p9 text-secondary">
+                {assignedCount} of {myStudents.length} students assigned
               </p>
             </div>
+            <div style={{ height: 8, borderRadius: 4, background: "var(--gray-200)", overflow: "hidden" }}>
+              <div style={{
+                width: `${assignRate}%`, height: "100%",
+                background: "var(--primary)", borderRadius: 4,
+                transition: "width 0.4s",
+              }} />
+            </div>
+
+            {/* Quick nav */}
+            <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 6 }}>
+              {[
+                { label: "Feedback",         path: "/tutor-page/feedback"          },
+                { label: "Student Location",  path: "/tutor-page/student-location" },
+                { label: "Meetings",          path: "/tutor-page/meetings"         },
+              ].map((a, i) => (
+                <div
+                  key={i}
+                  className="hover-bg"
+                  onClick={() => navigate(a.path)}
+                  style={{
+                    padding: "8px 12px", borderRadius: 8, cursor: "pointer",
+                    border: "1px solid var(--border-color)", background: "#fff",
+                  }}
+                >
+                  <p className="fs-p9 bold" style={{ color: "var(--primary)" }}>{a.label}</p>
+                </div>
+              ))}
+            </div>
           </div>
+
         </div>
       </div>
     </div>

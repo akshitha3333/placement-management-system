@@ -46,13 +46,14 @@ function StudentOffers() {
             // Filter by both "Selected" and "OFFER_SENT" so student still sees
             // their card after the company sends the offer letter
             return list
-              .filter((i) => i.status === "Selected" || i.status === "OFFER_SENT")
+              .filter((i) => { const s = (i.status || "").toLowerCase(); return s === "selected" || s === "offer_sent"; })
               .map((i) => ({ ...i, _app: app }));
           } catch { return []; }
         })
       );
 
       const selected = invArrays.flat();
+      console.log("Filtered selected/offer_sent interviews:", selected.length, selected.map(i => ({ id: i.interviewId, status: i.status })));
       setOffers(selected);
       await fetchAllOfferLetters(selected);
     } catch (err) {
@@ -111,13 +112,33 @@ function StudentOffers() {
 
   const openOfferLetter = (pdfBase64, title = "Offer Letter") => {
     if (!pdfBase64) { alert("Offer letter PDF not available."); return; }
-    const src = pdfBase64.startsWith("data:")
-      ? pdfBase64.replace(/^data:[^;]+;base64,/, "data:application/pdf;base64,")
-      : `data:application/pdf;base64,${pdfBase64}`;
-    const win = window.open();
-    if (win) {
-      win.document.write(`<iframe src="${src}" style="width:100%;height:100vh;border:none;"></iframe>`);
-      win.document.title = title;
+    try {
+      // Strip data URL prefix if present, keep only raw base64
+      const raw = pdfBase64.startsWith("data:")
+        ? pdfBase64.split(",")[1]
+        : pdfBase64;
+
+      // Convert base64 → Uint8Array → Blob → Blob URL
+      // Blob URLs work in all browsers (Firefox blocks data: URLs in new tabs)
+      const binary = atob(raw);
+      const bytes  = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      const blob    = new Blob([bytes], { type: "application/pdf" });
+      const blobUrl = URL.createObjectURL(blob);
+
+      const win = window.open(blobUrl, "_blank");
+      if (!win) {
+        // Fallback: download the file if popup is blocked
+        const a = document.createElement("a");
+        a.href = blobUrl;
+        a.download = `${title}.pdf`;
+        a.click();
+      }
+      // Revoke after 60s to free memory
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+    } catch (err) {
+      console.error("openOfferLetter error:", err);
+      alert("Could not open the offer letter. Please try again.");
     }
   };
 

@@ -51,7 +51,7 @@ function CompanyOffers() {
             const data = res.data?.data || res.data;
             const list = Array.isArray(data) ? data : data ? [data] : [];
             return list
-              .filter((i) => i.status === "Selected" || i.status === "OFFER_SENT")
+              .filter((i) => { const s = (i.status || "").toLowerCase(); return s === "selected" || s === "offer_sent"; })
               .map((i) => ({ ...i, _app: app }));
           } catch { return []; }
         })

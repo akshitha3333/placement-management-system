@@ -40,7 +40,7 @@ function TutorNav({ children }) {
 
         <p className="fs-p8 text-gray-300 mb-1 mt-3">REPORTS</p>
         {navItem("/tutor-page/placement-report", "📑", "Placement Report")}
-        {navItem("tutor-page/student-location", "🗺️", "Student Location")}
+        {navItem("/tutor-page/selected-students", "🗺️", "Selected Students")}
          
 
         <div

@@ -50,14 +50,14 @@ function AdminNav({ children }) {
         <p className="fs-p8 text-gray-300 mb-2">PLACEMENT</p>
 
         <div className="p-1 hover-bg cursor-pointer"
-          onClick={() => navigate("/offers")}>
+          onClick={() => navigate("/admin-page/offers")}>
           🎯 Offers
         </div>
 
-        <div className="p-1 hover-bg cursor-pointer"
-          onClick={() => navigate("/meetings")}>
+        {/* <div className="p-1 hover-bg cursor-pointer"
+          onClick={() => navigate("/admin-page/meetings")}>
           📹 Meetings
-        </div>
+        </div> */}
 
         {/* SYSTEM
         <p className="fs-p8 text-gray-300 mb-2">SYSTEM</p>
