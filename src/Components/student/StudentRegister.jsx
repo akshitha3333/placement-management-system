@@ -30,11 +30,11 @@ function StudentRegister() {
     }
     const validateEmail = (e) => {
         const email = e.target.value;
-        const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        const universityPattern = /^[a-z]{3}[0-9]{1,2}@student\.le\.ac\.uk$/;
         if (email === "") {
             setEmailError("Email is required");
-        } else if (!emailPattern.test(email)) {
-            setEmailError("Invalid Email Format");
+        } else if (!universityPattern.test(email)) {
+            setEmailError("Only university emails allowed (e.g. abc12@student.le.ac.uk)");
         } else {
             setEmailError("");
         }

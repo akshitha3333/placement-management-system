@@ -121,9 +121,7 @@ const getdepartments=()=>{
       )}
     </div>
 
-         {/* <div>
-          {departments}
-         </div> */}
+         
   </div>
 
   );

@@ -1,35 +1,40 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
 import Cookies from "js-cookie";
-const rest = require("../../../Rest")
+const rest = require("../../../Rest");
 
 function TutorStudents() {
 
   // ── State ──────────────────────────────────────────────
-  const [students,        setStudents]        = useState([]);
-  const [jobs,            setJobs]            = useState([]);
-  const [loading,         setLoading]         = useState(true);
-  const [error,           setError]           = useState("");
-  const [departmentName,  setDepartmentName]  = useState("");
-  const [selectedStudent, setSelectedStudent] = useState(null);
-  const [selectedJob,     setSelectedJob]     = useState("");
-  const [search,          setSearch]          = useState("");
-  const [filterStatus,    setFilterStatus]    = useState("");
+  const [students,         setStudents]         = useState([]);
+  const [jobs,             setJobs]             = useState([]);
+  const [loading,          setLoading]          = useState(true);
+  const [error,            setError]            = useState("");
+  const [departmentName,   setDepartmentName]   = useState("");
+  const [selectedStudent,  setSelectedStudent]  = useState(null);
+  const [selectedJob,      setSelectedJob]      = useState("");
+  const [search,           setSearch]           = useState("");
+  const [filterStatus,     setFilterStatus]     = useState("");
+
+  // ── Prediction State ───────────────────────────────────
+  const [predicting,       setPredicting]       = useState(false);
+  const [predictionResult, setPredictionResult] = useState(null);
+  const [predictionError,  setPredictionError]  = useState("");
 
   // ── Auth Header ────────────────────────────────────────
-  let header = {
-          headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${Cookies.get('token')}`
-          }
-      }
-  // ── Fetch: Tutor → match dept → filter students ────────
+  const header = {
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${Cookies.get("token")}`,
+    },
+  };
+
+  // ── Fetch: Tutor → students ────────────────────────────
   const fetchStudents = async () => {
     try {
       setLoading(true);
       setError("");
 
-      // 1. Get tutor profile to find their departmentId
       const tutorRes  = await axios.get(rest.tutor, header);
       const tutorList = tutorRes.data?.data || tutorRes.data || [];
       const tutor     = Array.isArray(tutorList) ? tutorList[0] : tutorList;
@@ -44,13 +49,10 @@ function TutorStudents() {
 
       setDepartmentName(tutorDeptName);
 
-      // 2. Get all students
       const studentRes  = await axios.get(rest.students, header);
       const allStudents = studentRes.data?.data || studentRes.data || [];
-      console.log(allStudents);
-    
-
-      setStudents(allStudents);
+      console.log("Students loaded:", allStudents);
+      setStudents(Array.isArray(allStudents) ? allStudents : []);
 
     } catch (err) {
       console.error("fetchStudents error:", err);
@@ -76,28 +78,110 @@ function TutorStudents() {
     fetchJobs();
   }, []);
 
+  // ── Close modal helper (resets all modal state) ────────
+  const closeModal = () => {
+    setSelectedStudent(null);
+    setSelectedJob("");
+    setPredictionResult(null);
+    setPredictionError("");
+  };
+
   // ── Assign student to job ──────────────────────────────
   const assignJob = async () => {
     if (!selectedStudent || !selectedJob) return;
     try {
+      const studentId = selectedStudent.studentId || selectedStudent.id;
+      const jobPostId = Number(selectedJob);
+
+      console.log("Assigning job:", { studentId, jobPostId });
+
       await axios.post(
-       rest.jobSuggestions ,
-        {
-          studentId:  selectedStudent.studentId || selectedStudent.id,
-          jobPostId:  selectedJob,
-        },
+        rest.jobSuggestions,
+        { studentId, jobPostId },
         header
       );
       alert("Student assigned to job successfully!");
-      setSelectedStudent(null);
-      setSelectedJob("");
+      closeModal();
     } catch (err) {
-      console.error("assignJob error:", err);
-      alert("Failed to assign job. Please try again.");
+      console.error("assignJob error:", err.response?.data || err.message);
+      alert("Failed to assign: " + (err.response?.data?.message || err.response?.data || err.message));
     }
   };
 
-  // ── Filter students by search & status ────────────────
+  // ── Run placement prediction ───────────────────────────
+  const runPrediction = async () => {
+    if (!selectedStudent || !selectedJobData) return;
+
+    setPredicting(true);
+    setPredictionResult(null);
+    setPredictionError("");
+
+    try {
+      const studentId = selectedStudent.studentId || selectedStudent.id;
+
+      // 1. Fetch all job applications (tutor has access to this endpoint)
+      const appsRes = await axios.get(rest.jobApplications, header);
+      const apps    = appsRes.data?.data || appsRes.data || [];
+      const appList = Array.isArray(apps) ? apps : [];
+
+      // 2. Find any application by this student that has a resume attached
+      const studentApp = appList.find((app) => {
+        const appStudentId =
+          app.resumeModel?.studentModel?.studentId ||
+          app.resumeModel?.studentModel?.id         ||
+          app.jobSuggestionModel?.studentModel?.studentId ||
+          app.jobSuggestionModel?.studentModel?.id;
+        return String(appStudentId) === String(studentId) && app.resumeModel?.resume2;
+      });
+
+      if (!studentApp?.resumeModel?.resume2) {
+        setPredictionError("No resume found. The student must apply for at least one job with a resume first.");
+        return;
+      }
+
+      const resumeModel = studentApp.resumeModel;
+
+      // 3. Convert base64 → Blob → File
+      const raw    = resumeModel.resume2.startsWith("data:")
+        ? resumeModel.resume2.split(",")[1]
+        : resumeModel.resume2;
+      const binary = atob(raw);
+      const bytes  = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      const blob = new Blob([bytes], { type: "application/pdf" });
+      const file = new File(
+        [blob],
+        (resumeModel.resumeTitle || "resume") + ".pdf",
+        { type: "application/pdf" }
+      );
+
+      // 4. POST to Flask prediction API
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("job_description", selectedJobData.description || selectedJobData.tiitle || "");
+
+      const res = await axios.post(
+        "http://localhost:8081/placement-prediction",
+        fd,
+        { headers: { Authorization: `Bearer ${Cookies.get("token")}` } }
+      );
+
+      setPredictionResult(res.data);
+    } catch (err) {
+      console.error("Prediction error:", err.response?.data || err.message);
+      if (err.code === "ERR_NETWORK" || err.message?.includes("Network")) {
+        setPredictionError("Cannot reach prediction API. Make sure Flask is running on port 8081.");
+      } else if (err.response?.status === 401) {
+        setPredictionError("Unauthorized. Please log in again.");
+      } else {
+        setPredictionError("Prediction failed: " + (err.response?.data?.error || err.message));
+      }
+    } finally {
+      setPredicting(false);
+    }
+  };
+
+  // ── Filter ─────────────────────────────────────────────
   const filtered = students.filter((s) => {
     const term        = search.toLowerCase();
     const matchSearch = !search
@@ -130,11 +214,7 @@ function TutorStudents() {
       </div>
 
       {/* ── Error Banner ── */}
-      {error && (
-        <div className="alert-danger mb-4">
-          ⚠️ {error}
-        </div>
-      )}
+      {error && <div className="alert-danger mb-4">⚠️ {error}</div>}
 
       {/* ── Stats Row ── */}
       <div className="row g-3 mb-4">
@@ -198,8 +278,6 @@ function TutorStudents() {
               </tr>
             </thead>
             <tbody>
-
-              {/* Empty state */}
               {filtered.length === 0 ? (
                 <tr>
                   <td colSpan="8" className="text-center p-5">
@@ -207,23 +285,18 @@ function TutorStudents() {
                     <p className="bold mt-1">No students found</p>
                     <p className="fs-p8 text-secondary">
                       {students.length === 0
-                        ? "No students matched your department."
+                        ? "No students in your department."
                         : "Try a different search or filter."}
                     </p>
                   </td>
                 </tr>
               ) : (
-
-                /* Student rows */
                 filtered.map((student, idx) => {
                   const isPlaced = student.workingStatus === "Placed";
                   return (
-                    <tr key={student.studentId || idx} className="hover-bg">
-
-                      {/* # */}
+                    <tr key={student.studentId || student.id || idx} className="hover-bg">
                       <td className="fs-p9 text-secondary">{idx + 1}</td>
 
-                      {/* Name + Email */}
                       <td>
                         <div className="row items-center g-2">
                           <div className="bg-primary text-white br-circle bold"
@@ -237,7 +310,6 @@ function TutorStudents() {
                         </div>
                       </td>
 
-                      {/* Department */}
                       <td>
                         <span className="fs-p9 br-md"
                           style={{ background: "rgba(50,85,99,0.08)", color: "var(--primary)", padding: "3px 10px" }}>
@@ -245,7 +317,6 @@ function TutorStudents() {
                         </span>
                       </td>
 
-                      {/* CGPA */}
                       <td>
                         <span className="bold fs-p9" style={{
                           color: student.percentage >= 8 ? "var(--success)"
@@ -256,10 +327,8 @@ function TutorStudents() {
                         </span>
                       </td>
 
-                      {/* Roll No */}
                       <td><span className="fs-p9">{student.rollNumber || "—"}</span></td>
 
-                      {/* Skills */}
                       <td>
                         {student.skills ? (
                           <div className="row g-1 flex-wrap">
@@ -280,7 +349,6 @@ function TutorStudents() {
                         )}
                       </td>
 
-                      {/* Placement Badge */}
                       <td>
                         <span className="status-item fs-p8 bold"
                           style={{
@@ -291,15 +359,13 @@ function TutorStudents() {
                         </span>
                       </td>
 
-                      {/* Assign Job Button */}
                       <td>
                         <button className="btn btn-primary w-auto"
                           style={{ padding: "5px 12px", fontSize: "0.78rem" }}
-                          onClick={() => setSelectedStudent(student)}>
+                          onClick={() => { setSelectedStudent(student); setPredictionResult(null); setPredictionError(""); }}>
                           💼 Assign Job
                         </button>
                       </td>
-
                     </tr>
                   );
                 })
@@ -309,11 +375,11 @@ function TutorStudents() {
         </div>
       )}
 
-      {/* ── Assign Job Modal ── */}
+      {/* ══════════════════ ASSIGN JOB MODAL ══════════════════ */}
       {selectedStudent && (
-        <div className="modal-overlay" onClick={() => setSelectedStudent(null)}>
+        <div className="modal-overlay" onClick={closeModal}>
           <div className="card p-5"
-            style={{ width: 520, maxWidth: "95%", maxHeight: "90vh", overflowY: "auto" }}
+            style={{ width: 560, maxWidth: "95%", maxHeight: "92vh", overflowY: "auto" }}
             onClick={(e) => e.stopPropagation()}>
 
             {/* Modal Header */}
@@ -328,8 +394,7 @@ function TutorStudents() {
                   <p className="fs-p8 text-secondary">{selectedStudent.email}</p>
                 </div>
               </div>
-              <span className="cursor-pointer fs-4 text-secondary"
-                onClick={() => setSelectedStudent(null)}>✖</span>
+              <span className="cursor-pointer fs-4 text-secondary" onClick={closeModal}>✖</span>
             </div>
 
             {/* Student Info Grid */}
@@ -348,7 +413,6 @@ function TutorStudents() {
                 </div>
               ))}
 
-              {/* Skills */}
               {selectedStudent.skills && (
                 <div className="col-12">
                   <div className="card p-2">
@@ -370,7 +434,7 @@ function TutorStudents() {
             <div className="form-group mb-3">
               <label className="form-control-label mb-1">💼 Select Job to Assign</label>
               <select className="form-control" value={selectedJob}
-                onChange={(e) => setSelectedJob(e.target.value)}>
+                onChange={(e) => { setSelectedJob(e.target.value); setPredictionResult(null); setPredictionError(""); }}>
                 <option value="">Choose a job...</option>
                 {jobs.map((j) => (
                   <option key={j.jobPostId} value={j.jobPostId}>
@@ -382,10 +446,15 @@ function TutorStudents() {
 
             {/* Job Preview */}
             {selectedJobData && (
-              <div className="br-md mb-4 p-3"
+              <div className="br-md mb-3 p-3"
                 style={{ background: "rgba(50,85,99,0.05)", border: "1px solid rgba(50,85,99,0.15)" }}>
                 <p className="bold fs-p9">{selectedJobData.companyModel?.companyName}</p>
                 <p className="fs-p8 text-secondary mb-2">{selectedJobData.title || selectedJobData.tiitle}</p>
+                {selectedJobData.description && (
+                  <p className="fs-p8 text-secondary mb-2" style={{ fontStyle: "italic" }}>
+                    {selectedJobData.description.slice(0, 120)}{selectedJobData.description.length > 120 ? "..." : ""}
+                  </p>
+                )}
                 <div className="row g-2">
                   {selectedJobData.eligiblePercentage && (
                     <span className="fs-p8 br-md"
@@ -409,12 +478,154 @@ function TutorStudents() {
               </div>
             )}
 
+            {/* ── Skill Match Prediction ── */}
+            {selectedJob && (
+              <div className="mb-3">
+                <button
+                  className="btn w-100"
+                  style={{
+                    background: predicting ? "var(--gray-200)" : "rgba(50,85,99,0.1)",
+                    color: "var(--primary)",
+                    border: "1px solid rgba(50,85,99,0.3)",
+                    fontWeight: 600,
+                    fontSize: "0.85rem",
+                    padding: "10px",
+                    borderRadius: 8,
+                    cursor: predicting ? "not-allowed" : "pointer",
+                  }}
+                  onClick={runPrediction}
+                  disabled={predicting}
+                >
+                  {predicting ? "⏳ Analyzing resume..." : "🎯 Check Skill Match"}
+                </button>
+              </div>
+            )}
+
+            {/* Prediction Error */}
+            {predictionError && (
+              <div className="br-md p-3 mb-3"
+                style={{ background: "rgba(239,68,68,0.07)", border: "1px solid rgba(239,68,68,0.2)" }}>
+                <p className="fs-p9" style={{ color: "var(--danger)" }}>⚠️ {predictionError}</p>
+              </div>
+            )}
+
+            {/* Prediction Result */}
+            {predictionResult && (
+              <div className="br-md p-3 mb-3"
+                style={{ background: "rgba(50,85,99,0.04)", border: "1px solid rgba(50,85,99,0.15)" }}>
+                <p className="bold fs-p9 mb-3">📊 Skill Match Result</p>
+
+                {/* Technical Skills */}
+                <div className="mb-3">
+                  <div className="row space-between items-center mb-2">
+                    <p className="fs-p9 bold">Technical Skills</p>
+                    {predictionResult.technical_skills?.match_percentage != null ? (
+                      <span className="bold fs-p9" style={{
+                        padding: "2px 12px", borderRadius: 12,
+                        background: predictionResult.technical_skills.match_percentage >= 70
+                          ? "rgba(22,163,74,0.12)" : predictionResult.technical_skills.match_percentage >= 40
+                          ? "rgba(234,179,8,0.12)" : "rgba(239,68,68,0.10)",
+                        color: predictionResult.technical_skills.match_percentage >= 70
+                          ? "var(--success)" : predictionResult.technical_skills.match_percentage >= 40
+                          ? "var(--warning)" : "var(--danger)",
+                      }}>
+                        {predictionResult.technical_skills.match_percentage}%
+                      </span>
+                    ) : (
+                      <span className="fs-p8 text-secondary">No skills in job description</span>
+                    )}
+                  </div>
+
+                  {predictionResult.technical_skills?.matched?.length > 0 && (
+                    <div className="mb-2">
+                      <p className="fs-p8 text-secondary mb-1">✅ Matched</p>
+                      <div className="row g-1 flex-wrap">
+                        {predictionResult.technical_skills.matched.map((sk) => (
+                          <span key={sk} className="fs-p8 br-md"
+                            style={{ background: "rgba(22,163,74,0.1)", color: "var(--success)", padding: "2px 10px" }}>
+                            {sk}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {predictionResult.technical_skills?.missing?.length > 0 && (
+                    <div>
+                      <p className="fs-p8 text-secondary mb-1">❌ Missing</p>
+                      <div className="row g-1 flex-wrap">
+                        {predictionResult.technical_skills.missing.map((sk) => (
+                          <span key={sk} className="fs-p8 br-md"
+                            style={{ background: "rgba(239,68,68,0.08)", color: "var(--danger)", padding: "2px 10px" }}>
+                            {sk}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Divider */}
+                <div style={{ borderTop: "1px solid var(--border-color)", marginBottom: 12 }} />
+
+                {/* Soft Skills */}
+                <div>
+                  <div className="row space-between items-center mb-2">
+                    <p className="fs-p9 bold">Soft Skills</p>
+                    {predictionResult.soft_skills?.match_percentage != null ? (
+                      <span className="bold fs-p9" style={{
+                        padding: "2px 12px", borderRadius: 12,
+                        background: predictionResult.soft_skills.match_percentage >= 70
+                          ? "rgba(22,163,74,0.12)" : predictionResult.soft_skills.match_percentage >= 40
+                          ? "rgba(234,179,8,0.12)" : "rgba(239,68,68,0.10)",
+                        color: predictionResult.soft_skills.match_percentage >= 70
+                          ? "var(--success)" : predictionResult.soft_skills.match_percentage >= 40
+                          ? "var(--warning)" : "var(--danger)",
+                      }}>
+                        {predictionResult.soft_skills.match_percentage}%
+                      </span>
+                    ) : (
+                      <span className="fs-p8 text-secondary">No skills in job description</span>
+                    )}
+                  </div>
+
+                  {predictionResult.soft_skills?.matched?.length > 0 && (
+                    <div className="mb-2">
+                      <p className="fs-p8 text-secondary mb-1">✅ Matched</p>
+                      <div className="row g-1 flex-wrap">
+                        {predictionResult.soft_skills.matched.map((sk) => (
+                          <span key={sk} className="fs-p8 br-md"
+                            style={{ background: "rgba(22,163,74,0.1)", color: "var(--success)", padding: "2px 10px" }}>
+                            {sk}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {predictionResult.soft_skills?.missing?.length > 0 && (
+                    <div>
+                      <p className="fs-p8 text-secondary mb-1">❌ Missing</p>
+                      <div className="row g-1 flex-wrap">
+                        {predictionResult.soft_skills.missing.map((sk) => (
+                          <span key={sk} className="fs-p8 br-md"
+                            style={{ background: "rgba(239,68,68,0.08)", color: "var(--danger)", padding: "2px 10px" }}>
+                            {sk}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Modal Footer Buttons */}
             <div className="row g-2">
               <button className="btn btn-primary" onClick={assignJob} disabled={!selectedJob}>
-                ✅ Assign
+                ✅ Assign Job
               </button>
-              <button className="btn btn-muted" onClick={() => setSelectedStudent(null)}>
+              <button className="btn btn-muted" onClick={closeModal}>
                 Cancel
               </button>
             </div>

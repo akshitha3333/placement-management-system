@@ -1,27 +1,53 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import Cookies from "js-cookie";
 const rest = require("../../../Rest");
+
+/* ── Shimmer placeholder while prediction loads ────────── */
+function Shimmer() {
+  return (
+    <div className="card p-2 row items-center g-2 mb-2"
+      style={{ border: "1px solid var(--border-color)" }}>
+      <style>{`@keyframes shimmer{0%,100%{opacity:1}50%{opacity:.35}}`}</style>
+      <div style={{ width: 26, height: 26, borderRadius: "50%", background: "var(--gray-200)", animation: "shimmer 1.4s ease-in-out infinite" }} />
+      <div style={{ width: 32, height: 32, borderRadius: "50%", background: "var(--gray-200)", animation: "shimmer 1.4s ease-in-out infinite" }} />
+      <div style={{ flex: 1 }}>
+        <div style={{ height: 10, borderRadius: 4, background: "var(--gray-200)", width: "50%", marginBottom: 6, animation: "shimmer 1.4s ease-in-out infinite" }} />
+        <div style={{ height: 8, borderRadius: 4, background: "var(--gray-200)", width: "70%", animation: "shimmer 1.4s ease-in-out infinite" }} />
+      </div>
+      <div style={{ width: 70 }}>
+        <div style={{ height: 10, borderRadius: 4, background: "var(--gray-200)", width: "60%", marginBottom: 6, marginLeft: "auto", animation: "shimmer 1.4s ease-in-out infinite" }} />
+        <div style={{ height: 5, borderRadius: 999, background: "var(--gray-200)", animation: "shimmer 1.4s ease-in-out infinite" }} />
+      </div>
+      <div style={{ width: 80, height: 28, borderRadius: 6, background: "var(--gray-200)", animation: "shimmer 1.4s ease-in-out infinite" }} />
+    </div>
+  );
+}
 
 function TutorJobPosts() {
 
   // ── State ──────────────────────────────────────────────
   const [jobs,           setJobs]           = useState([]);
   const [students,       setStudents]       = useState([]);
+  const [allApps,        setAllApps]        = useState([]);
   const [loading,        setLoading]        = useState(true);
   const [error,          setError]          = useState("");
   const [search,         setSearch]         = useState("");
   const [expandedId,     setExpandedId]     = useState(null);
   const [departmentName, setDepartmentName] = useState("");
+  // predictions[key] = { status: "loading"|"done"|"error", tech, soft, msg }
+  const [predictions,    setPredictions]    = useState({});
+  const runningRef = useRef(new Set());
 
   // ── Auth Header ────────────────────────────────────────
   const header = {
-    headers: { 
+    headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${Cookies.get("token")}` },
+      Authorization: `Bearer ${Cookies.get("token")}`,
+    },
   };
 
-  // ── Fetch: GET /api/job/job-post ───────────────────────
+  // ── Fetch jobs ─────────────────────────────────────────
   const fetchJobs = async () => {
     try {
       const res     = await axios.get(rest.jobPost, header);
@@ -33,10 +59,9 @@ function TutorJobPosts() {
     }
   };
 
-  // ── Fetch: Tutor dept → match → filter students ────────
+  // ── Fetch tutor dept → filter students ────────────────
   const fetchStudents = async () => {
     try {
-      // Step 1: GET /api/actors/tutors → find tutor's departmentId
       const tutorRes  = await axios.get(rest.tutor, header);
       const tutorList = tutorRes.data?.data || tutorRes.data || [];
       const tutor     = Array.isArray(tutorList) ? tutorList[0] : tutorList;
@@ -44,49 +69,127 @@ function TutorJobPosts() {
       const tutorDeptId   = tutor?.departmentModel?.departmentId || tutor?.departmentId;
       const tutorDeptName = tutor?.departmentModel?.departmentName || "";
 
-      if (!tutorDeptId) {
-        setError("Tutor department not found. Please contact admin.");
-        return;
-      }
-
+      if (!tutorDeptId) { setError("Tutor department not found."); return; }
       setDepartmentName(tutorDeptName);
 
-      // Step 2: GET /api/actors/students → all students
       const studentRes  = await axios.get(rest.students, header);
       const allStudents = studentRes.data?.data || studentRes.data || [];
 
-      // Step 3: Keep only students whose departmentId matches tutor's departmentId
-      const matched = allStudents.filter((student) => {
-        const studentDeptId = student?.departmentModel?.departmentId || student?.departmentId;
-        return String(studentDeptId) === String(tutorDeptId);
-      });
-
-      setStudents(matched);
-
+      setStudents(
+        (Array.isArray(allStudents) ? allStudents : []).filter((s) =>
+          String(s?.departmentModel?.departmentId || s?.departmentId) === String(tutorDeptId)
+        )
+      );
     } catch (err) {
       console.error("fetchStudents error:", err);
       setError("Failed to load students.");
     }
   };
 
+  // ── Fetch all job applications once (to get resumes) ──
+  const fetchApps = async () => {
+    try {
+      const res  = await axios.get(rest.jobApplications, header);
+      const list = res.data?.data || res.data || [];
+      setAllApps(Array.isArray(list) ? list : []);
+    } catch { /* non-fatal */ }
+  };
+
   useEffect(() => {
     const init = async () => {
       setLoading(true);
-      await Promise.all([fetchJobs(), fetchStudents()]);
+      await Promise.all([fetchJobs(), fetchStudents(), fetchApps()]);
       setLoading(false);
     };
     init();
   }, []);
 
-  // ── Recommend: POST /api/job/job-suggestions ──────────
+  // ── Auto-run predictions when a job is expanded ────────
+  useEffect(() => {
+    if (!expandedId || allApps.length === 0) return;
+    const job = jobs.find((j) => j.jobPostId === expandedId);
+    if (!job) return;
+    getEligibleStudents(job).forEach((s) => triggerPrediction(s, job));
+  }, [expandedId, allApps]);
+
+  // ── Build a File object from a student's resume ────────
+  const getResumeFile = (studentId) => {
+    const sid = String(studentId);
+    const app = allApps.find((a) => {
+      const i1 = String(a.resumeModel?.studentModel?.studentId || a.resumeModel?.studentModel?.id || "");
+      const i2 = String(a.jobSuggestionModel?.studentModel?.studentId || a.jobSuggestionModel?.studentModel?.id || "");
+      return (i1 === sid || i2 === sid) && !!a.resumeModel?.resume2;
+    });
+    if (!app) return null;
+    const rm  = app.resumeModel;
+    const b64 = rm.resume2.startsWith("data:") ? rm.resume2.split(",")[1] : rm.resume2;
+    try {
+      const bin   = atob(b64);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      return new File(
+        [new Blob([bytes], { type: "application/pdf" })],
+        (rm.resumeTitle || "resume") + ".pdf",
+        { type: "application/pdf" }
+      );
+    } catch { return null; }
+  };
+
+  // ── Run prediction for one student+job (idempotent) ───
+  const triggerPrediction = async (student, job) => {
+    const sid = student.studentId || student.id;
+    const key = `${sid}_${job.jobPostId}`;
+    if (runningRef.current.has(key)) return;
+
+    setPredictions((prev) => {
+      if (prev[key]?.status === "done" || prev[key]?.status === "loading") return prev;
+      return { ...prev, [key]: { status: "loading", tech: null, soft: null, msg: "" } };
+    });
+
+    runningRef.current.add(key);
+    try {
+      const file = getResumeFile(sid);
+      if (!file) {
+        setPredictions((prev) => ({
+          ...prev,
+          [key]: { status: "error", tech: null, soft: null, msg: "No resume uploaded yet." },
+        }));
+        return;
+      }
+
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("job_description", job.description || job.title || job.tiitle || "");
+
+      const res = await axios.post("http://localhost:8081/placement-prediction", fd, {
+        headers: { Authorization: `Bearer ${Cookies.get("token")}` },
+      });
+
+      const { technical_skills: tech, soft_skills: soft } = res.data;
+      setPredictions((prev) => ({
+        ...prev,
+        [key]: { status: "done", tech, soft, msg: "" },
+      }));
+    } catch (err) {
+      let msg = "Prediction failed.";
+      if (err.code === "ERR_NETWORK")        msg = "Flask API not running on port 8081.";
+      else if (err.response?.status === 401) msg = "Unauthorized. Re-login.";
+      else if (err.response?.data?.error)    msg = err.response.data.error;
+      setPredictions((prev) => ({
+        ...prev,
+        [key]: { status: "error", tech: null, soft: null, msg },
+      }));
+    } finally {
+      runningRef.current.delete(key);
+    }
+  };
+
+  // ── Recommend student → POST job-suggestions ──────────
   const recommendStudent = async (student, job) => {
     try {
       await axios.post(
         rest.jobSuggestions,
-        {
-          studentId: student.studentId || student.id,
-          jobPostId: job.jobPostId,
-        },
+        { studentId: student.studentId || student.id, jobPostId: Number(job.jobPostId) },
         header
       );
       alert(`✅ ${student.name} recommended for "${job.title || job.tiitle}" successfully!`);
@@ -96,28 +199,10 @@ function TutorJobPosts() {
     }
   };
 
-  // ── Compute match % for a student against a job ────────
-  const computeMatch = (student, job) => {
-    // CGPA contributes 70% of score
-    const cgpaScore = Math.min(70, ((student.percentage || 0) / 10) * 70);
-
-    // Skills keyword match contributes 30% of score
-    const jobKeywords   = `${job.title || job.tiitle || ""} ${job.description || ""}`.toLowerCase();
-    const studentSkills = (student.skills || "").split(",").map((s) => s.trim().toLowerCase());
-    const matchedSkills = studentSkills.filter((sk) => sk && jobKeywords.includes(sk));
-    const skillScore    = Math.min(30, (matchedSkills.length / Math.max(studentSkills.length, 1)) * 30);
-
-    return Math.round(cgpaScore + skillScore);
-  };
-
-  // ── Get eligible + ranked students for a job ──────────
-  const getRankedStudents = (job) => {
+  // ── Get eligible students for a job ───────────────────
+  const getEligibleStudents = (job) => {
     const minPct = parseFloat(job.eligiblePercentage) || 0;
-    return students
-      .filter((s) => (parseFloat(s.percentage) || 0) >= minPct)   // eligibility filter
-      .map((s)    => ({ ...s, match: computeMatch(s, job) }))      // compute match %
-      .sort((a, b) => b.match - a.match)                           // rank by match
-      .slice(0, 5);                                                 // top 5 only
+    return students.filter((s) => (parseFloat(s.percentage) || 0) >= minPct);
   };
 
   // ── Search filter ──────────────────────────────────────
@@ -126,23 +211,35 @@ function TutorJobPosts() {
     (job.title || job.tiitle)?.toLowerCase().includes(search.toLowerCase())
   );
 
-  // ── Stats ──────────────────────────────────────────────
-  const totalJobs  = jobs.length;
-  const totalOpen  = jobs.filter((j) => j.requiredCandidate > 0).length;
-  const myStudents = students.length;
-
-  // ── Helpers ───────────────────────────────────────────
+  // ── Helpers ────────────────────────────────────────────
   const matchColor = (m) =>
     m >= 80 ? "var(--success)" : m >= 60 ? "var(--warning)" : "var(--danger)";
 
   const rankColor = (i) =>
     ["#f59e0b", "#9ca3af", "#b45309", "#e5e7eb", "#e5e7eb"][i] ?? "#e5e7eb";
 
+  const predKey   = (s, j) => `${s.studentId || s.id}_${j.jobPostId}`;
+
+  // ── Overall match % = avg of tech + soft ──────────────
+  const overallMatch = (pred) => {
+    if (!pred || pred.status !== "done") return null;
+    const t = pred.tech?.match_percentage;
+    const s = pred.soft?.match_percentage;
+    if (t != null && s != null) return Math.round((t + s) / 2);
+    if (t != null) return Math.round(t);
+    if (s != null) return Math.round(s);
+    return 0;
+  };
+
+  const totalJobs  = jobs.length;
+  const totalOpen  = jobs.filter((j) => j.requiredCandidate > 0).length;
+  const myStudents = students.length;
+
   // ── Render ─────────────────────────────────────────────
   return (
     <div className="p-4" style={{ height: "calc(100vh - 70px)", overflowY: "auto" }}>
 
-      {/* ── Page Title ── */}
+      {/* Page Title */}
       <div className="row space-between items-center mb-4">
         <div>
           <h2 className="fs-5 bold mb-1">💼 Job Posts</h2>
@@ -154,12 +251,9 @@ function TutorJobPosts() {
         </div>
       </div>
 
-      {/* ── Error Banner ── */}
-      {error && (
-        <div className="alert-danger mb-4">⚠️ {error}</div>
-      )}
+      {error && <div className="alert-danger mb-4">⚠️ {error}</div>}
 
-      {/* ── Stats Row ── */}
+      {/* Stats Row */}
       <div className="row g-3 mb-4">
         {[
           { label: "Total Jobs",     value: totalJobs,  icon: "💼", color: "var(--primary)" },
@@ -178,18 +272,14 @@ function TutorJobPosts() {
         ))}
       </div>
 
-      {/* ── Search ── */}
+      {/* Search */}
       <div className="w-40 mb-3">
-        <input
-          type="text"
-          className="form-control"
+        <input type="text" className="form-control"
           placeholder="🔍 Search by company or job title..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+          value={search} onChange={(e) => setSearch(e.target.value)} />
       </div>
 
-      {/* ── Job List ── */}
+      {/* Job List */}
       {loading ? (
         <p className="text-secondary p-4">Loading job posts...</p>
       ) : filteredJobs.length === 0 ? (
@@ -201,7 +291,7 @@ function TutorJobPosts() {
       ) : (
         <div className="card p-0" style={{ overflow: "hidden" }}>
 
-          {/* ── Table Header ── */}
+          {/* Table Header */}
           <div className="row items-center"
             style={{ background: "var(--gray-100)", padding: "10px 16px", borderBottom: "1px solid var(--border-color)", fontSize: "0.75rem", fontWeight: 600, color: "var(--text-secondary)" }}>
             <div className="col-3">Job Title</div>
@@ -213,39 +303,25 @@ function TutorJobPosts() {
             <div className="col-1 text-center">Action</div>
           </div>
 
-          {/* ── Job Rows ── */}
+          {/* Job Rows */}
           {filteredJobs.map((job) => {
             const isOpen      = expandedId === job.jobPostId;
-            const jobStudents = isOpen ? getRankedStudents(job) : [];
+            const eligible    = isOpen ? getEligibleStudents(job) : [];
 
             return (
               <div key={job.jobPostId}>
 
-                {/* ── Collapsed Row ── */}
+                {/* Collapsed Row */}
                 <div className="row items-center"
                   style={{ padding: "12px 16px", borderBottom: isOpen ? "none" : "1px solid var(--border-color)", background: isOpen ? "rgba(50,85,99,0.03)" : "#fff" }}>
-
-                  {/* Job Title */}
                   <div className="col-3 bold fs-p9">{job.title || job.tiitle || "—"}</div>
-
-                  {/* Company */}
                   <div className="col-2 fs-p9 text-secondary">{job.companyModel?.companyName || "—"}</div>
-
-                  {/* Location */}
                   <div className="col-2 fs-p9 text-secondary">📍 {job.companyModel?.location || "—"}</div>
-
-                  {/* Openings */}
                   <div className="col-1 text-center fs-p9">👥 {job.requiredCandidate || "—"}</div>
-
-                  {/* Eligibility */}
                   <div className="col-1 text-center fs-p9">
                     {job.eligiblePercentage ? `${job.eligiblePercentage}%` : "—"}
                   </div>
-
-                  {/* Last Date */}
                   <div className="col-2 text-center fs-p8 text-secondary">{job.lastDateToApply || "—"}</div>
-
-                  {/* View / Close */}
                   <div className="col-1 text-center">
                     <button
                       className={`btn w-auto ${isOpen ? "btn-muted" : "btn-primary"}`}
@@ -257,7 +333,7 @@ function TutorJobPosts() {
                   </div>
                 </div>
 
-                {/* ── Expanded Panel ── */}
+                {/* Expanded Panel */}
                 {isOpen && (
                   <div style={{ background: "rgba(50,85,99,0.02)", borderTop: "1px dashed var(--border-color)", borderBottom: "1px solid var(--border-color)", padding: "20px" }}>
                     <div className="row g-5">
@@ -269,7 +345,6 @@ function TutorJobPosts() {
                           🏢 {job.companyModel?.companyName} &nbsp;|&nbsp; 📍 {job.companyModel?.location}
                         </p>
 
-                        {/* Description */}
                         {job.description && (
                           <div className="card p-3 mb-3" style={{ background: "var(--gray-100)" }}>
                             <p className="fs-p8 bold mb-1">📄 Job Description</p>
@@ -277,7 +352,6 @@ function TutorJobPosts() {
                           </div>
                         )}
 
-                        {/* Job Meta Cards */}
                         <div className="row g-2 flex-wrap">
                           {[
                             { icon: "👥", label: "Openings",    value: job.requiredCandidate },
@@ -305,90 +379,114 @@ function TutorJobPosts() {
                             {departmentName} Dept
                           </span>
                         </div>
-
                         <p className="fs-p8 text-secondary mb-3">
-                          Eligible students ranked by CGPA + skill match — top 5 shown
+                          Eligible students with AI skill match — auto-analyzed on open
                         </p>
 
-                        {/* Student Cards */}
-                        {jobStudents.length === 0 ? (
+                        {eligible.length === 0 ? (
                           <div className="card p-3 text-center">
                             <p className="fs-p8 text-secondary">
                               No eligible students in your department for this job.
                             </p>
                           </div>
                         ) : (
-                          jobStudents.map((student, idx) => (
-                            <div key={student.studentId || idx}
-                              className="card p-2 row items-center g-2 mb-2">
+                          eligible.map((student, idx) => {
+                            const key   = predKey(student, job);
+                            const pred  = predictions[key];
+                            const match = overallMatch(pred);
 
-                              {/* Rank Badge */}
-                              <div className="br-circle"
-                                style={{ width: 26, height: 26, background: rankColor(idx), color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: "0.72rem", flexShrink: 0 }}>
-                                {idx + 1}
-                              </div>
+                            // show shimmer while loading
+                            if (!pred || pred.status === "loading") return <Shimmer key={key} />;
 
-                              {/* Avatar */}
-                              <div className="bg-primary text-white br-circle bold"
-                                style={{ width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.82rem", flexShrink: 0 }}>
-                                {student.name?.charAt(0) || "S"}
-                              </div>
+                            return (
+                              <div key={student.studentId || student.id || idx}>
 
-                              {/* Name + Info */}
-                              <div style={{ flex: 1, minWidth: 0 }}>
-                                <p className="bold fs-p9">{student.name}</p>
-                                <p className="fs-p8 text-secondary">
-                                  {student.departmentModel?.departmentName || departmentName} • CGPA: {student.percentage || "—"}
-                                </p>
+                                {/* Student row — same UI as code 2 */}
+                                <div className="card p-2 row items-center g-2 mb-2">
 
-                                {/* Skills */}
-                                {student.skills && (
-                                  <div className="row g-1 mt-1">
-                                    {student.skills.split(",").slice(0, 3).map((sk) => (
-                                      <span key={sk} className="fs-p7 br-md"
-                                        style={{ background: "var(--gray-200)", padding: "1px 8px", color: "var(--gray-700)" }}>
-                                        {sk.trim()}
-                                      </span>
-                                    ))}
-                                    {student.skills.split(",").length > 3 && (
-                                      <span className="fs-p7 text-secondary">
-                                        +{student.skills.split(",").length - 3}
-                                      </span>
+                                  {/* Rank badge */}
+                                  <div className="br-circle"
+                                    style={{ width: 26, height: 26, background: rankColor(idx), color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: "0.72rem", flexShrink: 0 }}>
+                                    {idx + 1}
+                                  </div>
+
+                                  {/* Avatar */}
+                                  <div className="bg-primary text-white br-circle bold"
+                                    style={{ width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.82rem", flexShrink: 0 }}>
+                                    {student.name?.charAt(0) || "S"}
+                                  </div>
+
+                                  {/* Name + info */}
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <p className="bold fs-p9">{student.name}</p>
+                                    <p className="fs-p8 text-secondary">
+                                      {student.departmentModel?.departmentName || departmentName} • CGPA: {student.percentage || "—"}
+                                    </p>
+                                    {student.skills && (
+                                      <div className="row g-1 mt-1">
+                                        {student.skills.split(",").slice(0, 3).map((sk) => (
+                                          <span key={sk} className="fs-p7 br-md"
+                                            style={{ background: "var(--gray-200)", padding: "1px 8px", color: "var(--gray-700)" }}>
+                                            {sk.trim()}
+                                          </span>
+                                        ))}
+                                        {student.skills.split(",").length > 3 && (
+                                          <span className="fs-p7 text-secondary">
+                                            +{student.skills.split(",").length - 3}
+                                          </span>
+                                        )}
+                                      </div>
                                     )}
                                   </div>
-                                )}
-                              </div>
 
-                              {/* Match % + Bar */}
-                              <div style={{ width: 70, textAlign: "right", flexShrink: 0 }}>
-                                <p className="bold fs-p9" style={{ color: matchColor(student.match) }}>
-                                  {student.match}%
-                                </p>
-                                <div style={{ height: 5, background: "var(--gray-200)", borderRadius: 999, marginTop: 4, overflow: "hidden" }}>
-                                  <div style={{ width: `${student.match}%`, height: "100%", background: matchColor(student.match), borderRadius: 999 }} />
+                                  {/* Match % + bar (real AI score) */}
+                                  <div style={{ width: 70, textAlign: "right", flexShrink: 0 }}>
+                                    {pred.status === "error" ? (
+                                      <p className="fs-p8" style={{ color: "var(--danger)" }}>—</p>
+                                    ) : (
+                                      <>
+                                        <p className="bold fs-p9" style={{ color: matchColor(match) }}>
+                                          {match}%
+                                        </p>
+                                        <div style={{ height: 5, background: "var(--gray-200)", borderRadius: 999, marginTop: 4, overflow: "hidden" }}>
+                                          <div style={{ width: `${match}%`, height: "100%", background: matchColor(match), borderRadius: 999, transition: "width 0.8s ease" }} />
+                                        </div>
+                                        {/* tech / soft breakdown below bar */}
+                                        <p className="fs-p7 text-secondary" style={{ marginTop: 3 }}>
+                                          T:{pred.tech?.match_percentage ?? "—"}% S:{pred.soft?.match_percentage ?? "—"}%
+                                        </p>
+                                      </>
+                                    )}
+                                  </div>
+
+                                  {/* Recommend button */}
+                                  <button className="btn btn-primary w-auto"
+                                    style={{ padding: "5px 10px", fontSize: "0.76rem", flexShrink: 0 }}
+                                    onClick={() => recommendStudent(student, job)}>
+                                    Recommend
+                                  </button>
                                 </div>
+
+                                {/* Error message if prediction failed */}
+                                {pred.status === "error" && (
+                                  <div className="br-md p-2 mb-2"
+                                    style={{ background: "rgba(239,68,68,0.07)", border: "1px solid rgba(239,68,68,0.2)", marginTop: -6 }}>
+                                    <p className="fs-p7" style={{ color: "var(--danger)" }}>⚠️ {pred.msg}</p>
+                                  </div>
+                                )}
+
                               </div>
-
-                              {/* Recommend Button → POST /api/job/job-suggestions */}
-                              <button
-                                className="btn btn-primary w-auto"
-                                style={{ padding: "5px 10px", fontSize: "0.76rem", flexShrink: 0 }}
-                                onClick={() => recommendStudent(student, job)}
-                              >
-                                Recommend
-                              </button>
-
-                            </div>
-                          ))
+                            );
+                          })
                         )}
 
-                        {/* Info Note */}
+                        {/* Info note
                         <div className="alert-info mt-3">
                           <p className="fs-p8 text-info">
-                            🤖 <strong>Match Score:</strong> CGPA (70%) + skill keyword overlap (30%).
-                            Only <strong>{departmentName}</strong> students shown.
+                            🤖 <strong>Match Score:</strong> AI-analyzed from student resume vs job description.
+                            T = Technical · S = Soft Skills. Only <strong>{departmentName}</strong> students shown.
                           </p>
-                        </div>
+                        </div> */}
 
                       </div>
                     </div>

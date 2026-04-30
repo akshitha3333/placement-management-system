@@ -194,7 +194,6 @@ function AdminDashboard() {
         </div>
       </div>
 
-      {/* Recent job posts table */}
       <div className="card p-4 mb-4">
         <div className="row space-between items-center mb-3">
           <h4 className="bold">Recent Job Posts</h4>
@@ -241,7 +240,6 @@ function AdminDashboard() {
         )}
       </div>
 
-      {/* Summary bottom cards */}
       <div className="row" style={{ gap: 12 }}>
         {[
           { label: "Total Suggestions", value: totalSuggestions,  sub: "Tutor-recommended job matches", color: "var(--warning)", bg: "rgba(245,158,11,0.06)"  },
