@@ -13,7 +13,8 @@ L.Icon.Default.mergeOptions({
   shadowUrl:     "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
 });
 
-const baseJob = rest.jobApplications.replace("/job-applications", "");
+const baseJob  = rest.jobApplications.replace("/job-applications", "");
+const BASE_URL = "http://localhost:2026"; // static file base
 
 const getHeaders = () => ({
   headers: {
@@ -28,12 +29,21 @@ const fmt = (d) => {
   catch { return d; }
 };
 
+// Open offer letter using static file URL served by WebMvcConfig
+// No auth required — /uploads/offer/** is a public static resource
+const openOfferLetter = (row) => {
+  if (!row.offerFileName) { alert("Offer letter file name not available."); return; }
+  const url = `${BASE_URL}/uploads/offer/${encodeURIComponent(row.offerFileName)}`;
+  console.log("Opening offer letter:", url);
+  window.open(url, "_blank");
+};
+
 function TutorSelectedStudents() {
   const [rows,     setRows]     = useState([]);
   const [loading,  setLoading]  = useState(true);
   const [error,    setError]    = useState("");
-  const [modal,    setModal]    = useState(null);   // selected row for detail modal
-  const [mapModal, setMapModal] = useState(false);  // full map inside detail modal
+  const [modal,    setModal]    = useState(null);
+  const [mapModal, setMapModal] = useState(false);
   const [search,   setSearch]   = useState("");
 
   useEffect(() => { fetchAll(); }, []);
@@ -41,10 +51,12 @@ function TutorSelectedStudents() {
   const fetchAll = async () => {
     setLoading(true); setError("");
     try {
+      // Step 1: get all job applications
       const appsRes = await axios.get(rest.jobApplications, getHeaders());
       const apps    = appsRes.data?.data || appsRes.data || [];
-      console.log("STEP 1 apps:", apps.length);
+      console.log("STEP 1 — apps:", apps.length);
 
+      // Step 2: for each app get interviews, filter SELECTED/OFFER_SENT
       const invArrays = await Promise.all(
         apps.map(async (app) => {
           const appId = app.jobApplicationId || app.id;
@@ -60,30 +72,30 @@ function TutorSelectedStudents() {
       );
 
       const selectedInvs = invArrays.flat();
-      console.log("STEP 2 selected:", selectedInvs.length);
+      console.log("STEP 2 — selected interviews:", selectedInvs.length);
 
+      // Step 3: for each selected interview get offer letter
       const placedRows = [];
       await Promise.all(
         selectedInvs.map(async (inv) => {
           const interviewId = inv.interviewId || inv.id;
           try {
-            const res    = await axios.get(`${baseJob}/interview-schedule/${interviewId}/offer-letter`, getHeaders());
-            const data   = res.data?.data || res.data;
-            const status = (data?.status || "").toUpperCase();
-            console.log(`Offer interview ${interviewId}:`, data?.status);
+            const res  = await axios.get(`${baseJob}/interview-schedule/${interviewId}/offer-letter`, getHeaders());
+            const data = res.data?.data || res.data;
+            console.log(`STEP 3 — offer for interview #${interviewId}:`, data?.status, "| filename:", data?.offerLetter);
 
-            if (status === "ACCEPTED") {
+            if ((data?.status || "").toUpperCase() === "ACCEPTED") {
               const app     = inv._app || {};
-              const suggest = app.jobSuggestionModel  || {};
-              const jobPost = suggest.jobPostModel     || {};
-              const company = jobPost.companyModel     || {};
-              const resume  = app.resumeModel          || {};
-              const student = resume.studentModel      || suggest.studentModel || {};
+              const suggest = app.jobSuggestionModel || {};
+              const jobPost = suggest.jobPostModel    || {};
+              const company = jobPost.companyModel    || {};
+              const resume  = app.resumeModel         || {};
+              const student = resume.studentModel     || suggest.studentModel || {};
 
               placedRows.push({
                 interviewId,
                 offerLetterId: data.offerLetterId || data.id || null,
-                offerFileName: data.offerLetter   || null,
+                offerFileName: data.offerLetter   || null,   // filename stored on disk
                 studentName:   student.name                            || "—",
                 studentEmail:  student.email                           || "—",
                 studentPhone:  student.phone                           || "—",
@@ -102,37 +114,18 @@ function TutorSelectedStudents() {
                 offerDate:     data.date                               || null,
               });
             }
-          } catch { /* no offer or not accepted */ }
+          } catch (e) {
+            console.warn(`STEP 3 — no offer for interview #${interviewId}:`, e.response?.status);
+          }
         })
       );
 
-      console.log("STEP 3 placed rows:", placedRows.length);
+      console.log("STEP 4 — placed rows:", placedRows.length, placedRows);
       setRows(placedRows);
     } catch (err) {
       console.error("fetchAll error:", err.response?.data || err.message);
       setError("Failed to load data.");
     } finally { setLoading(false); }
-  };
-
-  const openOfferLetter = async (row) => {
-    if (!row.offerLetterId) { alert("Offer letter not available."); return; }
-    try {
-      const url = `${baseJob}/offer-letter/file/${row.offerLetterId}`;
-      console.log("Fetching offer letter:", url);
-      const res     = await fetch(url, { headers: { Authorization: `Bearer ${Cookies.get("token") || ""}` } });
-      if (!res.ok)  { alert("Could not load offer letter."); return; }
-      const blob    = await res.blob();
-      const blobUrl = URL.createObjectURL(blob);
-      const win = window.open(blobUrl, "_blank");
-      if (!win) {
-        const a = document.createElement("a");
-        a.href = blobUrl; a.download = row.offerFileName || "offer_letter.pdf"; a.click();
-      }
-      setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
-    } catch (err) {
-      console.error("openOfferLetter error:", err);
-      alert("Could not open offer letter.");
-    }
   };
 
   const hasMap = (r) => r?.latitude && r?.longitude &&
@@ -161,17 +154,19 @@ function TutorSelectedStudents() {
         }}>Refresh</button>
       </div>
 
-      {error && <div className="alert-danger mb-3"><p className="text-danger fs-p9">{error}</p></div>}
+      {error && <div className="card p-3 mb-3" style={{ borderLeft: "4px solid var(--danger)" }}>
+        <p className="fs-p9" style={{ color: "var(--danger)" }}>{error}</p>
+      </div>}
 
       {/* Stats */}
       <div className="row mb-4" style={{ gap: 10 }}>
         {[
-          { label: "Placed Students", value: rows.length,                                 color: "var(--success)" },
-          { label: "Companies",       value: new Set(rows.map((r) => r.companyName)).size, color: "#0ea5e9"       },
-          { label: "Departments",     value: new Set(rows.map((r) => r.department)).size,  color: "var(--warning)"},
+          { label: "Placed Students", value: rows.length,                                  color: "var(--success)" },
+          { label: "Companies",       value: new Set(rows.map((r) => r.companyName)).size,  color: "#0ea5e9"        },
+          { label: "Departments",     value: new Set(rows.map((r) => r.department)).size,   color: "var(--warning)" },
         ].map((s, i) => (
           <div key={i} style={{ flex: "0 0 150px" }}>
-            <div className="card p-3 text-center stat-card">
+            <div className="card p-3 text-center">
               <h2 className="bold" style={{ color: s.color }}>{loading ? "..." : s.value}</h2>
               <p className="fs-p9 text-secondary">{s.label}</p>
             </div>
@@ -182,12 +177,9 @@ function TutorSelectedStudents() {
       {/* Search */}
       {rows.length > 0 && (
         <div style={{ maxWidth: 340, marginBottom: 14 }}>
-          <input
-            className="form-control"
+          <input className="form-control"
             placeholder="Search name, roll no, dept, company..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+            value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
       )}
 
@@ -205,8 +197,6 @@ function TutorSelectedStudents() {
         </div>
       ) : (
         <div className="card p-0" style={{ overflow: "hidden" }}>
-
-          {/* Table header */}
           <div className="row items-center" style={{
             background: "var(--gray-100)", padding: "10px 16px",
             borderBottom: "1px solid var(--border-color)",
@@ -223,17 +213,12 @@ function TutorSelectedStudents() {
             <div style={{ flex: 1, textAlign: "center" }}>Action</div>
           </div>
 
-          {/* Rows */}
           {filtered.map((r, idx) => (
             <div key={r.interviewId || idx} className="row items-center" style={{
-              padding: "11px 16px",
-              borderBottom: "1px solid var(--border-color)",
-              borderLeft: "4px solid var(--success)",
-              background: "#fff",
+              padding: "11px 16px", borderBottom: "1px solid var(--border-color)",
+              borderLeft: "4px solid var(--success)", background: "#fff",
             }}>
               <div style={{ width: 36 }} className="fs-p9 text-secondary">{idx + 1}</div>
-
-              {/* Student */}
               <div style={{ flex: 3, display: "flex", alignItems: "center", gap: 10 }}>
                 <div style={{
                   width: 32, height: 32, borderRadius: "50%", flexShrink: 0,
@@ -248,7 +233,6 @@ function TutorSelectedStudents() {
                   <p className="fs-p8 text-secondary">{r.studentEmail}</p>
                 </div>
               </div>
-
               <div style={{ flex: 2 }} className="fs-p9">{r.department}</div>
               <div style={{ flex: 1, textAlign: "center" }} className="fs-p9">{r.rollNo}</div>
               <div style={{ flex: 1, textAlign: "center" }} className="fs-p9">
@@ -260,14 +244,9 @@ function TutorSelectedStudents() {
               </div>
               <div style={{ flex: 2 }} className="fs-p9">{r.jobTitle}</div>
               <div style={{ flex: 2 }} className="fs-p9">{fmt(r.offerDate)}</div>
-
-              {/* View button */}
               <div style={{ flex: 1, textAlign: "center" }}>
-                <button
-                  onClick={() => { setModal(r); setMapModal(false); }}
-                  className="btn btn-primary w-auto"
-                  style={{ padding: "5px 14px", fontSize: "0.78rem" }}
-                >
+                <button onClick={() => { setModal(r); setMapModal(false); }}
+                  className="btn btn-primary w-auto" style={{ padding: "5px 14px", fontSize: "0.78rem" }}>
                   View
                 </button>
               </div>
@@ -276,14 +255,12 @@ function TutorSelectedStudents() {
         </div>
       )}
 
-      {/* ══════════════════ DETAIL MODAL ══════════════════ */}
+      {/* DETAIL MODAL */}
       {modal && (
         <div className="modal-overlay" onClick={() => { setModal(null); setMapModal(false); }}>
-          <div
-            className="card"
-            style={{ width: 680, maxWidth: "96%", maxHeight: "92vh", overflowY: "auto" }}
-            onClick={(e) => e.stopPropagation()}
-          >
+          <div className="card" style={{ width: 680, maxWidth: "96%", maxHeight: "92vh", overflowY: "auto" }}
+            onClick={(e) => e.stopPropagation()}>
+
             {/* Modal header */}
             <div className="row space-between items-center p-4" style={{ borderBottom: "1px solid var(--border-color)" }}>
               <div className="row items-center" style={{ gap: 12 }}>
@@ -304,15 +281,13 @@ function TutorSelectedStudents() {
                   background: "rgba(22,163,74,0.1)", color: "var(--success)",
                 }}>Placed</span>
               </div>
-              <span
-                className="cursor-pointer fs-4 text-secondary"
-                onClick={() => { setModal(null); setMapModal(false); }}
-              >x</span>
+              <span className="cursor-pointer fs-4 text-secondary"
+                onClick={() => { setModal(null); setMapModal(false); }}>x</span>
             </div>
 
             <div className="p-4" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
 
-              {/* Student details */}
+              {/* Student info */}
               <div>
                 <p className="fs-p8 text-secondary bold mb-2" style={{ textTransform: "uppercase", letterSpacing: "0.05em" }}>
                   Student Info
@@ -334,20 +309,20 @@ function TutorSelectedStudents() {
                 </div>
               </div>
 
-              {/* Company details */}
+              {/* Company info */}
               <div>
                 <p className="fs-p8 text-secondary bold mb-2" style={{ textTransform: "uppercase", letterSpacing: "0.05em" }}>
                   Company & Placement
                 </p>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                   {[
-                    { label: "Company",      value: modal.companyName  },
-                    { label: "Job Title",    value: modal.jobTitle     },
-                    { label: "Industry",     value: modal.industry     },
-                    { label: "Location",     value: modal.location     },
-                    { label: "Company Email",value: modal.companyEmail },
-                    { label: "Website",      value: modal.website      },
-                    { label: "Offer Date",   value: fmt(modal.offerDate) },
+                    { label: "Company",       value: modal.companyName   },
+                    { label: "Job Title",     value: modal.jobTitle      },
+                    { label: "Industry",      value: modal.industry      },
+                    { label: "Location",      value: modal.location      },
+                    { label: "Company Email", value: modal.companyEmail  },
+                    { label: "Website",       value: modal.website       },
+                    { label: "Offer Date",    value: fmt(modal.offerDate)},
                   ].map((f) => (
                     <div key={f.label} style={{ background: "var(--gray-100)", borderRadius: 8, padding: "8px 12px" }}>
                       <p className="fs-p8 text-secondary">{f.label}</p>
@@ -357,61 +332,50 @@ function TutorSelectedStudents() {
                 </div>
               </div>
 
-              {/* Offer letter + Map row */}
+              {/* Offer letter + map buttons */}
               <div className="row" style={{ gap: 10 }}>
-
-                {/* Offer letter button */}
                 <button
                   onClick={() => openOfferLetter(modal)}
-                  disabled={!modal.offerLetterId}
+                  disabled={!modal.offerFileName}
                   style={{
                     flex: 1, padding: "12px", borderRadius: 8,
-                    background: modal.offerLetterId ? "var(--primary)" : "var(--gray-200)",
-                    color: modal.offerLetterId ? "#fff" : "var(--text-secondary)",
-                    border: "none", cursor: modal.offerLetterId ? "pointer" : "not-allowed",
+                    background: modal.offerFileName ? "var(--primary)" : "var(--gray-200)",
+                    color: modal.offerFileName ? "#fff" : "var(--text-secondary)",
+                    border: "none", cursor: modal.offerFileName ? "pointer" : "not-allowed",
                     fontWeight: 600, fontSize: "0.85rem",
                     display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
                   }}
                 >
                   <span style={{
-                    background: modal.offerLetterId ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.1)",
+                    background: modal.offerFileName ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.1)",
                     borderRadius: 4, padding: "1px 6px", fontSize: "0.7rem", fontWeight: 700,
                   }}>PDF</span>
-                  {modal.offerLetterId ? "View Offer Letter" : "No Offer Letter"}
+                  {modal.offerFileName ? "View Offer Letter" : "No Offer Letter"}
                 </button>
 
-                {/* Map button */}
                 {hasMap(modal) && (
-                  <button
-                    onClick={() => setMapModal((v) => !v)}
-                    style={{
-                      flex: 1, padding: "12px", borderRadius: 8,
-                      background: mapModal ? "var(--secondary)" : "#fff",
-                      color: mapModal ? "#fff" : "var(--primary)",
-                      border: "1px solid var(--primary)",
-                      cursor: "pointer", fontWeight: 600, fontSize: "0.85rem",
-                    }}
-                  >
+                  <button onClick={() => setMapModal((v) => !v)} style={{
+                    flex: 1, padding: "12px", borderRadius: 8,
+                    background: mapModal ? "var(--secondary)" : "#fff",
+                    color: mapModal ? "#fff" : "var(--primary)",
+                    border: "1px solid var(--primary)",
+                    cursor: "pointer", fontWeight: 600, fontSize: "0.85rem",
+                  }}>
                     {mapModal ? "Hide Map" : "Show Location on Map"}
                   </button>
                 )}
               </div>
 
-              {/* Inline map — toggled */}
+              {/* Inline map */}
               {mapModal && hasMap(modal) && (
                 <div style={{ borderRadius: 10, overflow: "hidden", border: "1px solid var(--border-color)" }}>
                   <MapContainer
-                    key={`detail-${modal.latitude}-${modal.longitude}`}
+                    key={`${modal.latitude}-${modal.longitude}`}
                     center={[parseFloat(modal.latitude), parseFloat(modal.longitude)]}
-                    zoom={14}
-                    style={{ height: 280, width: "100%" }}
-                    scrollWheelZoom={true}
-                    zoomControl={true}
-                  >
+                    zoom={14} style={{ height: 280, width: "100%" }} scrollWheelZoom>
                     <TileLayer
                       attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                      url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                    />
+                      url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                     <Marker position={[parseFloat(modal.latitude), parseFloat(modal.longitude)]}>
                       <Popup>
                         <p style={{ fontWeight: 700 }}>{modal.companyName}</p>
@@ -424,11 +388,9 @@ function TutorSelectedStudents() {
                     <p className="fs-p8 text-secondary">
                       {parseFloat(modal.latitude).toFixed(5)}, {parseFloat(modal.longitude).toFixed(5)}
                     </p>
-                    <a
-                      href={`https://www.google.com/maps?q=${modal.latitude},${modal.longitude}`}
+                    <a href={`https://www.google.com/maps?q=${modal.latitude},${modal.longitude}`}
                       target="_blank" rel="noreferrer"
-                      style={{ fontSize: "0.78rem", color: "var(--info)", fontWeight: 600 }}
-                    >
+                      style={{ fontSize: "0.78rem", color: "var(--info)", fontWeight: 600 }}>
                       Open in Google Maps
                     </a>
                   </div>

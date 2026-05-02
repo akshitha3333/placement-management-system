@@ -30,6 +30,7 @@ import CompanyInterviews     from './Components/company/CompanyPages/CompanyInte
 import CompanyOffers         from './Components/company/CompanyPages/CompanyOffers';
 import CompanyMeetings       from './Components/company/CompanyPages/CompanyMeetings';
 import CompanyProfile        from './Components/company/CompanyPages/CompanyProfile';
+import CompanyFeedback from './Components/company/CompanyPages/CompanyFeedback';
 
 // Student
 import StudentLogin        from './Components/student/StudentLogin';
@@ -43,6 +44,7 @@ import StudentInterviews   from './Components/student/StudentPages/StudentInterv
 import StudentOffers       from './Components/student/StudentPages/StudentOffers';
 import StudentMeetings     from './Components/student/StudentPages/StudentMeetings';
 import StudentProfile      from './Components/student/StudentPages/StudentProfile';
+import StudentPlacementReport from './Components/student/StudentPages/StudentPlacementReport'
 
 // Tutor
 import TutorLogin           from './Components/Tutor/TutorLogin';
@@ -61,12 +63,10 @@ function App() {
       <div className="App">
         <Routes>
 
-          {/* ── Public ── */}
           <Route path="/"              element={<Home />} />
           <Route path="/roleselection" element={<RoleSelection />} />
           <Route path="/about-page"    element={<AboutPage />} />
 
-          {/* ── Admin ── */}
           <Route path="/admin-login" element={<AdminLogin />} />
           <Route path="/admin-page"  element={<AdminPage />}>
             <Route index             element={<AdminDashboard />} />
@@ -78,7 +78,6 @@ function App() {
             <Route path="offers"     element={<AdminOffers />} />
           </Route>
 
-          {/* ── Company ── */}
           <Route path="/company-login"    element={<CompanyLogin />} />
           <Route path="/company-register" element={<CompanyRegister />} />
           <Route path="/company-page"     element={<CompanyPage />}>
@@ -93,9 +92,9 @@ function App() {
             <Route path="offers"            element={<CompanyOffers />} />
             <Route path="meetings"          element={<CompanyMeetings />} />
             <Route path="profile"           element={<CompanyProfile />} />
+            <Route path="feedback"          element={<CompanyFeedback />} />
           </Route>
 
-          {/* ── Student ── */}
           <Route path="/student-login"    element={<StudentLogin />} />
           <Route path="/student-register" element={<StudentRegister />} />
           <Route path="/student-page"     element={<StudentPage />}>
@@ -108,11 +107,9 @@ function App() {
             <Route path="offers"              element={<StudentOffers />} />
             <Route path="meetings"            element={<StudentMeetings />} />
             <Route path="profile"             element={<StudentProfile />} />
-            {/* student-resume — add this import + page when you build StudentResume.jsx */}
-            {/* <Route path="student-resume" element={<StudentResume />} /> */}
+            <Route path="placementReport"     element={<StudentPlacementReport />} />
           </Route>
 
-          {/* ── Tutor ── */}
           <Route path="/tutor-login" element={<TutorLogin />} />
           <Route path="/tutor-page"  element={<TutorPage />}>
             <Route index                  element={<TutorDashboard />} />

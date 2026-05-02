@@ -3,7 +3,6 @@ import axios from "axios";
 import Cookies from "js-cookie";
 const rest = require("../../../Rest");
 
-/* ── Shimmer placeholder while prediction loads ────────── */
 function Shimmer() {
   return (
     <div className="card p-2 row items-center g-2 mb-2"
@@ -26,7 +25,6 @@ function Shimmer() {
 
 function TutorJobPosts() {
 
-  // ── State ──────────────────────────────────────────────
   const [jobs,           setJobs]           = useState([]);
   const [students,       setStudents]       = useState([]);
   const [allApps,        setAllApps]        = useState([]);
@@ -39,7 +37,6 @@ function TutorJobPosts() {
   const [predictions,    setPredictions]    = useState({});
   const runningRef = useRef(new Set());
 
-  // ── Auth Header ────────────────────────────────────────
   const header = {
     headers: {
       "Content-Type": "application/json",
@@ -47,7 +44,6 @@ function TutorJobPosts() {
     },
   };
 
-  // ── Fetch jobs ─────────────────────────────────────────
   const fetchJobs = async () => {
     try {
       const res     = await axios.get(rest.jobPost, header);
@@ -59,7 +55,6 @@ function TutorJobPosts() {
     }
   };
 
-  // ── Fetch tutor dept → filter students ────────────────
   const fetchStudents = async () => {
     try {
       const tutorRes  = await axios.get(rest.tutor, header);
@@ -86,7 +81,6 @@ function TutorJobPosts() {
     }
   };
 
-  // ── Fetch all job applications once (to get resumes) ──
   const fetchApps = async () => {
     try {
       const res  = await axios.get(rest.jobApplications, header);
@@ -104,7 +98,6 @@ function TutorJobPosts() {
     init();
   }, []);
 
-  // ── Auto-run predictions when a job is expanded ────────
   useEffect(() => {
     if (!expandedId || allApps.length === 0) return;
     const job = jobs.find((j) => j.jobPostId === expandedId);
@@ -112,7 +105,6 @@ function TutorJobPosts() {
     getEligibleStudents(job).forEach((s) => triggerPrediction(s, job));
   }, [expandedId, allApps]);
 
-  // ── Build a File object from a student's resume ────────
   const getResumeFile = (studentId) => {
     const sid = String(studentId);
     const app = allApps.find((a) => {
@@ -135,7 +127,6 @@ function TutorJobPosts() {
     } catch { return null; }
   };
 
-  // ── Run prediction for one student+job (idempotent) ───
   const triggerPrediction = async (student, job) => {
     const sid = student.studentId || student.id;
     const key = `${sid}_${job.jobPostId}`;
@@ -184,7 +175,6 @@ function TutorJobPosts() {
     }
   };
 
-  // ── Recommend student → POST job-suggestions ──────────
   const recommendStudent = async (student, job) => {
     try {
       await axios.post(
@@ -199,19 +189,16 @@ function TutorJobPosts() {
     }
   };
 
-  // ── Get eligible students for a job ───────────────────
   const getEligibleStudents = (job) => {
     const minPct = parseFloat(job.eligiblePercentage) || 0;
     return students.filter((s) => (parseFloat(s.percentage) || 0) >= minPct);
   };
 
-  // ── Search filter ──────────────────────────────────────
   const filteredJobs = jobs.filter((job) =>
     job.companyModel?.companyName?.toLowerCase().includes(search.toLowerCase()) ||
     (job.title || job.tiitle)?.toLowerCase().includes(search.toLowerCase())
   );
 
-  // ── Helpers ────────────────────────────────────────────
   const matchColor = (m) =>
     m >= 80 ? "var(--success)" : m >= 60 ? "var(--warning)" : "var(--danger)";
 
@@ -220,7 +207,6 @@ function TutorJobPosts() {
 
   const predKey   = (s, j) => `${s.studentId || s.id}_${j.jobPostId}`;
 
-  // ── Overall match % = avg of tech + soft ──────────────
   const overallMatch = (pred) => {
     if (!pred || pred.status !== "done") return null;
     const t = pred.tech?.match_percentage;
@@ -235,7 +221,6 @@ function TutorJobPosts() {
   const totalOpen  = jobs.filter((j) => j.requiredCandidate > 0).length;
   const myStudents = students.length;
 
-  // ── Render ─────────────────────────────────────────────
   return (
     <div className="p-4" style={{ height: "calc(100vh - 70px)", overflowY: "auto" }}>
 
@@ -480,14 +465,7 @@ function TutorJobPosts() {
                           })
                         )}
 
-                        {/* Info note
-                        <div className="alert-info mt-3">
-                          <p className="fs-p8 text-info">
-                            🤖 <strong>Match Score:</strong> AI-analyzed from student resume vs job description.
-                            T = Technical · S = Soft Skills. Only <strong>{departmentName}</strong> students shown.
-                          </p>
-                        </div> */}
-
+                       
                       </div>
                     </div>
                   </div>

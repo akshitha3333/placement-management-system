@@ -25,7 +25,6 @@ const getMultipartHeaders = () => ({
   },
 });
 
-// ── Tag chip ─────────────────────────────────────────────────────────────────
 function Tag({ label, onRemove, editing, variant = "skill" }) {
   const c = variant === "skill"
     ? { bg: "rgba(50,85,99,0.1)",  color: "#325563", border: "rgba(50,85,99,0.3)"   }
@@ -59,7 +58,6 @@ function DisplayVal({ value }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 export default function StudentProfile() {
   const [activeTab,     setActiveTab]     = useState("Personal");
   const [editing,       setEditing]       = useState(false);
@@ -84,7 +82,6 @@ export default function StudentProfile() {
   const [resumeMsgType, setResumeMsgType] = useState("");
   const fileInputRef = useRef();
 
-  // ── Fetch profile: GET /api/actors/student-profile ───────────────────────
   useEffect(() => {
     const init = async () => {
       try {
@@ -124,7 +121,6 @@ export default function StudentProfile() {
     init();
   }, []);
 
-  // ── Save: PATCH /api/actors/student-profile/{studentId} ──────────────────
   const handleSave = async () => {
     setSaving(true); setMessage("");
     try {
@@ -172,7 +168,6 @@ export default function StudentProfile() {
 
   const handleChange = (e) => setForm((p) => ({ ...p, [e.target.name]: e.target.value }));
 
-  // ── Skills ────────────────────────────────────────────────────────────────
   const addSkill = () => {
     const v = newSkill.trim();
     if (!v || skills.includes(v)) return;
@@ -181,7 +176,6 @@ export default function StudentProfile() {
 
 
 
-  // ── Resume upload: POST /api/actors/student-resume?resumeTitle=... ────────
   const uploadResume = async (file) => {
     if (file.type !== "application/pdf") {
       setResumeMsg("Only PDF files are accepted."); setResumeMsgType("error"); return;
@@ -218,7 +212,6 @@ export default function StudentProfile() {
     pdfs.forEach(uploadResume);
   };
 
-  // ── Open resume from base64 using Blob URL (Firefox safe) ─────────────────
   const openResume = (r) => {
     const base64 = r.resume2;
     if (!base64) { alert("Resume file not available."); return; }
@@ -241,7 +234,6 @@ export default function StudentProfile() {
     }
   };
 
-  // ── Derived ───────────────────────────────────────────────────────────────
   const dept  = studentData?.departmentModel?.departmentName || "—";
   const email = studentData?.userModel?.email || studentData?.email || "—";
 

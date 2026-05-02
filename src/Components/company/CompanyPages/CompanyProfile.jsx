@@ -40,7 +40,6 @@ function CompanyProfile() {
   const [msgType,  setMsgType]  = useState("");
   const [showMap,  setShowMap]  = useState(false);
 
-  // ── GET /api/actors/companys ──────────────────────────────────────────────
   useEffect(() => {
     axios.get(rest.companys, getHeaders())
       .then((res) => {
@@ -61,8 +60,6 @@ function CompanyProfile() {
       .finally(() => setLoading(false));
   }, []);
 
-  // ── PATCH /api/actors/companys/{companyId} ────────────────────────────────
-  // CompanyModel only allows companyName, website, about to be patched
   const handleChange = (e) => setForm((p) => ({ ...p, [e.target.name]: e.target.value }));
 
   const hasMap = profile?.latitude && profile?.longitude &&

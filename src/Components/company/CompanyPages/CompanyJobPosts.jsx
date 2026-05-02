@@ -40,7 +40,6 @@ function CompanyJobPosts() {
   const [message,        setMessage]        = useState("");
   const [msgType,        setMsgType]        = useState("");
 
-  // Fetch job posts (backend now returns only this company's posts for COMPANY role)
   const fetchPosts = async () => {
     setLoading(true);
     try {
@@ -416,7 +415,6 @@ function CompanyJobPosts() {
                   </div>
                 ) : (
                   <>
-                    {/* Dropdown — picking one adds it to the list */}
                     <select
                       className="form-control"
                       value=""
@@ -426,7 +424,7 @@ function CompanyJobPosts() {
                         if (!form.skillIds.includes(id)) {
                           setForm((prev) => ({ ...prev, skillIds: [...prev.skillIds, id] }));
                         }
-                        e.target.value = ""; // reset dropdown after selection
+                        e.target.value = ""; 
                       }}
                     >
                       <option value="">-- Select a skill to add --</option>
@@ -439,7 +437,6 @@ function CompanyJobPosts() {
                         ))}
                     </select>
 
-                    {/* Selected skill chips — name only, no ID */}
                     {form.skillIds.length > 0 && (
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
                         {form.skillIds.map((id) => (

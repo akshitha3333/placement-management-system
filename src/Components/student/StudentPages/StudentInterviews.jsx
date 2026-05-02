@@ -3,7 +3,6 @@ import axios from "axios";
 import Cookies from "js-cookie";
 const rest = require("../../../Rest");
 
-// Base API URL: http://localhost:2026/api/job
 const baseJob = rest.jobApplications.replace("/job-applications", "");
 
 const getHeaders = () => ({
@@ -13,7 +12,6 @@ const getHeaders = () => ({
   },
 });
 
-// ── Status config ──────────────────────────────────────────
 const INTERVIEW_STATUS = {
   Scheduled:           { label: "Scheduled",              bg: "rgba(14,165,233,0.1)",  color: "#0ea5e9" },
   Accepted:            { label: "Confirmed Attending",     bg: "rgba(22,163,74,0.1)",   color: "#16a34a" },
@@ -39,9 +37,7 @@ function StatusPill({ status }) {
 
 const canRespond = (status) => status === "Scheduled" || status === "Rescheduled";
 
-// ── Date format — handles both interviewDateTime and InterviewDateTime ──
 const formatDT = (inv) => {
-  // Backend field is capital-I: InterviewDateTime
   const dt = inv.InterviewDateTime || inv.interviewDateTime;
   console.log("RAW datetime value:", dt, "| from inv keys:", Object.keys(inv));
   if (!dt) return "—";
@@ -60,21 +56,17 @@ function StudentInterviews() {
   const [activeTab,  setActiveTab]  = useState("upcoming");
   const [viewInv,    setViewInv]    = useState(null);
 
-  // action modal state
   const [actionInv,  setActionInv]  = useState(null);
-  const [actionType, setActionType] = useState(""); // "accept" | "reject" | "reschedule"
+  const [actionType, setActionType] = useState(""); 
   const [reason,     setReason]     = useState("");
   const [acting,     setActing]     = useState(false);
   const [actionMsg,  setActionMsg]  = useState({ text: "", type: "" });
 
   useEffect(() => { fetchAll(); }, []);
 
-  // ── Fetch all interviews ──────────────────────────────────
   const fetchAll = async () => {
     try {
       setLoading(true); setError("");
-
-      // Step 1: GET /api/job/job-applications
       const appsRes = await axios.get(rest.jobApplications, getHeaders());
       console.log("STEP 1 — raw applications response:", appsRes.data);
 
@@ -84,7 +76,6 @@ function StudentInterviews() {
 
       if (apps.length === 0) { setInterviews([]); return; }
 
-      // Step 2: GET /api/job/job-application/{appId}/interview  — for each app
       const allInterviews = [];
       for (const app of apps) {
         const appId = app.jobApplicationId || app.id;
@@ -106,7 +97,6 @@ function StudentInterviews() {
       }
 
       console.log("STEP 3 — ALL interviews collected:", allInterviews);
-      // Log first interview keys so we can see exact field names
       if (allInterviews.length > 0) {
         console.log("STEP 3 — First interview field keys:", Object.keys(allInterviews[0]));
         console.log("STEP 3 — First interview full object:", allInterviews[0]);
@@ -119,7 +109,6 @@ function StudentInterviews() {
     } finally { setLoading(false); }
   };
 
-  // ── Optimistic status update ─────────────────────────────
   const updateStatus = (interviewId, newStatus, newReason) => {
     setInterviews((prev) =>
       prev.map((i) => i.interviewId === interviewId
@@ -129,8 +118,6 @@ function StudentInterviews() {
     if (viewInv?.interviewId === interviewId)
       setViewInv((v) => ({ ...v, status: newStatus, ...(newReason !== undefined ? { reason: newReason } : {}) }));
   };
-
-  // ── Accept ────────────────────────────────────────────────
   const handleAccept = async () => {
     setActing(true); setActionMsg({ text: "", type: "" });
     try {
@@ -148,7 +135,6 @@ function StudentInterviews() {
     } finally { setActing(false); }
   };
 
-  // ── Reject ────────────────────────────────────────────────
   const handleReject = async () => {
     if (!reason.trim()) { setActionMsg({ text: "Please provide a reason.", type: "error" }); return; }
     setActing(true); setActionMsg({ text: "", type: "" });
@@ -167,7 +153,6 @@ function StudentInterviews() {
     } finally { setActing(false); }
   };
 
-  // ── Reschedule (same reject endpoint, different status) ───
   const handleReschedule = async () => {
     if (!reason.trim()) { setActionMsg({ text: "Please provide a reason.", type: "error" }); return; }
     setActing(true); setActionMsg({ text: "", type: "" });
@@ -193,7 +178,6 @@ function StudentInterviews() {
     setActionInv(null); setActionType(""); setReason(""); setActionMsg({ text: "", type: "" });
   };
 
-  // ── Data helpers ──────────────────────────────────────────
   const getJobTitle = (inv) => inv._app?.jobSuggestionModel?.jobPostModel?.tiitle
                             || inv._app?.jobSuggestionModel?.jobPostModel?.title || "Job";
   const getCompany  = (inv) => inv._app?.jobSuggestionModel?.jobPostModel?.companyModel?.companyName || "Company";
@@ -210,7 +194,6 @@ function StudentInterviews() {
     rescheduled: interviews.filter((i) => i.status === "Rescheduled").length,
   };
 
-  // ── Response buttons ──────────────────────────────────────
   const ResponseButtons = ({ inv, fromModal = false }) => {
     const open = (type) => { if (fromModal) setViewInv(null); openAction(inv, type); };
     return (
@@ -266,7 +249,6 @@ function StudentInterviews() {
     );
   };
 
-  // ── Render ────────────────────────────────────────────────
   return (
     <div className="p-4" style={{ overflowY: "auto", height: "calc(100vh - 70px)" }}>
 

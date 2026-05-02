@@ -116,7 +116,6 @@ function CompanySkillsRequired() {
         </button>
       </div>
 
-      {/* Success Message */}
       {successMsg && (
         <div className="alert-success mb-3">
           <p className="fs-p9" style={{ color: "var(--success)", fontWeight: "600" }}>
@@ -125,7 +124,6 @@ function CompanySkillsRequired() {
         </div>
       )}
 
-      {/* Skills List */}
       <div className="card p-2">
         {loading ? (
           <p className="text-center p-4">Loading...</p>
@@ -177,7 +175,6 @@ function CompanySkillsRequired() {
         )}
       </div>
 
-      {/* Add Skill Modal */}
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div

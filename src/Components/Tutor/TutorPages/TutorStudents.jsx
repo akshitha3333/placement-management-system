@@ -108,7 +108,6 @@ function TutorStudents() {
     }
   };
 
-  // ── Run placement prediction ───────────────────────────
   const runPrediction = async () => {
     if (!selectedStudent || !selectedJobData) return;
 
@@ -119,12 +118,10 @@ function TutorStudents() {
     try {
       const studentId = selectedStudent.studentId || selectedStudent.id;
 
-      // 1. Fetch all job applications (tutor has access to this endpoint)
       const appsRes = await axios.get(rest.jobApplications, header);
       const apps    = appsRes.data?.data || appsRes.data || [];
       const appList = Array.isArray(apps) ? apps : [];
 
-      // 2. Find any application by this student that has a resume attached
       const studentApp = appList.find((app) => {
         const appStudentId =
           app.resumeModel?.studentModel?.studentId ||
@@ -141,7 +138,6 @@ function TutorStudents() {
 
       const resumeModel = studentApp.resumeModel;
 
-      // 3. Convert base64 → Blob → File
       const raw    = resumeModel.resume2.startsWith("data:")
         ? resumeModel.resume2.split(",")[1]
         : resumeModel.resume2;
@@ -155,7 +151,6 @@ function TutorStudents() {
         { type: "application/pdf" }
       );
 
-      // 4. POST to Flask prediction API
       const fd = new FormData();
       fd.append("file", file);
       fd.append("job_description", selectedJobData.description || selectedJobData.tiitle || "");
@@ -181,7 +176,6 @@ function TutorStudents() {
     }
   };
 
-  // ── Filter ─────────────────────────────────────────────
   const filtered = students.filter((s) => {
     const term        = search.toLowerCase();
     const matchSearch = !search
@@ -192,18 +186,15 @@ function TutorStudents() {
     return matchSearch && matchStatus;
   });
 
-  // ── Stats ──────────────────────────────────────────────
   const total    = students.length;
   const placed   = students.filter((s) => s.workingStatus === "Placed").length;
   const unplaced = total - placed;
 
   const selectedJobData = jobs.find((j) => String(j.jobPostId) === String(selectedJob));
 
-  // ── Render ─────────────────────────────────────────────
   return (
     <div className="p-4" style={{ height: "calc(100vh - 70px)", overflowY: "auto" }}>
 
-      {/* ── Page Title ── */}
       <div className="row space-between items-center mb-4">
         <div>
           <h2 className="fs-5 bold mb-1">👨‍🎓 My Students</h2>
@@ -213,10 +204,8 @@ function TutorStudents() {
         </div>
       </div>
 
-      {/* ── Error Banner ── */}
       {error && <div className="alert-danger mb-4">⚠️ {error}</div>}
 
-      {/* ── Stats Row ── */}
       <div className="row g-3 mb-4">
         {[
           { label: "Total Students", value: total,    icon: "👨‍🎓", color: "var(--primary)"  },
@@ -235,7 +224,6 @@ function TutorStudents() {
         ))}
       </div>
 
-      {/* ── Search & Filter ── */}
       <div className="row mb-3" style={{ gap: "12px" }}>
         <div className="w-40">
           <input
@@ -259,7 +247,6 @@ function TutorStudents() {
         </div>
       </div>
 
-      {/* ── Students Table ── */}
       {loading ? (
         <p className="text-secondary p-4">Loading students...</p>
       ) : (
@@ -375,7 +362,6 @@ function TutorStudents() {
         </div>
       )}
 
-      {/* ══════════════════ ASSIGN JOB MODAL ══════════════════ */}
       {selectedStudent && (
         <div className="modal-overlay" onClick={closeModal}>
           <div className="card p-5"
@@ -478,7 +464,6 @@ function TutorStudents() {
               </div>
             )}
 
-            {/* ── Skill Match Prediction ── */}
             {selectedJob && (
               <div className="mb-3">
                 <button

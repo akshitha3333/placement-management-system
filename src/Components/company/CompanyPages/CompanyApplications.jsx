@@ -37,7 +37,6 @@ function CompanyApplications() {
   const [loadingJobs,     setLoadingJobs]     = useState(true);
   const [loadingApps,     setLoadingApps]     = useState(true);
 
-  // ── Interview modal state ──────────────────────────────
   const [showInterview,   setShowInterview]   = useState(false);
   const [interviewForm,   setInterviewForm]   = useState({
     interviewInstructions: "",
@@ -50,29 +49,26 @@ function CompanyApplications() {
   const [scheduleError,   setScheduleError]   = useState("");
   const [scheduleSuccess, setScheduleSuccess] = useState(false);
 
-  // ── Auth header ────────────────────────────────────────
   const header = {
     headers: {
       Authorization: `Bearer ${Cookies.get("token")}`,
     },
   };
 
-  // ── 1. Fetch company job posts ─────────────────────────
   useEffect(() => {
     axios.get(rest.jobPost, header)
       .then((res) => {
-        console.log("✅ JOBS:", res.data);
+        console.log(" JOBS:", res.data);
         setJobs(res.data?.data || []);
       })
-      .catch((err) => console.error("❌ JOB ERROR:", err))
+      .catch((err) => console.error(" JOB ERROR:", err))
       .finally(() => setLoadingJobs(false));
   }, []);
 
-  // ── 2. Fetch ALL applications once ────────────────────
   useEffect(() => {
     axios.get(rest.jobApplications, header)
       .then((res) => {
-        console.log("🔥 RAW APPLICATIONS:", res.data);
+        console.log(" RAW APPLICATIONS:", res.data);
         const data = res.data?.data || [];
         const normalized = data.map((app) => ({
           ...app,
@@ -81,21 +77,19 @@ function CompanyApplications() {
         }));
         setApplications(normalized);
       })
-      .catch((err) => console.error("❌ APP ERROR:", err))
+      .catch((err) => console.error(" APP ERROR:", err))
       .finally(() => setLoadingApps(false));
   }, []);
 
-  // ── 3. Select job ──────────────────────────────────────
   const selectJob = (job) => {
     setSelectedJob(job);
     setSearch("");
     setFilterStatus("ALL");
   };
 
-  // ── 4. Schedule interview ──────────────────────────────
   const scheduleInterview = async () => {
     if (!interviewForm.interviewMode || !interviewForm.interviewDateTime) {
-      setScheduleError("⚠️ Interview mode and date/time are required.");
+      setScheduleError(" Interview mode and date/time are required.");
       return;
     }
     setScheduling(true);
@@ -110,7 +104,7 @@ function CompanyApplications() {
         status:                "Scheduled",
         jobApplicationId:      viewApp.jobApplicationId,
       };
-      console.log("📅 Scheduling interview payload:", payload);
+      console.log(" Scheduling interview payload:", payload);
       await axios.post(
         `${rest.jobApplications.replace("/job-applications", "")}/job-application/${viewApp.jobApplicationId}/interview`,
         payload,
@@ -146,21 +140,17 @@ function CompanyApplications() {
     setScheduleSuccess(false);
   };
 
-  // ── Helper: open resume from base64 ──────────────────
   const openResume = (app) => {
     const r = app?.resumeModel;
     if (!r) return;
-    // resume2 contains the base64 PDF data
     const base64 = r.resume2;
     if (!base64) {
       alert("No resume available for this applicant.");
       return;
     }
-    // Fix prefix — backend may send image/jpeg mime but it's actually a PDF
     const pdfBase64 = base64.startsWith("data:")
       ? base64.replace(/^data:[^;]+;base64,/, "data:application/pdf;base64,")
       : `data:application/pdf;base64,${base64}`;
-    // Open in new tab
     const win = window.open();
     if (win) {
       win.document.write(
@@ -170,7 +160,6 @@ function CompanyApplications() {
     }
   };
 
-  // ── Filter apps ────────────────────────────────────────
   const filteredApps = applications.filter((app) => {
     const belongsToJob = app.jobPostModel?.jobPostId === selectedJob?.jobPostId;
     if (!belongsToJob) return false;
@@ -188,7 +177,6 @@ function CompanyApplications() {
     return acc;
   }, {});
 
-  // ── Helpers ────────────────────────────────────────────
   const getStudent  = (app) => app.studentModel || {};
   const getName     = (app) => getStudent(app)?.name       || "—";
   const getEmail    = (app) => getStudent(app)?.email      || "—";
@@ -201,17 +189,14 @@ function CompanyApplications() {
   const getResume   = (app) => app?.resumeModel?.resumeTitle || (app?.resumeId ? `Resume #${app.resumeId}` : "—");
   const getTutor    = (app) => app?.jobSuggestionModel?.tutorModel?.tutorName || "—";
 
-  // ── Render ─────────────────────────────────────────────
   return (
     <div className="p-4" style={{ overflowY: "auto", height: "calc(100vh - 70px)" }}>
 
-      {/* Header */}
       <div className="mb-4">
         <h2 className="fs-5 bold mb-1">📄 Job Applications</h2>
         <p className="fs-p9 text-secondary">View students who applied to your jobs</p>
       </div>
 
-      {/* Stat Cards */}
       <div className="row g-3 mb-4">
         {[
           { label: "Total",     value: jobApps.length,                                          color: "var(--primary)", icon: "📄" },
@@ -232,7 +217,6 @@ function CompanyApplications() {
         ))}
       </div>
 
-      {/* Job Post Selector */}
       <div className="card p-4 mb-4">
         <h4 className="bold mb-3">📋 Your Job Posts</h4>
         {loadingJobs ? (
@@ -273,7 +257,6 @@ function CompanyApplications() {
         )}
       </div>
 
-      {/* Applications Panel */}
       {!selectedJob ? (
         <div className="card p-5 text-center">
           <p style={{ fontSize: "3rem" }}>📋</p>
@@ -289,7 +272,6 @@ function CompanyApplications() {
 
       ) : (
         <>
-          {/* Search + Filter */}
           <div className="row space-between items-center mb-3">
             <h4 className="bold">
               📑 <span style={{ color: "var(--primary)" }}>{selectedJob.tiitle || selectedJob.title}</span>
@@ -335,7 +317,6 @@ function CompanyApplications() {
               </div>
             ) : (
               <>
-                {/* Table Header */}
                 <div className="row items-center" style={{
                   background: "var(--gray-100)", padding: "10px 16px",
                   borderBottom: "1px solid var(--border-color)",
@@ -351,7 +332,6 @@ function CompanyApplications() {
                   <div className="col-1 text-center">Action</div>
                 </div>
 
-                {/* Rows */}
                 {filteredApps.map((app, idx) => (
                   <div
                     key={app.jobApplicationId || idx}
@@ -366,7 +346,6 @@ function CompanyApplications() {
                   >
                     <div style={{ width: 36 }} className="fs-p9 text-secondary">{idx + 1}</div>
 
-                    {/* Candidate */}
                     <div className="col-3">
                       <div className="row items-center g-2">
                         <div style={{
@@ -465,9 +444,7 @@ function CompanyApplications() {
         </>
       )}
 
-      {/* ════════════════════════════════════════════════════
-          STUDENT DETAIL MODAL
-      ════════════════════════════════════════════════════ */}
+      
       {viewApp && !showInterview && (
         <div className="modal-overlay" onClick={() => setViewApp(null)}>
           <div
@@ -608,9 +585,7 @@ function CompanyApplications() {
         </div>
       )}
 
-      {/* ════════════════════════════════════════════════════
-          SCHEDULE INTERVIEW MODAL
-      ════════════════════════════════════════════════════ */}
+      
       {viewApp && showInterview && (
         <div className="modal-overlay" onClick={closeInterviewModal}>
           <div

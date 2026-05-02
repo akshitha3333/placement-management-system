@@ -5,8 +5,7 @@ function Home() {
 
   return (
     <div>
-      {/* Navbar */}
-      
+   
       <header className="row space-between p-2 items-center box-shadow ">
         <div className="fs-4 bold">🎓 PlacementHub</div>
 
@@ -53,7 +52,6 @@ function Home() {
 
       </div>
 
-      {/* Statistics */}
       <section className="bg-primary-dark text-white pt-6 pb-6">
       <div className="row text-center items-center">
 
@@ -124,7 +122,6 @@ function Home() {
       </div>
     </div>
 
-    {/* Card 2 */}
     <div className="col-4 p-3">
       <div className="card p-5">
 
@@ -152,7 +149,6 @@ function Home() {
       </div>
     </div>
 
-    {/* Card 3 */}
     <div className="col-4 p-3">
       <div className="card p-5">
 

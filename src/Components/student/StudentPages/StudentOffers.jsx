@@ -29,13 +29,11 @@ function StudentOffers() {
     setLoading(true);
     setError("");
     try {
-      // Step 1: all job applications for this student
+     
       const appsRes = await axios.get(rest.jobApplications, getHeaders());
       const apps    = Array.isArray(appsRes.data?.data) ? appsRes.data.data
                     : Array.isArray(appsRes.data)        ? appsRes.data : [];
 
-      // Step 2: interviews per application — keep only status === "Selected"
-      // NOTE: backend InterviewScheduleStatus enum value is "Selected"
       const invArrays = await Promise.all(
         apps.map(async (app) => {
           const appId = app.jobApplicationId || app.id;
@@ -43,8 +41,6 @@ function StudentOffers() {
             const res  = await axios.get(`${baseApi()}/job-application/${appId}/interview`, getHeaders());
             const data = res.data?.data || res.data;
             const list = Array.isArray(data) ? data : data ? [data] : [];
-            // Filter by both "Selected" and "OFFER_SENT" so student still sees
-            // their card after the company sends the offer letter
             return list
               .filter((i) => { const s = (i.status || "").toLowerCase(); return s === "selected" || s === "offer_sent"; })
               .map((i) => ({ ...i, _app: app }));
@@ -113,13 +109,10 @@ function StudentOffers() {
   const openOfferLetter = (pdfBase64, title = "Offer Letter") => {
     if (!pdfBase64) { alert("Offer letter PDF not available."); return; }
     try {
-      // Strip data URL prefix if present, keep only raw base64
+  
       const raw = pdfBase64.startsWith("data:")
         ? pdfBase64.split(",")[1]
         : pdfBase64;
-
-      // Convert base64 → Uint8Array → Blob → Blob URL
-      // Blob URLs work in all browsers (Firefox blocks data: URLs in new tabs)
       const binary = atob(raw);
       const bytes  = new Uint8Array(binary.length);
       for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);

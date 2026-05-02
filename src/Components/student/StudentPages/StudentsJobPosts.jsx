@@ -457,18 +457,18 @@ function StudentJobPosts() {
                               setSelectedResume("");
                             }}
                           >
-                            🚀 Apply Now
+                             Apply Now
                           </button>
                         ) : !eligible ? (
                           <div className="alert-danger">
                             <p className="fs-p9" style={{ color: "var(--danger)" }}>
-                              ✗ You do not meet the eligibility criteria for this job.
+                               You do not meet the eligibility criteria for this job.
                             </p>
                           </div>
                         ) : (
                           <div className="alert-danger">
                             <p className="fs-p9" style={{ color: "var(--danger)" }}>
-                              ❌ Application deadline has passed.
+                               Application deadline has passed.
                             </p>
                           </div>
                         )}
@@ -477,7 +477,7 @@ function StudentJobPosts() {
                         {days != null && days <= 7 && days > 0 && (
                           <div className="alert-info mt-3">
                             <p className="fs-p8 text-info">
-                              ⏰ Only <strong>{days} day{days !== 1 ? "s" : ""}</strong> left to apply!
+                               Only <strong>{days} day{days !== 1 ? "s" : ""}</strong> left to apply!
                             </p>
                           </div>
                         )}

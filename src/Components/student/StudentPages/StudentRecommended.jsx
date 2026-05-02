@@ -25,7 +25,6 @@ function StudentRecommendations() {
     },
   });
 
-  // ── Fetch suggestions — derive applied state from backend only ────────────
   const fetchSuggestions = async () => {
     try {
       const res  = await axios.get(rest.jobSuggestions, getHeaders());
@@ -34,10 +33,8 @@ function StudentRecommendations() {
       console.log("Suggestions raw:", arr);
       setSuggestions(arr);
 
-      // Build applied map ONLY from backend data — never from localStorage
       const appliedMap = {};
       arr.forEach((s) => {
-        // backend marks applied via jobApplications array or an applied flag
         if (s.applied === true || (Array.isArray(s.jobApplications) && s.jobApplications.length > 0)) {
           appliedMap[s.jobSuggestionId] = true;
         }
@@ -50,7 +47,6 @@ function StudentRecommendations() {
     }
   };
 
-  // ── Fetch resumes for apply modal ─────────────────────────────────────────
   const fetchResumes = async () => {
     try {
       const res  = await axios.get(rest.studentResume, getHeaders());
@@ -72,7 +68,6 @@ function StudentRecommendations() {
     init();
   }, []);
 
-  // ── Submit application ────────────────────────────────────────────────────
   const applyToJob = async () => {
     if (!showModal || !selectedResume) return;
     const { jobSuggestionId } = showModal;
@@ -89,7 +84,6 @@ function StudentRecommendations() {
       );
       console.log("Apply response:", res.data);
 
-      // Mark as applied in state (no localStorage)
       setApplied((prev) => ({ ...prev, [jobSuggestionId]: true }));
       setShowModal(null);
       setSelectedResume(null);
@@ -104,7 +98,6 @@ function StudentRecommendations() {
     }
   };
 
-  // ── Helpers ───────────────────────────────────────────────────────────────
   const jobTitle   = (job) => job?.tiitle || job?.title || "—";
   const getTutorName = (sug) =>
     sug?.tutorModel?.tutorName || sug?.tutorModel?.name || "Your Tutor";
@@ -244,9 +237,7 @@ function StudentRecommendations() {
                     </span>
                   </div>
 
-                  {/* Action buttons */}
                   <div style={{ flex: 2, textAlign: "center", display: "flex", gap: 6, justifyContent: "center" }}>
-                    {/* VIEW button — always shown, toggles the expanded panel */}
                     <button
                       className="btn btn-muted w-auto"
                       style={{ padding: "5px 12px", fontSize: "0.78rem" }}
@@ -255,7 +246,6 @@ function StudentRecommendations() {
                       {isOpen ? "Close" : "View"}
                     </button>
 
-                    {/* APPLY button — only shown if NOT yet applied */}
                     {!isApplied && (
                       <button
                         className="btn btn-primary w-auto"
@@ -269,7 +259,6 @@ function StudentRecommendations() {
                       </button>
                     )}
 
-                    {/* Already applied — link to applications */}
                     {isApplied && (
                       <button
                         className="btn w-auto"
@@ -286,7 +275,6 @@ function StudentRecommendations() {
                   </div>
                 </div>
 
-                {/* Expanded detail panel */}
                 {isOpen && (
                   <div style={{
                     padding: "20px 24px",
@@ -296,7 +284,6 @@ function StudentRecommendations() {
                   }}>
                     <div className="row" style={{ gap: 24 }}>
 
-                      {/* LEFT — job details */}
                       <div style={{ flex: 1 }}>
                         <h4 className="bold mb-2">{jobTitle(job)}</h4>
                         <p className="fs-p9 text-secondary mb-3">
@@ -331,7 +318,6 @@ function StudentRecommendations() {
                         </div>
                       </div>
 
-                      {/* RIGHT — tutor note + apply button */}
                       <div style={{ flex: 1 }}>
                         <div style={{
                           background: "rgba(50,85,99,0.06)", borderRadius: 8,
@@ -365,7 +351,6 @@ function StudentRecommendations() {
                           </div>
                         )}
 
-                        {/* Apply / already applied */}
                         {isApplied ? (
                           <div>
                             <div className="alert-success mb-3">
@@ -417,7 +402,6 @@ function StudentRecommendations() {
         </div>
       )}
 
-      {/* ── Apply Modal ── */}
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(null)}>
           <div

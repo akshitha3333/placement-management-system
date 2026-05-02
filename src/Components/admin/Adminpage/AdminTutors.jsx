@@ -36,7 +36,7 @@ function AdminTutors() {
     setTimeout(() => setToastMsg(""), 3500);
   };
 
-  // ── Fetch tutors ─────────────────────────────────────────────────────────
+  
   const fetchTutors = async () => {
     try {
       const res = await axios.get(rest.tutor, getHeader());
@@ -51,7 +51,7 @@ function AdminTutors() {
     }
   };
 
-  // ── Fetch departments for dropdown ───────────────────────────────────────
+  
   const fetchDepartments = async () => {
     try {
       const res = await axios.get(rest.departments, getHeader());
@@ -71,9 +71,6 @@ function AdminTutors() {
 
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 
-  // ── Add tutor ─────────────────────────────────────────────────────────────
-  // Backend: POST /api/actors/tutors
-  // Automatically sends login credentials email to tutor after creation
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -104,7 +101,7 @@ function AdminTutors() {
       setShowModal(false);
       setForm(emptyForm);
       setMessage("");
-      fetchTutors(); // refresh list
+      fetchTutors(); 
       showToast(`Tutor added successfully! Login credentials emailed to ${form.email}.`);
     } catch (err) {
       console.error("Add tutor error:", err.response?.data || err.message);
@@ -129,7 +126,7 @@ function AdminTutors() {
   return (
     <div className="p-4" style={{ height: "calc(100vh - 70px)", overflowY: "auto" }}>
 
-      {/* Toast */}
+      
       {toastMsg && (
         <div style={{
           position: "fixed", top: 20, right: 20, zIndex: 9999,
@@ -142,7 +139,7 @@ function AdminTutors() {
         </div>
       )}
 
-      {/* Header */}
+      
       <div className="row space-between items-center mb-4">
         <div>
           <h2 className="fs-5 bold">Tutor Management</h2>
@@ -155,7 +152,7 @@ function AdminTutors() {
         </button>
       </div>
 
-      {/* Stats */}
+      
       <div className="row mb-4" style={{ gap: 10 }}>
         <div style={{ flex: "0 0 160px" }}>
           <div className="card p-3 text-center stat-card">
@@ -171,7 +168,7 @@ function AdminTutors() {
         </div>
       </div>
 
-      {/* Tutor cards */}
+     
       {loading ? (
         <p className="text-secondary p-3">Loading...</p>
       ) : tutors.length === 0 ? (
@@ -184,7 +181,7 @@ function AdminTutors() {
           {tutors.map((t) => (
             <div key={t.tutorId || t.id} className="card p-4" style={{ borderLeft: "4px solid var(--primary)" }}>
 
-              {/* Avatar + Name */}
+             
               <div className="row items-center mb-3" style={{ gap: 12 }}>
                 <div style={{
                   width: 42, height: 42, borderRadius: "50%", flexShrink: 0,
@@ -227,7 +224,7 @@ function AdminTutors() {
         </div>
       )}
 
-      {/* Add Tutor Modal */}
+      
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div
@@ -240,7 +237,7 @@ function AdminTutors() {
               <span className="cursor-pointer fs-4 text-secondary" onClick={() => setShowModal(false)}>x</span>
             </div>
 
-            {/* Email note */}
+           
             <div style={{
               background: "rgba(14,165,233,0.07)",
               border: "1px solid rgba(14,165,233,0.2)",

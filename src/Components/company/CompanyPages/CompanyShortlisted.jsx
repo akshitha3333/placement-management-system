@@ -141,8 +141,6 @@ function CompanyShortlisted() {
     } finally { setLoading(false); }
   };
 
-  // Source of truth: always fetch from backend on load/refresh
-  // An offer is considered "sent" only if the backend returns a real record with an id
   const fetchAllOfferStatuses = async (selected) => {
     const results = await Promise.all(
       selected.map(async (inv) => {
@@ -170,7 +168,7 @@ function CompanyShortlisted() {
     setOfferMap(map);
   };
 
-  // After sending, re-fetch just that one interview's offer from backend to confirm persistence
+  
   const refetchSingleOfferStatus = async (interviewId) => {
     try {
       const res  = await axios.get(offerLetterGetUrl(interviewId), getHeaders());
@@ -187,7 +185,7 @@ function CompanyShortlisted() {
         },
       }));
     } catch {
-      // Keep the optimistic state already applied
+      
     }
   };
 
@@ -200,7 +198,6 @@ function CompanyShortlisted() {
       formData.append("offerLetter", offerFile);
       await axios.post(offerLetterSendUrl(), formData, getMultipartHeaders());
 
-      // Optimistically lock the button immediately
       setOfferMap((prev) => ({
         ...prev,
         [offerInv.interviewId]: {
@@ -212,7 +209,6 @@ function CompanyShortlisted() {
         },
       }));
 
-      // Re-fetch from backend to confirm the real persisted record
       await refetchSingleOfferStatus(offerInv.interviewId);
 
       setOfferMsg({ text: "Offer letter sent successfully!", type: "success" });
@@ -224,7 +220,6 @@ function CompanyShortlisted() {
     } finally { setSending(false); }
   };
 
-  // Derived data
   const jobPosts = [];
   const seenIds  = new Set();
   allSelected.forEach((inv) => {
@@ -249,8 +244,7 @@ function CompanyShortlisted() {
   const offerSentCount     = Object.values(offerMap).filter((o) => o.sent).length;
   const offerAcceptedCount = Object.values(offerMap).filter((o) => o.status === "Accepted").length;
 
-  // Allow sending only if: offer never sent OR student rejected the offer
-  // Pending and Accepted are locked — button disappears
+  
   const canSendOffer = (interviewId) => {
     const o = offerMap[interviewId];
     if (!o || !o.fetched) return false;
@@ -302,7 +296,6 @@ function CompanyShortlisted() {
         </div>
       ) : (
         <>
-          {/* Job Post Selector */}
           <div className="card p-4 mb-4">
             <h4 className="bold mb-3">Filter by Job Post</h4>
             <div className="row" style={{ gap: 10, flexWrap: "wrap" }}>
@@ -337,7 +330,6 @@ function CompanyShortlisted() {
             </div>
           </div>
 
-          {/* Search & Refresh */}
           <div className="row space-between items-center mb-3" style={{ flexWrap: "wrap", gap: 10 }}>
             <input type="text" className="form-control" style={{ width: 260 }}
               placeholder="Search name, email, department..."
@@ -350,6 +342,7 @@ function CompanyShortlisted() {
               }}>Refresh</button>
             </div>
           </div>
+
 
           {/* Student Cards */}
           {displayed.length === 0 ? (
@@ -417,14 +410,12 @@ function CompanyShortlisted() {
                       </div>
                     </div>
 
-                    {/* Offer letter status badge — always shown if sent */}
                     {offerSent && (
                       <div style={{ marginBottom: 8 }}>
                         <OfferStatusBadge status={offerStatus} />
                       </div>
                     )}
 
-                    {/* Offer action button — only shown when allowed, hidden when locked */}
                     {allowSend ? (
                       <button onClick={() => {
                         setOfferInv(inv); setOfferFile(null);
@@ -440,7 +431,6 @@ function CompanyShortlisted() {
                         {offerStatus === "Rejected" ? "Resend Offer Letter" : "Send Offer Letter"}
                       </button>
                     ) : offerSent ? (
-                      // Locked — Pending or Accepted
                       <div style={{
                         width: "100%", padding: "9px", borderRadius: 8, fontSize: "0.82rem",
                         fontWeight: 600, textAlign: "center",
@@ -450,7 +440,6 @@ function CompanyShortlisted() {
                         Offer letter already sent
                       </div>
                     ) : (
-                      // offer not yet fetched
                       <div style={{
                         width: "100%", padding: "9px", borderRadius: 8, fontSize: "0.82rem",
                         fontWeight: 600, textAlign: "center",
@@ -475,7 +464,6 @@ function CompanyShortlisted() {
         </>
       )}
 
-      {/* SEND OFFER LETTER MODAL */}
       {showOffer && offerInv && (
         <div className="modal-overlay" onClick={() => { setShowOffer(false); setOfferInv(null); }}>
           <div className="card p-5" style={{ width: 480, maxWidth: "95%" }}
@@ -553,7 +541,6 @@ function CompanyShortlisted() {
         </div>
       )}
 
-      {/* DETAIL MODAL */}
       {viewInv && (
         <div className="modal-overlay" onClick={() => setViewInv(null)}>
           <div className="card p-5" style={{ width: 640, maxWidth: "96%", maxHeight: "92vh", overflowY: "auto" }}

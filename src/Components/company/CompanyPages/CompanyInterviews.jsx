@@ -3,21 +3,17 @@ import axios from "axios";
 import Cookies from "js-cookie";
 const rest = require("../../../Rest");
 
-// ── Auth headers ──────────────────────────────────────────────────────────────
 const getHeaders = () => {
   const token = Cookies.get("token") || localStorage.getItem("token") || "";
   return { headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` } };
 };
 
-// ── Base URL ──────────────────────────────────────────────────────────────────
 const baseApi = () => rest.jobApplications.replace(/\/job-applications.*$/, "");
 
-// ── URL builders ──────────────────────────────────────────────────────────────
 const interviewByAppUrl  = (appId) => `${baseApi()}/job-application/${appId}/interview`;
 const markSelectedUrl    = (id)    => `${baseApi()}/interview-schedule/${id}/markAsSelected`;
 const markNotSelectedUrl = (id)    => `${baseApi()}/interview-schedule/${id}/not-selected`;
 
-// ── Status config ─────────────────────────────────────────────────────────────
 const INTERVIEW_STATUS = {
   Scheduled:           { label: "Scheduled",            bg: "rgba(14,165,233,0.1)",  color: "#0ea5e9" },
   Accepted:            { label: "Attending",            bg: "rgba(22,163,74,0.1)",   color: "#16a34a" },
@@ -29,8 +25,6 @@ const INTERVIEW_STATUS = {
   Cancelled:           { label: "Cancelled",            bg: "rgba(107,114,128,0.1)", color: "#6b7280" },
 };
 
-// ── Data accessors ────────────────────────────────────────────────────────────
-// Backend sends "InterviewDateTime" with capital I — read both forms
 const getDateTime    = (inv) => inv?.InterviewDateTime || inv?.interviewDateTime        || null;
 
 const getApp         = (inv) => inv?.jobApplicationModel                                || {};
@@ -58,16 +52,12 @@ const formatDT = (dt) => {
   if (dt === null || dt === undefined || dt === "") return "—";
   try {
     let date;
-    // Handle array format from Java backends: [2024, 5, 10, 14, 30, 0]
     if (Array.isArray(dt)) {
-      // months in JS are 0-indexed, Java LocalDateTime months are 1-indexed
       const [year, month, day, hour = 0, minute = 0, second = 0] = dt;
       date = new Date(year, month - 1, day, hour, minute, second);
     } else if (typeof dt === "number") {
-      // epoch millis or epoch seconds
       date = new Date(dt > 1e10 ? dt : dt * 1000);
     } else {
-      // string — normalise space-separated datetime to ISO
       date = new Date(String(dt).replace(" ", "T"));
     }
     if (isNaN(date.getTime())) return String(dt);
@@ -94,7 +84,6 @@ const openResume = (resumeModel) => {
   }
 };
 
-// ── Sub-components ────────────────────────────────────────────────────────────
 function Pill({ status }) {
   const c = INTERVIEW_STATUS[status] || { label: status || "—", bg: "rgba(107,114,128,0.1)", color: "#6b7280" };
   return (
@@ -135,7 +124,6 @@ function FeedbackMsg({ msg }) {
   );
 }
 
-// ── Main Component ────────────────────────────────────────────────────────────
 function CompanyInterviews() {
   const [interviews,   setInterviews]   = useState([]);
   const [loading,      setLoading]      = useState(false);
@@ -165,7 +153,6 @@ function CompanyInterviews() {
 
   useEffect(() => { fetchInterviews(); }, []);
 
-  // ── Fetch ─────────────────────────────────────────────────────────────────
   const fetchInterviews = async () => {
     setLoading(true); setError("");
     try {
@@ -192,7 +179,6 @@ function CompanyInterviews() {
     } finally { setLoading(false); }
   };
 
-  // ── Helpers ───────────────────────────────────────────────────────────────
   const updateStatus = (interviewId, newStatus) => {
     setInterviews((prev) => prev.map((i) => i.interviewId === interviewId ? { ...i, status: newStatus } : i));
     setViewInv((v) => v?.interviewId === interviewId ? { ...v, status: newStatus } : v);
@@ -208,7 +194,6 @@ function CompanyInterviews() {
     setShowSelect(false);     setSelectMsg({ text: "", type: "" });
   };
 
-  // ── Actions ───────────────────────────────────────────────────────────────
   const handleReschedule = async () => {
     if (!rescheduleForm.interviewDateTime || !rescheduleForm.interviewMode) {
       setRescheduleMsg({ text: "Date/time and mode are required.", type: "error" }); return;
@@ -217,11 +202,10 @@ function CompanyInterviews() {
     try {
       const interviewId = viewInv.interviewId || viewInv.id;
       console.log("Rescheduling interviewId:", interviewId, "payload:", rescheduleForm);
-      // Correct endpoint: POST /api/job/re-schedule-interview/{interviewId}
       await axios.post(
         `${baseApi()}/re-schedule-interview/${interviewId}`,
         {
-          InterviewDateTime:     rescheduleForm.interviewDateTime, // backend field name is capital I
+          InterviewDateTime:     rescheduleForm.interviewDateTime, 
           interviewMode:         rescheduleForm.interviewMode,
           interviewInstructions: rescheduleForm.interviewInstructions || "",
           latitude:              rescheduleForm.latitude  || null,
@@ -272,7 +256,6 @@ function CompanyInterviews() {
     } finally { setSelecting(false); }
   };
 
-  // ── Derived data ──────────────────────────────────────────────────────────
   const filtered = interviews.filter((inv) => {
     const q      = search.toLowerCase();
     const matchQ = !q
@@ -298,7 +281,6 @@ function CompanyInterviews() {
     selected:     interviews.filter((i) => i.status === "Selected").length,
   };
 
-  // ─────────────────────────────────────────────────────────────────────────
   return (
     <div className="p-4" style={{ overflowY: "auto", height: "calc(100vh - 70px)" }}>
 
@@ -343,7 +325,6 @@ function CompanyInterviews() {
         </div>
       )}
 
-      {/* Selected students info banner */}
       {stats.selected > 0 && (
         <div style={{
           background: "rgba(22,163,74,0.07)", border: "1px solid rgba(22,163,74,0.25)",
@@ -358,7 +339,6 @@ function CompanyInterviews() {
         </div>
       )}
 
-      {/* Filters */}
       <div className="row space-between items-center mb-3" style={{ flexWrap: "wrap", gap: 10 }}>
         <div className="row g-2" style={{ flexWrap: "wrap" }}>
           <input type="text" className="form-control" style={{ width: 240 }}
@@ -378,7 +358,6 @@ function CompanyInterviews() {
         }}>Refresh</button>
       </div>
 
-      {/* Table */}
       {loading ? (
         <div className="card p-5 text-center">
           <p className="text-secondary mt-2">Loading interviews...</p>

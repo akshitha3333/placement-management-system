@@ -13,13 +13,13 @@ function AdminNav({ children }) {
         style={{ width: "250px", minHeight: "100vh", overflowY: "auto" }}
       >
 
-        {/* Logo */}
+       
         <div className="mb-5">
           <h3 className="bold">🎓 PlacementHub</h3>
           <p className="fs-p8 text-gray-300">Admin Portal</p>
         </div>
 
-        {/* OVERVIEW */}
+      
         <div className="p-1 br-md mb-2 hover-bg cursor-pointer"
           onClick={() => navigate("/admin-page/dashboard")}>
           📊 Dashboard
@@ -46,7 +46,6 @@ function AdminNav({ children }) {
           👨‍🏫 Departments
         </div>
 
-        {/* PLACEMENT */}
         <p className="fs-p8 text-gray-300 mb-2">PLACEMENT</p>
 
         <div className="p-1 hover-bg cursor-pointer"
@@ -54,25 +53,8 @@ function AdminNav({ children }) {
           🎯 Offers
         </div>
 
-        {/* <div className="p-1 hover-bg cursor-pointer"
-          onClick={() => navigate("/admin-page/meetings")}>
-          📹 Meetings
-        </div> */}
 
-        {/* SYSTEM
-        <p className="fs-p8 text-gray-300 mb-2">SYSTEM</p>
-
-        <div className="p-1 hover-bg cursor-pointer"
-          onClick={() => navigate("/reports")}>
-          📊 Reports
-        </div>
-
-        <div className="p-1 hover-bg cursor-pointer"
-          onClick={() => navigate("/notifications")}>
-          🔔 Notifications
-        </div> */}
-
-        {/* Sign Out */}
+     
         <div className="mt-6 p-1 hover-bg cursor-pointer text-gray-300"
          onClick={() => navigate("/")}>
           🚪 Logout
@@ -85,7 +67,7 @@ function AdminNav({ children }) {
         className="row space-between items-center p-2 box-shadow bg-white"
         style={{ position: "sticky", top: 0, zIndex: 10 }}
       >         
-      {/* Search */}
+     
           <div className="w-40">
             <input
               type="text"
@@ -94,10 +76,10 @@ function AdminNav({ children }) {
             />
           </div>
 
-          {/* Right Section */}
+         
           <div className="row items-center">
 
-            {/* Notification */}
+            
             <div className="me-3 position-relative cursor-pointer">
               🔔
               <span
@@ -116,7 +98,7 @@ function AdminNav({ children }) {
               </span>
             </div>
 
-            {/* Profile */}
+          
             <div className="row items-center cursor-pointer">
               <div
                 className="bg-primary text-white br-circle me-2"

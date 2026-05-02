@@ -29,7 +29,6 @@ const AdminStudents = () => {
     fetchStudents();
   }, []);
 
-  // Search filter (UI only — no logic change)
   const filtered = students.filter(
     (s) =>
       s.name?.toLowerCase().includes(search.toLowerCase()) ||
@@ -37,7 +36,6 @@ const AdminStudents = () => {
       s.departmentModel?.departmentName?.toLowerCase().includes(search.toLowerCase())
   );
 
-  // Stats
   const total   = students.length;
   const placed  = students.filter((s) => s.workingStatus === "Placed").length;
   const unplaced = total - placed;
@@ -45,7 +43,6 @@ const AdminStudents = () => {
   return (
     <div className="p-4" style={{ height: "calc(100vh - 70px)", overflowY: "auto" }}>
 
-      {/* ── Page Header ── */}
       <div className="row space-between items-center mb-4">
         <div>
           <h2 className="fs-5 bold mb-1">👨‍🎓 Student Management</h2>
@@ -53,7 +50,6 @@ const AdminStudents = () => {
         </div>
       </div>
 
-      {/* ── Stats Row ── */}
       <div className="row g-3 mb-4">
         {[
           { label: "Total Students", value: total,   icon: "👨‍🎓", color: "var(--primary)" },
@@ -72,7 +68,6 @@ const AdminStudents = () => {
         ))}
       </div>
 
-      {/* ── Search ── */}
       <div className="w-40 mb-3">
         <input
           type="text"
@@ -83,7 +78,6 @@ const AdminStudents = () => {
         />
       </div>
 
-      {/* ── Table ── */}
       <div className="card p-0" style={{ overflow: "hidden" }}>
         <table className="w-100">
           <thead>
@@ -113,13 +107,13 @@ const AdminStudents = () => {
                 return (
                   <tr key={student.id} className="hover-bg">
 
-                    {/* Index */}
+                   
                     <td className="fs-p9 text-secondary">{idx + 1}</td>
 
-                    {/* Name + Email */}
+                    
                     <td>
                       <div className="row items-center g-2">
-                        {/* Avatar */}
+                     
                         <div
                           className="bg-primary text-white br-circle bold"
                           style={{ width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.9rem", flexShrink: 0 }}
@@ -133,7 +127,7 @@ const AdminStudents = () => {
                       </div>
                     </td>
 
-                    {/* Department */}
+                  
                     <td>
                       <span className="fs-p9 br-md p-1"
                         style={{ background: "rgba(50,85,99,0.08)", color: "var(--primary)", padding: "3px 10px" }}>
@@ -141,7 +135,7 @@ const AdminStudents = () => {
                       </span>
                     </td>
 
-                    {/* CGPA */}
+                
                     <td>
                       <span className="bold fs-p9" style={{ color: student.percentage >= 8 ? "var(--success)" : student.percentage >= 6? "var(--warning)" : "var(--danger)" }}>
                         {student.percentage || "—"}
@@ -166,12 +160,10 @@ const AdminStudents = () => {
                         <span className="fs-p8 text-secondary">—</span>
                       )}
                     </td> */}
-                    {/* Roll No */}
                     <td>
                       <span className="fs-p9">{student.rollNumber || "—"}</span>
                     </td>
 
-                    {/* Placement Badge */}
                     <td>
                       <span className="status-item fs-p8 bold"
                         style={{
@@ -182,7 +174,6 @@ const AdminStudents = () => {
                       </span>
                     </td>
 
-                    {/* View Button */}
                     <td>
                       <button
                         className="btn btn-primary w-auto"
@@ -200,7 +191,6 @@ const AdminStudents = () => {
         </table>
       </div>
 
-      {/* ── Modal ── */}
       {selectedStudent && (
         <div className="modal-overlay" onClick={() => setSelectedStudent(null)}>
           <div
@@ -209,7 +199,6 @@ const AdminStudents = () => {
             onClick={(e) => e.stopPropagation()}
           >
 
-            {/* Modal Header */}
             <div className="row space-between items-center mb-4">
               <div className="row items-center g-3">
                 <div
@@ -226,7 +215,6 @@ const AdminStudents = () => {
               <span className="cursor-pointer fs-4 text-secondary" onClick={() => setSelectedStudent(null)}>✖</span>
             </div>
 
-            {/* Placement banner */}
             <div className="mb-4 p-2 br-md text-center"
               style={{
                 background: selectedStudent.workingStatus === "Placed" ? "rgba(22,163,74,0.08)" : "rgba(107,114,128,0.08)",
@@ -237,7 +225,6 @@ const AdminStudents = () => {
               </p>
             </div>
 
-            {/* Info Grid */}
             <div className="row g-3">
 
               {[
@@ -254,7 +241,6 @@ const AdminStudents = () => {
                 </div>
               ))}
 
-              {/* Skills full list */}
               {selectedStudent.skills && (
                 <div className="col-12">
                   <div className="card p-2">
@@ -273,7 +259,6 @@ const AdminStudents = () => {
 
             </div>
 
-            {/* Footer */}
             <div className="mt-4">
               <button
                 className="btn btn-muted"

@@ -72,18 +72,18 @@ function CompanyNav({ children }) {
           📅 Meetings
         </div>
 
-         {/* <div className="p-1 hover-bg cursor-pointer"
+         <div className="p-1 hover-bg cursor-pointer"
           onClick={() => navigate("/company-page/feedback")}>
           💬 Feedback
-        </div> */}
+        </div>
 
 
-        <p className="fs-p8 text-gray-300 mb-2">REPORTS</p>
+        {/* <p className="fs-p8 text-gray-300 mb-2">REPORTS</p> */}
 
-        <div className="p-1 hover-bg cursor-pointer"
+        {/* <div className="p-1 hover-bg cursor-pointer"
           onClick={() => navigate("/applications")}>
           📊 Analytics
-        </div>
+        </div> */}
 
 
         {/* SYSTEM */}

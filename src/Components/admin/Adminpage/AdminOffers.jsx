@@ -11,7 +11,6 @@ const getHeaders = () => ({
 });
 
 const baseJob = rest.jobApplications.replace("/job-applications", "");
-// baseJob = http://localhost:2026/api/job
 
 const STATUS_CFG = {
   Pending:  { label: "Awaiting Response", bg: "rgba(14,165,233,0.1)",  color: "#0ea5e9" },
@@ -20,7 +19,7 @@ const STATUS_CFG = {
 };
 
 function AdminOffers() {
-  const [rows,        setRows]        = useState([]); // flat list: { inv, offer, student, company, jobTitle }
+  const [rows,        setRows]        = useState([]); 
   const [loading,     setLoading]     = useState(true);
   const [error,       setError]       = useState("");
   const [filterStatus, setFilterStatus] = useState("ALL");
@@ -28,15 +27,12 @@ function AdminOffers() {
 
   useEffect(() => { fetchAll(); }, []);
 
-  // ── Main fetch chain ──────────────────────────────────────────────────────
-  // Admin sees everything so we use the same /job-applications endpoint
-  // which returns ALL applications when called with an ADMINISTRATOR token.
-  // Then we walk: applications → interviews (Selected/OFFER_SENT) → offer letters
+ 
   const fetchAll = async () => {
     setLoading(true);
     setError("");
     try {
-      // Step 1: all job applications — backend now returns ALL for ADMINISTRATOR role
+     
       console.log("STEP 1 fetching:", rest.jobApplications);
       const appsRes = await axios.get(rest.jobApplications, getHeaders());
       console.log("STEP 1 raw:", appsRes.data);
@@ -47,7 +43,7 @@ function AdminOffers() {
         console.warn("STEP 1 WARNING: 0 apps. Make sure JobService.java has ADMINISTRATOR case and backend is restarted.");
       }
 
-      // Step 2: for each app get interviews — keep Selected / OFFER_SENT
+      
       console.log("STEP 2 fetching interviews for", apps.length, "apps");
       const invArrays = await Promise.all(
         apps.map(async (app) => {
@@ -70,7 +66,7 @@ function AdminOffers() {
       const selectedInvs = invArrays.flat();
       console.log("STEP 2 selected interviews:", selectedInvs.length, selectedInvs);
 
-      // Step 3: fetch offer letter for each selected interview
+     
       const rowResults = await Promise.all(
         selectedInvs.map(async (inv) => {
           const interviewId = inv.interviewId || inv.id;
@@ -89,7 +85,7 @@ function AdminOffers() {
             }
           } catch { /* no offer yet */ }
 
-          // Extract student, company, job info from nested objects
+          
           const app        = inv._app || inv.jobApplicationModel || {};
           const suggest    = app.jobSuggestionModel || inv.jobApplicationModel?.jobSuggestionModel || {};
           const jobPost    = suggest.jobPostModel    || {};
@@ -132,7 +128,7 @@ function AdminOffers() {
     catch { return d; }
   };
 
-  // ── Derived ───────────────────────────────────────────────────────────────
+  
   const filtered = rows.filter((r) => {
     const matchStatus = filterStatus === "ALL"
       || (filterStatus === "NOT_SENT" && !r.offer.sent)
@@ -158,7 +154,7 @@ function AdminOffers() {
   return (
     <div className="p-4" style={{ height: "calc(100vh - 70px)", overflowY: "auto" }}>
 
-      {/* Header */}
+    
       <div className="row space-between items-center mb-4">
         <div>
           <h2 className="fs-5 bold mb-1">Offer Letters</h2>
@@ -175,7 +171,7 @@ function AdminOffers() {
         </button>
       </div>
 
-      {/* Stats */}
+     
       <div className="row mb-4" style={{ gap: 10, flexWrap: "wrap" }}>
         {[
           { label: "Total Selected", value: rows.length,    color: "var(--primary)" },
@@ -194,7 +190,7 @@ function AdminOffers() {
         ))}
       </div>
 
-      {/* Filters */}
+      
       <div className="row mb-3" style={{ gap: 10 }}>
         <div style={{ flex: 2 }}>
           <input
@@ -220,7 +216,7 @@ function AdminOffers() {
         </div>
       </div>
 
-      {/* Content */}
+     
       {loading ? (
         <div className="card p-5 text-center">
           <p className="text-secondary">Loading all offer letters...</p>
@@ -246,7 +242,7 @@ function AdminOffers() {
       ) : (
         <div className="card p-0" style={{ overflow: "hidden" }}>
 
-          {/* Table header */}
+         
           <div className="row items-center" style={{
             background: "var(--gray-100)", padding: "10px 16px",
             borderBottom: "1px solid var(--border-color)",
@@ -262,7 +258,7 @@ function AdminOffers() {
             <div style={{ flex: 2, textAlign: "center" }}>Status</div>
           </div>
 
-          {/* Rows */}
+          
           {filtered.map((r, idx) => {
             const statusCfg  = STATUS_CFG[r.offer.status] || null;
             const borderColor = r.offer.status === "Accepted" ? "#16a34a"
@@ -283,7 +279,7 @@ function AdminOffers() {
               >
                 <div style={{ width: 36 }} className="fs-p9 text-secondary">{idx + 1}</div>
 
-                {/* Student */}
+               
                 <div style={{ flex: 3, display: "flex", alignItems: "center", gap: 10 }}>
                   <div style={{
                     width: 36, height: 36, borderRadius: "50%", flexShrink: 0,
@@ -300,36 +296,36 @@ function AdminOffers() {
                   </div>
                 </div>
 
-                {/* Department */}
+               
                 <div style={{ flex: 2 }}>
                   <p className="fs-p9">{r.department}</p>
                 </div>
 
-                {/* Company */}
+              
                 <div style={{ flex: 2 }}>
                   <p className="bold fs-p9">{r.companyName}</p>
                   <p className="fs-p8 text-secondary">{r.industry}</p>
                 </div>
 
-                {/* Job Title */}
+               
                 <div style={{ flex: 2 }}>
                   <p className="fs-p9">{r.jobTitle}</p>
                 </div>
 
-                {/* Contact */}
+             
                 <div style={{ flex: 2 }}>
                   <p className="fs-p9">{r.studentEmail}</p>
                   <p className="fs-p8 text-secondary">{r.studentPhone}</p>
                 </div>
 
-                {/* Sent On */}
+              
                 <div style={{ flex: 2 }}>
                   <p className="fs-p9">
                     {r.offer.sent ? formatDate(r.offer.date) || "Sent" : "—"}
                   </p>
                 </div>
 
-                {/* Status */}
+            
                 <div style={{ flex: 2, textAlign: "center" }}>
                   {r.offer.sent && statusCfg ? (
                     <span style={{

@@ -88,7 +88,7 @@ function AdminDashboard() {
   return (
     <div className="p-4" style={{ overflowY: "auto", height: "calc(100vh - 70px)" }}>
 
-      {/* Header */}
+    
       <div className="mb-4">
         <h2 className="fs-5 bold mb-1">Admin Dashboard</h2>
         <p className="fs-p9 text-secondary">Placement system overview</p>
@@ -111,10 +111,9 @@ function AdminDashboard() {
         ))}
       </div>
 
-      {/* Middle row — dept table + industry bars */}
+     
       <div className="row mb-4" style={{ gap: 12 }}>
 
-        {/* Department breakdown */}
         <div style={{ flex: 1 }}>
           <div className="card p-4">
             <h4 className="bold mb-3">Students by Department</h4>

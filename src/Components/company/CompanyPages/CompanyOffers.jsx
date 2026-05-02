@@ -36,13 +36,11 @@ function CompanyOffers() {
   const fetchData = async () => {
     setLoading(true); setError("");
     try {
-      // Step 1: all applications
       const appsRes = await axios.get(rest.jobApplications, getHeaders());
       const apps    = Array.isArray(appsRes.data?.data) ? appsRes.data.data
                     : Array.isArray(appsRes.data)        ? appsRes.data : [];
       console.log("Applications:", apps.length, apps);
 
-      // Step 2: interviews per app — keep only Selected
       const invArrays = await Promise.all(
         apps.map(async (app) => {
           const appId = app.jobApplicationId || app.id;
@@ -61,7 +59,6 @@ function CompanyOffers() {
       console.log("Selected interviews:", selected.length, selected);
       setSelectedStudents(selected);
 
-      // Step 3: fetch offer letter status for each
       await fetchAllOfferStatuses(selected);
     } catch (err) {
       console.error("fetchData error:", err.response?.data || err.message);
@@ -147,7 +144,6 @@ function CompanyOffers() {
     } finally { setSending(false); }
   };
 
-  // ── Helpers ──────────────────────────────────────────────────────────────
   const getApp         = (inv) => inv?.jobApplicationModel || inv?._app || {};
   const getSuggest     = (inv) => getApp(inv)?.jobSuggestionModel || {};
   const getJobPost     = (inv) => getSuggest(inv)?.jobPostModel    || {};
@@ -182,13 +178,13 @@ function CompanyOffers() {
     catch { return d; }
   };
 
-  // Derived lists
+
   const sentCount     = Object.values(offerMap).filter((o) => o.sent).length;
   const acceptedCount = Object.values(offerMap).filter((o) => o.status === "Accepted").length;
   const pendingCount  = Object.values(offerMap).filter((o) => o.status === "Pending").length;
   const rejectedCount = Object.values(offerMap).filter((o) => o.status === "Rejected").length;
 
-  // Students who accepted the offer — used in "Accepted" tab
+  
   const acceptedStudents = selectedStudents.filter(
     (inv) => offerMap[inv.interviewId]?.status === "Accepted"
   );
@@ -267,9 +263,7 @@ function CompanyOffers() {
         </div>
 
       ) : activeTab === "all" ? (
-        /* ══════════════════════════════════════════════
-           TAB: ALL CANDIDATES — offers table
-        ══════════════════════════════════════════════ */
+       
         <div className="card p-0" style={{ overflow: "hidden" }}>
           {/* Table header */}
           <div className="row items-center" style={{
@@ -361,7 +355,6 @@ function CompanyOffers() {
                   )}
                 </div>
 
-                {/* Action */}
                 <div style={{ flex: 2, textAlign: "center" }}>
                   {allowSend ? (
                     <button
@@ -395,9 +388,7 @@ function CompanyOffers() {
         </div>
 
       ) : (
-        /* ══════════════════════════════════════════════
-           TAB: ACCEPTED — students who accepted offer
-        ══════════════════════════════════════════════ */
+        
         acceptedStudents.length === 0 ? (
           <div className="card p-5 text-center">
             <p className="bold mt-2">No acceptances yet</p>

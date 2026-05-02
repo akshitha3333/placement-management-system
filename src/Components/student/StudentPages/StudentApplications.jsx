@@ -4,7 +4,6 @@ import axios from "axios";
 import Cookies from "js-cookie";
 const rest = require("../../../Rest");
 
-// ── Status badge config ────────────────────────────────
 const STATUS_CONFIG = {
   APPLIED:             { label: "Applied",             color: "#325563", bg: "rgba(50,85,99,0.1)",   border: "rgba(50,85,99,0.3)",   icon: "📨" },
   CANCELLED:           { label: "Cancelled",           color: "#dc2626", bg: "rgba(220,38,38,0.1)",  border: "rgba(220,38,38,0.3)",  icon: "❌" },
@@ -28,7 +27,6 @@ function StatusBadge({ status }) {
   );
 }
 
-// ── Helper: open resume from base64 ───────────────────
 const openResume = (resumeModel) => {
   if (!resumeModel) return;
   const base64 = resumeModel.resume2;
@@ -54,7 +52,6 @@ const openResume = (resumeModel) => {
   }
 };
 
-// ── Main Component ─────────────────────────────────────
 function StudentApplications() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -90,7 +87,6 @@ function StudentApplications() {
     src?.jobSuggestionModel?.tutorModel?.name      ||
     null;
 
-  // ── Fetch resumes ──────────────────────────────────────
   const fetchResumes = async (signal) => {
     try {
       const res  = await axios.get(rest.studentResume, { ...jsonHeader(), signal });
@@ -102,7 +98,6 @@ function StudentApplications() {
     }
   };
 
-  // ── Fetch applications ─────────────────────────────────
   const fetchApplications = async (signal) => {
     try {
       setLoading(true);
@@ -121,12 +116,12 @@ function StudentApplications() {
         resumeModel:  app.resumeModel || null,
       }));
 
-      console.log("✅ Normalized apps:", normalized.length, normalized);
+      console.log("Normalized apps:", normalized.length, normalized);
       setApplications(normalized);
 
     } catch (err) {
       if (axios.isCancel(err) || err.code === "ERR_CANCELED") return;
-      console.error("❌ fetchApplications:", err.response?.status, err.response?.data);
+      console.error("fetchApplications:", err.response?.status, err.response?.data);
       setListError("Failed to load your applications. Please try again.");
     } finally {
       setLoading(false);
@@ -144,7 +139,6 @@ function StudentApplications() {
     return () => controller.abort();
   }, [applyMode]); // eslint-disable-line
 
-  // ── Submit application ─────────────────────────────────
   const handleSubmit = async () => {
     if (!selectedResume) {
       setSubmitError("⚠️ Please select a resume before submitting.");
@@ -174,7 +168,6 @@ function StudentApplications() {
     }
   };
 
-  // ── Filter ─────────────────────────────────────────────
   const filteredApps = applications.filter((app) => {
     const title   = jobTitle(app.jobPostModel).toLowerCase();
     const company = (app.jobPostModel?.companyModel?.companyName || "").toLowerCase();
@@ -183,15 +176,11 @@ function StudentApplications() {
     return matchQ && matchS;
   });
 
-  // ── Status counts ──────────────────────────────────────
   const statusCounts = Object.keys(STATUS_CONFIG).reduce((acc, key) => {
     acc[key] = applications.filter((a) => a.status === key).length;
     return acc;
   }, {});
 
-  // ══════════════════════════════════════════════════════
-  // APPLY MODE — success screen
-  // ══════════════════════════════════════════════════════
   if (applyMode && suggestion && submitSuccess) {
     const job = suggestion.jobPostModel || {};
     return (
@@ -231,9 +220,7 @@ function StudentApplications() {
     );
   }
 
-  // ══════════════════════════════════════════════════════
-  // APPLY MODE — form
-  // ══════════════════════════════════════════════════════
+  
   if (applyMode && suggestion) {
     const job = suggestion.jobPostModel || {};
     return (
@@ -435,9 +422,7 @@ function StudentApplications() {
     );
   }
 
-  // ══════════════════════════════════════════════════════
-  // LIST MODE
-  // ══════════════════════════════════════════════════════
+  
   return (
     <div className="p-4" style={{ height: "calc(100vh - 70px)", overflowY: "auto" }}>
 
