@@ -11,37 +11,54 @@ const getHeader = () => ({
   },
 });
 
+// Decode JWT payload to get the logged-in user's email (stored as "sub")
+const getEmailFromToken = () => {
+  try {
+    const token = Cookies.get("token") || "";
+    const payload = token.split(".")[1];
+    const decoded = JSON.parse(atob(payload.replace(/-/g, "+").replace(/_/g, "/")));
+    return (decoded.sub || decoded.email || "").toLowerCase();
+  } catch {
+    return "";
+  }
+};
+
 function CompanyDashboard() {
   const navigate = useNavigate();
-  const [jobs,        setJobs]        = useState([]);
-  const [apps,        setApps]        = useState([]);
-  const [company,     setCompany]     = useState(null);
-  const [loading,     setLoading]     = useState(true);
+  const [jobs,    setJobs]    = useState([]);
+  const [apps,    setApps]    = useState([]);
+  const [company, setCompany] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const loggedInEmail = getEmailFromToken();
+
     const init = async () => {
       try {
         const [jobRes, compRes, appRes] = await Promise.allSettled([
-          axios.get(rest.jobPost,        getHeader()),
-          axios.get(rest.companys,       getHeader()),
-          axios.get(rest.jobApplications,getHeader()),
+          axios.get(rest.jobPost,         getHeader()),
+          axios.get(rest.companys,        getHeader()),
+          axios.get(rest.jobApplications, getHeader()),
         ]);
 
         if (jobRes.status === "fulfilled") {
           const d = jobRes.value.data?.data || jobRes.value.data || [];
           setJobs(Array.isArray(d) ? d : []);
-          console.log("Company jobs:", d.length, d);
         }
+
         if (compRes.status === "fulfilled") {
           const d = compRes.value.data?.data || compRes.value.data || [];
-          const me = Array.isArray(d) ? d[0] : d;
+          const list = Array.isArray(d) ? d : [d];
+          // Match by logged-in email
+          const me = list.find(
+            (c) => (c.email || "").toLowerCase() === loggedInEmail
+          ) || list[0];
           setCompany(me);
-          console.log("Company profile:", me);
         }
+
         if (appRes.status === "fulfilled") {
           const d = appRes.value.data?.data || appRes.value.data || [];
           setApps(Array.isArray(d) ? d : []);
-          console.log("Applications:", d.length);
         }
       } catch (err) {
         console.error("CompanyDashboard error:", err);
@@ -52,16 +69,18 @@ function CompanyDashboard() {
     init();
   }, []);
 
-  const activeJobs   = jobs.filter((j) => !j.lastDateToApply || new Date(j.lastDateToApply) >= new Date());
-  const recentJobs   = jobs.slice(0, 5);
-  const isVerified   = (company?.status || "").toUpperCase() === "VERIFIED";
+  const activeJobs = jobs.filter(
+    (j) => !j.lastDateToApply || new Date(j.lastDateToApply) >= new Date()
+  );
+  const recentJobs = jobs.slice(0, 5);
+  const isVerified = (company?.status || "").toUpperCase() === "VERIFIED";
 
   const quickNav = [
-    { label: "Post New Job",       path: "/company-page/job-posts",    color: "var(--primary)" },
-    { label: "View Applications",  path: "/company-page/applications", color: "#0ea5e9"         },
-    { label: "Interviews",         path: "/company-page/interviews",   color: "var(--warning)"  },
-    { label: "Offer Letters",      path: "/company-page/offers",       color: "var(--success)"  },
-    { label: "Meetings",           path: "/company-page/meetings",     color: "var(--secondary)"},
+    { label: "Post New Job",      path: "/company-page/job-posts",    color: "var(--primary)"   },
+    { label: "View Applications", path: "/company-page/applications", color: "#0ea5e9"           },
+    { label: "Interviews",        path: "/company-page/interviews",   color: "var(--warning)"   },
+    { label: "Offer Letters",     path: "/company-page/offers",       color: "var(--success)"   },
+    { label: "Meetings",          path: "/company-page/meetings",     color: "var(--secondary)" },
   ];
 
   return (
@@ -80,7 +99,6 @@ function CompanyDashboard() {
             <p className="fs-p9" style={{ opacity: 0.8 }}>
               {company?.industryType || ""}{company?.location ? ` · ${company.location}` : ""}
             </p>
-            {/* Verification status */}
             <span style={{
               display: "inline-block", marginTop: 8,
               fontSize: "0.72rem", fontWeight: 600,
@@ -108,10 +126,10 @@ function CompanyDashboard() {
       {/* Stat cards */}
       <div className="row mb-4" style={{ gap: 12 }}>
         {[
-          { label: "Total Job Posts",  value: jobs.length,       sub: `${activeJobs.length} active`,  color: "var(--primary)", path: "/company-page/job-posts"    },
-          { label: "Applications",     value: apps.length,       sub: "received",                      color: "#0ea5e9",        path: "/company-page/applications"  },
-          { label: "Shortlisted",      value: "—",               sub: "view in Shortlisted",           color: "var(--warning)", path: "/company-page/shortlisted"   },
-          { label: "Offer Letters",    value: "—",               sub: "sent",                          color: "var(--success)", path: "/company-page/offers"        },
+          { label: "Total Job Posts", value: jobs.length,  sub: `${activeJobs.length} active`, color: "var(--primary)", path: "/company-page/job-posts"   },
+          { label: "Applications",    value: apps.length,  sub: "received",                     color: "#0ea5e9",        path: "/company-page/applications" },
+          { label: "Shortlisted",     value: "—",          sub: "view in Shortlisted",           color: "var(--warning)", path: "/company-page/shortlisted"  },
+          { label: "Offer Letters",   value: "—",          sub: "sent",                          color: "var(--success)", path: "/company-page/offers"       },
         ].map((s, i) => (
           <div key={i} style={{ flex: 1 }}>
             <div

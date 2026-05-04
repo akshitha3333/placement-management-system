@@ -49,7 +49,7 @@ function AdminNav({ children }) {
         <p className="fs-p8 text-gray-300 mb-2">PLACEMENT</p>
 
         <div className="p-1 hover-bg cursor-pointer"
-          onClick={() => navigate("/admin-page/offers")}>
+          onClick={() => navigate("/admin-page/placedstudents")}>
           🎯 Offers
         </div>
 

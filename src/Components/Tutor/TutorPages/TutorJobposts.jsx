@@ -3,28 +3,36 @@ import axios from "axios";
 import Cookies from "js-cookie";
 const rest = require("../../../Rest");
 
+const getEmailFromToken = () => {
+  try {
+    const token   = Cookies.get("token") || "";
+    const payload = token.split(".")[1];
+    const decoded = JSON.parse(atob(payload.replace(/-/g, "+").replace(/_/g, "/")));
+    return (decoded.sub || decoded.email || "").toLowerCase();
+  } catch { return ""; }
+};
+
 function Shimmer() {
   return (
-    <div className="card p-2 row items-center g-2 mb-2"
-      style={{ border: "1px solid var(--border-color)" }}>
-      <style>{`@keyframes shimmer{0%,100%{opacity:1}50%{opacity:.35}}`}</style>
-      <div style={{ width: 26, height: 26, borderRadius: "50%", background: "var(--gray-200)", animation: "shimmer 1.4s ease-in-out infinite" }} />
-      <div style={{ width: 32, height: 32, borderRadius: "50%", background: "var(--gray-200)", animation: "shimmer 1.4s ease-in-out infinite" }} />
+    <div style={{
+      display: "flex", alignItems: "center", gap: 10,
+      background: "var(--gray-100)", borderRadius: 8,
+      padding: "10px 12px", marginBottom: 8,
+      animation: "shimmer 1.4s ease-in-out infinite",
+    }}>
+      <style>{`@keyframes shimmer{0%,100%{opacity:1}50%{opacity:.4}}`}</style>
+      <div style={{ width: 28, height: 28, borderRadius: "50%", background: "var(--gray-300)", flexShrink: 0 }} />
       <div style={{ flex: 1 }}>
-        <div style={{ height: 10, borderRadius: 4, background: "var(--gray-200)", width: "50%", marginBottom: 6, animation: "shimmer 1.4s ease-in-out infinite" }} />
-        <div style={{ height: 8, borderRadius: 4, background: "var(--gray-200)", width: "70%", animation: "shimmer 1.4s ease-in-out infinite" }} />
+        <div style={{ height: 9, borderRadius: 4, background: "var(--gray-300)", width: "45%", marginBottom: 5 }} />
+        <div style={{ height: 7, borderRadius: 4, background: "var(--gray-300)", width: "65%" }} />
       </div>
-      <div style={{ width: 70 }}>
-        <div style={{ height: 10, borderRadius: 4, background: "var(--gray-200)", width: "60%", marginBottom: 6, marginLeft: "auto", animation: "shimmer 1.4s ease-in-out infinite" }} />
-        <div style={{ height: 5, borderRadius: 999, background: "var(--gray-200)", animation: "shimmer 1.4s ease-in-out infinite" }} />
-      </div>
-      <div style={{ width: 80, height: 28, borderRadius: 6, background: "var(--gray-200)", animation: "shimmer 1.4s ease-in-out infinite" }} />
+      <div style={{ width: 60, height: 9, borderRadius: 4, background: "var(--gray-300)" }} />
+      <div style={{ width: 72, height: 26, borderRadius: 6, background: "var(--gray-300)" }} />
     </div>
   );
 }
 
 function TutorJobPosts() {
-
   const [jobs,           setJobs]           = useState([]);
   const [students,       setStudents]       = useState([]);
   const [allApps,        setAllApps]        = useState([]);
@@ -33,8 +41,8 @@ function TutorJobPosts() {
   const [search,         setSearch]         = useState("");
   const [expandedId,     setExpandedId]     = useState(null);
   const [departmentName, setDepartmentName] = useState("");
-  // predictions[key] = { status: "loading"|"done"|"error", tech, soft, msg }
   const [predictions,    setPredictions]    = useState({});
+  const [descExpanded,   setDescExpanded]   = useState({});
   const runningRef = useRef(new Set());
 
   const header = {
@@ -57,9 +65,16 @@ function TutorJobPosts() {
 
   const fetchStudents = async () => {
     try {
+      const loggedInEmail = getEmailFromToken();
       const tutorRes  = await axios.get(rest.tutor, header);
       const tutorList = tutorRes.data?.data || tutorRes.data || [];
-      const tutor     = Array.isArray(tutorList) ? tutorList[0] : tutorList;
+      const allTutors = Array.isArray(tutorList) ? tutorList : [tutorList];
+      const tutor = allTutors.find(
+        (t) => (t.email || "").toLowerCase() === loggedInEmail
+      ) || allTutors[0];
+
+      console.log("Logged-in tutor email:", loggedInEmail);
+      console.log("Matched tutor:", tutor);
 
       const tutorDeptId   = tutor?.departmentModel?.departmentId || tutor?.departmentId;
       const tutorDeptName = tutor?.departmentModel?.departmentName || "";
@@ -70,11 +85,12 @@ function TutorJobPosts() {
       const studentRes  = await axios.get(rest.students, header);
       const allStudents = studentRes.data?.data || studentRes.data || [];
 
-      setStudents(
-        (Array.isArray(allStudents) ? allStudents : []).filter((s) =>
-          String(s?.departmentModel?.departmentId || s?.departmentId) === String(tutorDeptId)
-        )
+      const deptStudents = (Array.isArray(allStudents) ? allStudents : []).filter(
+        (s) => String(s?.departmentModel?.departmentId || s?.departmentId) === String(tutorDeptId)
       );
+
+      console.log(`Students loaded for dept ${tutorDeptName}:`, deptStudents.length, deptStudents);
+      setStudents(deptStudents);
     } catch (err) {
       console.error("fetchStudents error:", err);
       setError("Failed to load students.");
@@ -147,15 +163,12 @@ function TutorJobPosts() {
         }));
         return;
       }
-
       const fd = new FormData();
       fd.append("file", file);
       fd.append("job_description", job.description || job.title || job.tiitle || "");
-
       const res = await axios.post("http://localhost:8081/placement-prediction", fd, {
         headers: { Authorization: `Bearer ${Cookies.get("token")}` },
       });
-
       const { technical_skills: tech, soft_skills: soft } = res.data;
       setPredictions((prev) => ({
         ...prev,
@@ -182,7 +195,7 @@ function TutorJobPosts() {
         { studentId: student.studentId || student.id, jobPostId: Number(job.jobPostId) },
         header
       );
-      alert(`✅ ${student.name} recommended for "${job.title || job.tiitle}" successfully!`);
+      alert(`${student.name} recommended for "${job.title || job.tiitle}" successfully!`);
     } catch (err) {
       console.error("recommendStudent error:", err);
       alert("Failed to recommend student. Please try again.");
@@ -199,13 +212,9 @@ function TutorJobPosts() {
     (job.title || job.tiitle)?.toLowerCase().includes(search.toLowerCase())
   );
 
-  const matchColor = (m) =>
-    m >= 80 ? "var(--success)" : m >= 60 ? "var(--warning)" : "var(--danger)";
-
-  const rankColor = (i) =>
-    ["#f59e0b", "#9ca3af", "#b45309", "#e5e7eb", "#e5e7eb"][i] ?? "#e5e7eb";
-
-  const predKey   = (s, j) => `${s.studentId || s.id}_${j.jobPostId}`;
+  const matchColor = (m) => m >= 80 ? "var(--success)" : m >= 60 ? "var(--warning)" : "var(--danger)";
+  const rankColor  = (i) => ["#f59e0b", "#9ca3af", "#b45309"][i] ?? "var(--gray-300)";
+  const predKey    = (s, j) => `${s.studentId || s.id}_${j.jobPostId}`;
 
   const overallMatch = (pred) => {
     if (!pred || pred.status !== "done") return null;
@@ -224,10 +233,10 @@ function TutorJobPosts() {
   return (
     <div className="p-4" style={{ height: "calc(100vh - 70px)", overflowY: "auto" }}>
 
-      {/* Page Title */}
+      {/* Header */}
       <div className="row space-between items-center mb-4">
         <div>
-          <h2 className="fs-5 bold mb-1">💼 Job Posts</h2>
+          <h2 className="fs-5 bold mb-1">Job Posts</h2>
           <p className="fs-p9 text-secondary">
             {departmentName
               ? `Recommending students from: ${departmentName}`
@@ -236,22 +245,19 @@ function TutorJobPosts() {
         </div>
       </div>
 
-      {error && <div className="alert-danger mb-4">⚠️ {error}</div>}
+      {error && <div className="alert-danger mb-4">{error}</div>}
 
-      {/* Stats Row */}
+      {/* Stats */}
       <div className="row g-3 mb-4">
         {[
-          { label: "Total Jobs",     value: totalJobs,  icon: "💼", color: "var(--primary)" },
-          { label: "Open Positions", value: totalOpen,  icon: "🟢", color: "var(--success)" },
-          { label: "My Students",    value: myStudents, icon: "👨‍🎓", color: "var(--info)"    },
+          { label: "Total Jobs",     value: totalJobs,  color: "var(--primary)" },
+          { label: "Open Positions", value: totalOpen,  color: "var(--success)" },
+          { label: "My Students",    value: myStudents, color: "var(--info)"    },
         ].map((stat, i) => (
           <div className="col-4 p-2" key={i}>
-            <div className="card p-3 stat-card row items-center g-3">
-              <div className="fs-4">{stat.icon}</div>
-              <div>
-                <p className="fs-p8 text-secondary">{stat.label}</p>
-                <h3 className="bold" style={{ color: stat.color }}>{stat.value}</h3>
-              </div>
+            <div className="card p-3 stat-card text-center">
+              <h3 className="bold" style={{ color: stat.color }}>{stat.value}</h3>
+              <p className="fs-p8 text-secondary mt-1">{stat.label}</p>
             </div>
           </div>
         ))}
@@ -260,7 +266,7 @@ function TutorJobPosts() {
       {/* Search */}
       <div className="w-40 mb-3">
         <input type="text" className="form-control"
-          placeholder="🔍 Search by company or job title..."
+          placeholder="Search by company or job title..."
           value={search} onChange={(e) => setSearch(e.target.value)} />
       </div>
 
@@ -269,214 +275,294 @@ function TutorJobPosts() {
         <p className="text-secondary p-4">Loading job posts...</p>
       ) : filteredJobs.length === 0 ? (
         <div className="card p-5 text-center">
-          <p className="fs-4">📭</p>
           <p className="bold mt-2">No jobs found</p>
           <p className="fs-p9 text-secondary">Try a different search term</p>
         </div>
       ) : (
-        <div className="card p-0" style={{ overflow: "hidden" }}>
-
-          {/* Table Header */}
-          <div className="row items-center"
-            style={{ background: "var(--gray-100)", padding: "10px 16px", borderBottom: "1px solid var(--border-color)", fontSize: "0.75rem", fontWeight: 600, color: "var(--text-secondary)" }}>
-            <div className="col-3">Job Title</div>
-            <div className="col-2">Company</div>
-            <div className="col-2">Location</div>
-            <div className="col-1 text-center">Openings</div>
-            <div className="col-1 text-center">Eligibility</div>
-            <div className="col-2 text-center">Last Date</div>
-            <div className="col-1 text-center">Action</div>
-          </div>
-
-          {/* Job Rows */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {filteredJobs.map((job) => {
-            const isOpen      = expandedId === job.jobPostId;
-            const eligible    = isOpen ? getEligibleStudents(job) : [];
+            const isOpen   = expandedId === job.jobPostId;
+            const eligible = isOpen ? getEligibleStudents(job) : [];
+            const desc     = job.description || "";
+            const descKey  = job.jobPostId;
+            const isDescExpanded = descExpanded[descKey];
+            const descPreview = desc.length > 160 ? desc.slice(0, 160) + "…" : desc;
 
             return (
-              <div key={job.jobPostId}>
+              <div key={job.jobPostId} className="card p-0" style={{
+                overflow: "hidden",
+                borderLeft: isOpen ? "4px solid var(--primary)" : "4px solid transparent",
+                transition: "border-color 0.2s",
+              }}>
 
-                {/* Collapsed Row */}
-                <div className="row items-center"
-                  style={{ padding: "12px 16px", borderBottom: isOpen ? "none" : "1px solid var(--border-color)", background: isOpen ? "rgba(50,85,99,0.03)" : "#fff" }}>
-                  <div className="col-3 bold fs-p9">{job.title || job.tiitle || "—"}</div>
-                  <div className="col-2 fs-p9 text-secondary">{job.companyModel?.companyName || "—"}</div>
-                  <div className="col-2 fs-p9 text-secondary">📍 {job.companyModel?.location || "—"}</div>
-                  <div className="col-1 text-center fs-p9">👥 {job.requiredCandidate || "—"}</div>
-                  <div className="col-1 text-center fs-p9">
-                    {job.eligiblePercentage ? `${job.eligiblePercentage}%` : "—"}
+                {/* ── Collapsed Job Card ── */}
+                <div style={{
+                  padding: "14px 18px",
+                  display: "flex", alignItems: "center", gap: 14,
+                  background: isOpen ? "rgba(50,85,99,0.03)" : "#fff",
+                  cursor: "pointer",
+                }} onClick={() => setExpandedId(isOpen ? null : job.jobPostId)}>
+
+                  {/* Company initial */}
+                  <div style={{
+                    width: 40, height: 40, borderRadius: 10, flexShrink: 0,
+                    background: "var(--primary)", color: "#fff",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontWeight: 700, fontSize: "1rem",
+                  }}>
+                    {(job.companyModel?.companyName || "?").charAt(0).toUpperCase()}
                   </div>
-                  <div className="col-2 text-center fs-p8 text-secondary">{job.lastDateToApply || "—"}</div>
-                  <div className="col-1 text-center">
-                    <button
-                      className={`btn w-auto ${isOpen ? "btn-muted" : "btn-primary"}`}
-                      style={{ padding: "5px 12px", fontSize: "0.78rem" }}
-                      onClick={() => setExpandedId(isOpen ? null : job.jobPostId)}
-                    >
-                      {isOpen ? "✕ Close" : "👁 View"}
-                    </button>
+
+                  {/* Title + company */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p className="bold fs-p9" style={{ marginBottom: 2 }}>{job.title || job.tiitle || "—"}</p>
+                    <p className="fs-p8 text-secondary">
+                      {job.companyModel?.companyName || "—"}
+                      {job.companyModel?.location ? ` · ${job.companyModel.location}` : ""}
+                    </p>
+                  </div>
+
+                  {/* Meta pills */}
+                  <div className="row g-2 items-center" style={{ flexShrink: 0 }}>
+                    {job.requiredCandidate && (
+                      <span className="fs-p8" style={{
+                        background: "rgba(14,165,233,0.1)", color: "var(--info)",
+                        padding: "3px 10px", borderRadius: 20, fontWeight: 600,
+                      }}>
+                        {job.requiredCandidate} openings
+                      </span>
+                    )}
+                    {job.eligiblePercentage && (
+                      <span className="fs-p8" style={{
+                        background: "rgba(50,85,99,0.1)", color: "var(--primary)",
+                        padding: "3px 10px", borderRadius: 20, fontWeight: 600,
+                      }}>
+                        {job.eligiblePercentage}% eligible
+                      </span>
+                    )}
+                    {job.lastDateToApply && (
+                      <span className="fs-p8 text-secondary">
+                        Due: {job.lastDateToApply}
+                      </span>
+                    )}
+                    <span style={{
+                      padding: "5px 14px", borderRadius: 8, fontSize: "0.78rem", fontWeight: 600,
+                      background: isOpen ? "var(--primary)" : "var(--gray-200)",
+                      color: isOpen ? "#fff" : "var(--gray-600)",
+                    }}>
+                      {isOpen ? "Close" : "View"}
+                    </span>
                   </div>
                 </div>
 
-                {/* Expanded Panel */}
+                {/* ── Expanded Panel ── */}
                 {isOpen && (
-                  <div style={{ background: "rgba(50,85,99,0.02)", borderTop: "1px dashed var(--border-color)", borderBottom: "1px solid var(--border-color)", padding: "20px" }}>
-                    <div className="row g-5">
+                  <div style={{
+                    borderTop: "1px dashed var(--border-color)",
+                    display: "grid", gridTemplateColumns: "1fr 1px 1fr",
+                    gap: 0,
+                  }}>
 
-                      {/* LEFT — Job Details */}
-                      <div className="col-6">
-                        <h4 className="bold mb-1">{job.title || job.tiitle}</h4>
-                        <p className="fs-p9 text-secondary mb-3">
-                          🏢 {job.companyModel?.companyName} &nbsp;|&nbsp; 📍 {job.companyModel?.location}
-                        </p>
+                    {/* LEFT — Job Details */}
+                    <div style={{ padding: "20px 20px 20px 22px" }}>
+                      <p className="bold fs-p9 mb-3" style={{
+                        textTransform: "uppercase", letterSpacing: "0.06em",
+                        color: "var(--primary)", fontSize: "0.7rem",
+                      }}>
+                        Job Details
+                      </p>
 
-                        {job.description && (
-                          <div className="card p-3 mb-3" style={{ background: "var(--gray-100)" }}>
-                            <p className="fs-p8 bold mb-1">📄 Job Description</p>
-                            <p className="fs-p9" style={{ lineHeight: 1.7 }}>{job.description}</p>
+                      {/* Meta grid */}
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 16 }}>
+                        {[
+                          { label: "Openings",    value: job.requiredCandidate },
+                          { label: "Eligibility", value: job.eligiblePercentage ? `${job.eligiblePercentage}%` : null },
+                          { label: "Posted",      value: job.postedDate },
+                          { label: "Last Date",   value: job.lastDateToApply },
+                        ].filter((m) => m.value).map((m) => (
+                          <div key={m.label} style={{
+                            background: "var(--gray-100)", borderRadius: 8, padding: "8px 12px",
+                          }}>
+                            <p className="fs-p8 text-secondary">{m.label}</p>
+                            <p className="bold fs-p9 mt-1">{m.value}</p>
                           </div>
-                        )}
-
-                        <div className="row g-2 flex-wrap">
-                          {[
-                            { icon: "👥", label: "Openings",    value: job.requiredCandidate },
-                            { icon: "📊", label: "Eligibility", value: job.eligiblePercentage ? `${job.eligiblePercentage}%` : null },
-                            { icon: "📅", label: "Posted",      value: job.postedDate        },
-                            { icon: "⏰", label: "Last Date",   value: job.lastDateToApply   },
-                          ].filter((m) => m.value).map((m) => (
-                            <div key={m.label} className="card p-2" style={{ minWidth: 110, flex: 1 }}>
-                              <p className="fs-p8 text-secondary">{m.icon} {m.label}</p>
-                              <p className="bold fs-p8 mt-1">{m.value}</p>
-                            </div>
-                          ))}
-                        </div>
+                        ))}
                       </div>
 
-                      {/* Divider */}
-                      <div style={{ width: 1, background: "var(--border-color)" }} />
-
-                      {/* RIGHT — Recommended Students */}
-                      <div className="col-6">
-                        <div className="row space-between items-center mb-1">
-                          <h5 className="bold">🎯 Recommended Students</h5>
-                          <span className="status-item fs-p8 bold"
-                            style={{ background: "rgba(50,85,99,0.1)", color: "var(--primary)" }}>
-                            {departmentName} Dept
-                          </span>
+                      {/* Description — collapsible */}
+                      {desc && (
+                        <div style={{
+                          background: "var(--gray-100)", borderRadius: 8,
+                          padding: "12px 14px",
+                          border: "1px solid var(--border-color)",
+                        }}>
+                          <p className="bold fs-p8 mb-2" style={{ color: "var(--gray-700)" }}>
+                            Job Description
+                          </p>
+                          <p className="fs-p9" style={{ lineHeight: 1.75, color: "var(--gray-700)", wordBreak: "break-word" }}>
+                            {isDescExpanded ? desc : descPreview}
+                          </p>
+                          {desc.length > 160 && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setDescExpanded((p) => ({ ...p, [descKey]: !p[descKey] })); }}
+                              style={{
+                                marginTop: 8, background: "none", border: "none",
+                                color: "var(--primary)", cursor: "pointer",
+                                fontSize: "0.78rem", fontWeight: 600, padding: 0,
+                              }}
+                            >
+                              {isDescExpanded ? "Show less" : "Read more"}
+                            </button>
+                          )}
                         </div>
-                        <p className="fs-p8 text-secondary mb-3">
-                          Eligible students with AI skill match — auto-analyzed on open
-                        </p>
+                      )}
+                    </div>
 
-                        {eligible.length === 0 ? (
-                          <div className="card p-3 text-center">
-                            <p className="fs-p8 text-secondary">
-                              No eligible students in your department for this job.
-                            </p>
-                          </div>
-                        ) : (
-                          eligible.map((student, idx) => {
+                    {/* Divider */}
+                    <div style={{ background: "var(--border-color)" }} />
+
+                    {/* RIGHT — Students */}
+                    <div style={{ padding: "20px" }}>
+                      <div className="row space-between items-center mb-1">
+                        <p className="bold fs-p9" style={{
+                          textTransform: "uppercase", letterSpacing: "0.06em",
+                          color: "var(--primary)", fontSize: "0.7rem",
+                        }}>
+                          Eligible Students
+                        </p>
+                        <span style={{
+                          background: "rgba(50,85,99,0.1)", color: "var(--primary)",
+                          fontSize: "0.72rem", fontWeight: 700,
+                          padding: "2px 10px", borderRadius: 20,
+                        }}>
+                          {departmentName} · {eligible.length} students
+                        </span>
+                      </div>
+                      <p className="fs-p8 text-secondary mb-3">
+                        AI skill match auto-analyzed on open
+                      </p>
+
+                      {eligible.length === 0 ? (
+                        <div className="card p-4 text-center">
+                          <p className="fs-p9 text-secondary">No eligible students for this job.</p>
+                        </div>
+                      ) : (
+                        /* Scrollable student list */
+                        <div style={{
+                          maxHeight: 340, overflowY: "auto",
+                          display: "flex", flexDirection: "column", gap: 8,
+                          paddingRight: 4,
+                        }}>
+                          {eligible.map((student, idx) => {
                             const key   = predKey(student, job);
                             const pred  = predictions[key];
                             const match = overallMatch(pred);
 
-                            // show shimmer while loading
                             if (!pred || pred.status === "loading") return <Shimmer key={key} />;
 
                             return (
-                              <div key={student.studentId || student.id || idx}>
+                              <div key={student.studentId || student.id || idx} style={{
+                                background: "var(--gray-100)", borderRadius: 8,
+                                padding: "10px 12px",
+                                border: "1px solid var(--border-color)",
+                              }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
 
-                                {/* Student row — same UI as code 2 */}
-                                <div className="card p-2 row items-center g-2 mb-2">
-
-                                  {/* Rank badge */}
-                                  <div className="br-circle"
-                                    style={{ width: 26, height: 26, background: rankColor(idx), color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: "0.72rem", flexShrink: 0 }}>
-                                    {idx + 1}
-                                  </div>
+                                  {/* Rank */}
+                                  <div style={{
+                                    width: 22, height: 22, borderRadius: "50%",
+                                    background: rankColor(idx), color: "#fff",
+                                    display: "flex", alignItems: "center", justifyContent: "center",
+                                    fontWeight: 700, fontSize: "0.68rem", flexShrink: 0,
+                                  }}>{idx + 1}</div>
 
                                   {/* Avatar */}
-                                  <div className="bg-primary text-white br-circle bold"
-                                    style={{ width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.82rem", flexShrink: 0 }}>
+                                  <div className="bg-primary text-white br-circle bold" style={{
+                                    width: 30, height: 30,
+                                    display: "flex", alignItems: "center", justifyContent: "center",
+                                    fontSize: "0.8rem", flexShrink: 0,
+                                  }}>
                                     {student.name?.charAt(0) || "S"}
                                   </div>
 
-                                  {/* Name + info */}
+                                  {/* Name + dept */}
                                   <div style={{ flex: 1, minWidth: 0 }}>
-                                    <p className="bold fs-p9">{student.name}</p>
-                                    <p className="fs-p8 text-secondary">
-                                      {student.departmentModel?.departmentName || departmentName} • CGPA: {student.percentage || "—"}
+                                    <p className="bold fs-p9" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                      {student.name}
                                     </p>
-                                    {student.skills && (
-                                      <div className="row g-1 mt-1">
-                                        {student.skills.split(",").slice(0, 3).map((sk) => (
-                                          <span key={sk} className="fs-p7 br-md"
-                                            style={{ background: "var(--gray-200)", padding: "1px 8px", color: "var(--gray-700)" }}>
-                                            {sk.trim()}
-                                          </span>
-                                        ))}
-                                        {student.skills.split(",").length > 3 && (
-                                          <span className="fs-p7 text-secondary">
-                                            +{student.skills.split(",").length - 3}
-                                          </span>
-                                        )}
-                                      </div>
-                                    )}
+                                    <p className="fs-p8 text-secondary">
+                                      CGPA: {student.percentage || "—"}
+                                    </p>
                                   </div>
 
-                                  {/* Match % + bar (real AI score) */}
-                                  <div style={{ width: 70, textAlign: "right", flexShrink: 0 }}>
+                                  {/* Match score */}
+                                  <div style={{ textAlign: "right", flexShrink: 0, minWidth: 52 }}>
                                     {pred.status === "error" ? (
                                       <p className="fs-p8" style={{ color: "var(--danger)" }}>—</p>
                                     ) : (
                                       <>
-                                        <p className="bold fs-p9" style={{ color: matchColor(match) }}>
-                                          {match}%
-                                        </p>
-                                        <div style={{ height: 5, background: "var(--gray-200)", borderRadius: 999, marginTop: 4, overflow: "hidden" }}>
-                                          <div style={{ width: `${match}%`, height: "100%", background: matchColor(match), borderRadius: 999, transition: "width 0.8s ease" }} />
+                                        <p className="bold fs-p9" style={{ color: matchColor(match) }}>{match}%</p>
+                                        <div style={{
+                                          height: 4, background: "var(--gray-300)",
+                                          borderRadius: 999, marginTop: 3, overflow: "hidden", width: 52,
+                                        }}>
+                                          <div style={{
+                                            width: `${match}%`, height: "100%",
+                                            background: matchColor(match),
+                                            borderRadius: 999, transition: "width 0.8s ease",
+                                          }} />
                                         </div>
-                                        {/* tech / soft breakdown below bar */}
-                                        <p className="fs-p7 text-secondary" style={{ marginTop: 3 }}>
-                                          T:{pred.tech?.match_percentage ?? "—"}% S:{pred.soft?.match_percentage ?? "—"}%
+                                        <p className="fs-p7 text-secondary" style={{ marginTop: 2 }}>
+                                          T:{pred.tech?.match_percentage ?? "—"} S:{pred.soft?.match_percentage ?? "—"}
                                         </p>
                                       </>
                                     )}
                                   </div>
 
-                                  {/* Recommend button */}
+                                  {/* Recommend */}
                                   <button className="btn btn-primary w-auto"
-                                    style={{ padding: "5px 10px", fontSize: "0.76rem", flexShrink: 0 }}
+                                    style={{ padding: "5px 10px", fontSize: "0.74rem", flexShrink: 0 }}
                                     onClick={() => recommendStudent(student, job)}>
                                     Recommend
                                   </button>
                                 </div>
 
-                                {/* Error message if prediction failed */}
-                                {pred.status === "error" && (
-                                  <div className="br-md p-2 mb-2"
-                                    style={{ background: "rgba(239,68,68,0.07)", border: "1px solid rgba(239,68,68,0.2)", marginTop: -6 }}>
-                                    <p className="fs-p7" style={{ color: "var(--danger)" }}>⚠️ {pred.msg}</p>
+                                {/* Skills row */}
+                                {student.skills && (
+                                  <div className="row g-1 mt-2" style={{ flexWrap: "wrap", paddingLeft: 62 }}>
+                                    {student.skills.split(",").slice(0, 4).map((sk) => (
+                                      <span key={sk} style={{
+                                        background: "#fff", border: "1px solid var(--border-color)",
+                                        borderRadius: 20, padding: "1px 8px",
+                                        fontSize: "0.68rem", color: "var(--gray-600)",
+                                      }}>{sk.trim()}</span>
+                                    ))}
+                                    {student.skills.split(",").length > 4 && (
+                                      <span className="fs-p7 text-secondary">
+                                        +{student.skills.split(",").length - 4}
+                                      </span>
+                                    )}
                                   </div>
                                 )}
 
+                                {pred.status === "error" && (
+                                  <p className="fs-p8 mt-1" style={{ color: "var(--danger)", paddingLeft: 62 }}>
+                                    {pred.msg}
+                                  </p>
+                                )}
                               </div>
                             );
-                          })
-                        )}
-
-                       
-                      </div>
+                          })}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
-
               </div>
             );
           })}
         </div>
       )}
-
     </div>
   );
 }

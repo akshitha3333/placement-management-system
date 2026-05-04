@@ -5,7 +5,6 @@ const rest = require("../../../Rest");
 
 function TutorStudents() {
 
-  // ── State ──────────────────────────────────────────────
   const [students,         setStudents]         = useState([]);
   const [jobs,             setJobs]             = useState([]);
   const [loading,          setLoading]          = useState(true);
@@ -15,13 +14,10 @@ function TutorStudents() {
   const [selectedJob,      setSelectedJob]      = useState("");
   const [search,           setSearch]           = useState("");
   const [filterStatus,     setFilterStatus]     = useState("");
-
-  // ── Prediction State ───────────────────────────────────
   const [predicting,       setPredicting]       = useState(false);
   const [predictionResult, setPredictionResult] = useState(null);
   const [predictionError,  setPredictionError]  = useState("");
 
-  // ── Auth Header ────────────────────────────────────────
   const header = {
     headers: {
       "Content-Type": "application/json",
@@ -29,56 +25,36 @@ function TutorStudents() {
     },
   };
 
-  // ── Fetch: Tutor → students ────────────────────────────
   const fetchStudents = async () => {
     try {
-      setLoading(true);
-      setError("");
-
+      setLoading(true); setError("");
       const tutorRes  = await axios.get(rest.tutor, header);
       const tutorList = tutorRes.data?.data || tutorRes.data || [];
       const tutor     = Array.isArray(tutorList) ? tutorList[0] : tutorList;
-
       const tutorDeptId   = tutor?.departmentModel?.departmentId || tutor?.departmentId;
       const tutorDeptName = tutor?.departmentModel?.departmentName || "";
-
-      if (!tutorDeptId) {
-        setError("Tutor department not found. Please contact admin.");
-        return;
-      }
-
+      if (!tutorDeptId) { setError("Tutor department not found. Please contact admin."); return; }
       setDepartmentName(tutorDeptName);
-
       const studentRes  = await axios.get(rest.students, header);
       const allStudents = studentRes.data?.data || studentRes.data || [];
       console.log("Students loaded:", allStudents);
       setStudents(Array.isArray(allStudents) ? allStudents : []);
-
     } catch (err) {
       console.error("fetchStudents error:", err);
       setError("Failed to load students. Please try again.");
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   };
 
-  // ── Fetch: Jobs ────────────────────────────────────────
   const fetchJobs = async () => {
     try {
       const res  = await axios.get(rest.jobPost, header);
       const list = res.data?.data || res.data || [];
       setJobs(Array.isArray(list) ? list : []);
-    } catch (err) {
-      console.error("fetchJobs error:", err);
-    }
+    } catch (err) { console.error("fetchJobs error:", err); }
   };
 
-  useEffect(() => {
-    fetchStudents();
-    fetchJobs();
-  }, []);
+  useEffect(() => { fetchStudents(); fetchJobs(); }, []);
 
-  // ── Close modal helper (resets all modal state) ────────
   const closeModal = () => {
     setSelectedStudent(null);
     setSelectedJob("");
@@ -86,20 +62,13 @@ function TutorStudents() {
     setPredictionError("");
   };
 
-  // ── Assign student to job ──────────────────────────────
   const assignJob = async () => {
     if (!selectedStudent || !selectedJob) return;
     try {
       const studentId = selectedStudent.studentId || selectedStudent.id;
       const jobPostId = Number(selectedJob);
-
       console.log("Assigning job:", { studentId, jobPostId });
-
-      await axios.post(
-        rest.jobSuggestions,
-        { studentId, jobPostId },
-        header
-      );
+      await axios.post(rest.jobSuggestions, { studentId, jobPostId }, header);
       alert("Student assigned to job successfully!");
       closeModal();
     } catch (err) {
@@ -110,18 +79,12 @@ function TutorStudents() {
 
   const runPrediction = async () => {
     if (!selectedStudent || !selectedJobData) return;
-
-    setPredicting(true);
-    setPredictionResult(null);
-    setPredictionError("");
-
+    setPredicting(true); setPredictionResult(null); setPredictionError("");
     try {
       const studentId = selectedStudent.studentId || selectedStudent.id;
-
       const appsRes = await axios.get(rest.jobApplications, header);
       const apps    = appsRes.data?.data || appsRes.data || [];
       const appList = Array.isArray(apps) ? apps : [];
-
       const studentApp = appList.find((app) => {
         const appStudentId =
           app.resumeModel?.studentModel?.studentId ||
@@ -130,58 +93,38 @@ function TutorStudents() {
           app.jobSuggestionModel?.studentModel?.id;
         return String(appStudentId) === String(studentId) && app.resumeModel?.resume2;
       });
-
       if (!studentApp?.resumeModel?.resume2) {
         setPredictionError("No resume found. The student must apply for at least one job with a resume first.");
         return;
       }
-
       const resumeModel = studentApp.resumeModel;
-
-      const raw    = resumeModel.resume2.startsWith("data:")
-        ? resumeModel.resume2.split(",")[1]
-        : resumeModel.resume2;
+      const raw    = resumeModel.resume2.startsWith("data:") ? resumeModel.resume2.split(",")[1] : resumeModel.resume2;
       const binary = atob(raw);
       const bytes  = new Uint8Array(binary.length);
       for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
       const blob = new Blob([bytes], { type: "application/pdf" });
-      const file = new File(
-        [blob],
-        (resumeModel.resumeTitle || "resume") + ".pdf",
-        { type: "application/pdf" }
-      );
-
+      const file = new File([blob], (resumeModel.resumeTitle || "resume") + ".pdf", { type: "application/pdf" });
       const fd = new FormData();
       fd.append("file", file);
       fd.append("job_description", selectedJobData.description || selectedJobData.tiitle || "");
-
-      const res = await axios.post(
-        "http://localhost:8081/placement-prediction",
-        fd,
-        { headers: { Authorization: `Bearer ${Cookies.get("token")}` } }
-      );
-
+      const res = await axios.post("http://localhost:8081/placement-prediction", fd, {
+        headers: { Authorization: `Bearer ${Cookies.get("token")}` },
+      });
       setPredictionResult(res.data);
     } catch (err) {
       console.error("Prediction error:", err.response?.data || err.message);
-      if (err.code === "ERR_NETWORK" || err.message?.includes("Network")) {
+      if (err.code === "ERR_NETWORK" || err.message?.includes("Network"))
         setPredictionError("Cannot reach prediction API. Make sure Flask is running on port 8081.");
-      } else if (err.response?.status === 401) {
+      else if (err.response?.status === 401)
         setPredictionError("Unauthorized. Please log in again.");
-      } else {
+      else
         setPredictionError("Prediction failed: " + (err.response?.data?.error || err.message));
-      }
-    } finally {
-      setPredicting(false);
-    }
+    } finally { setPredicting(false); }
   };
 
   const filtered = students.filter((s) => {
     const term        = search.toLowerCase();
-    const matchSearch = !search
-      || s.name?.toLowerCase().includes(term)
-      || s.email?.toLowerCase().includes(term)
-      || s.rollNumber?.includes(search);
+    const matchSearch = !search || s.name?.toLowerCase().includes(term) || s.email?.toLowerCase().includes(term) || s.rollNumber?.includes(search);
     const matchStatus = !filterStatus || s.workingStatus === filterStatus;
     return matchSearch && matchStatus;
   });
@@ -192,54 +135,50 @@ function TutorStudents() {
 
   const selectedJobData = jobs.find((j) => String(j.jobPostId) === String(selectedJob));
 
+  // ── CGPA color helper ──
+  const cgpaColor = (p) => p >= 8 ? "var(--success)" : p >= 6 ? "var(--warning)" : "var(--danger)";
+
   return (
     <div className="p-4" style={{ height: "calc(100vh - 70px)", overflowY: "auto" }}>
 
+      {/* Header */}
       <div className="row space-between items-center mb-4">
         <div>
-          <h2 className="fs-5 bold mb-1">👨‍🎓 My Students</h2>
+          <h2 className="fs-5 bold mb-1">My Students</h2>
           <p className="fs-p9 text-secondary">
             {departmentName ? `Department: ${departmentName}` : "Loading..."}
           </p>
         </div>
       </div>
 
-      {error && <div className="alert-danger mb-4">⚠️ {error}</div>}
+      {error && <div className="alert-danger mb-4">{error}</div>}
 
+      {/* Stats */}
       <div className="row g-3 mb-4">
         {[
-          { label: "Total Students", value: total,    icon: "👨‍🎓", color: "var(--primary)"  },
-          { label: "Placed",         value: placed,   icon: "✅",   color: "var(--success)" },
-          { label: "Unplaced",       value: unplaced, icon: "⏳",   color: "var(--warning)" },
+          { label: "Total Students", value: total,    color: "var(--primary)"  },
+          { label: "Placed",         value: placed,   color: "var(--success)"  },
+          { label: "Unplaced",       value: unplaced, color: "var(--warning)"  },
         ].map((stat, i) => (
           <div className="col-4 p-2" key={i}>
-            <div className="card p-3 stat-card row items-center g-3">
-              <div className="fs-4">{stat.icon}</div>
-              <div>
-                <p className="fs-p8 text-secondary">{stat.label}</p>
-                <h3 className="bold" style={{ color: stat.color }}>{stat.value}</h3>
-              </div>
+            <div className="card p-3 stat-card text-center">
+              <h3 className="bold" style={{ color: stat.color }}>{stat.value}</h3>
+              <p className="fs-p8 text-secondary mt-1">{stat.label}</p>
             </div>
           </div>
         ))}
       </div>
 
-      <div className="row mb-3" style={{ gap: "12px" }}>
+      {/* Filters */}
+      <div className="row mb-4" style={{ gap: 12 }}>
         <div className="w-40">
-          <input
-            type="text"
-            className="form-control"
-            placeholder="🔍 Search by name, email, roll number..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+          <input type="text" className="form-control"
+            placeholder="Search by name, email, roll number..."
+            value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
-        <div className="col-3 p-0">
-          <select
-            className="form-control"
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-          >
+        <div style={{ width: 180 }}>
+          <select className="form-control" value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}>
             <option value="">All Status</option>
             <option value="Placed">Placed</option>
             <option value="Unplaced">Unplaced</option>
@@ -247,121 +186,97 @@ function TutorStudents() {
         </div>
       </div>
 
+      {/* Student Cards Grid */}
       {loading ? (
         <p className="text-secondary p-4">Loading students...</p>
+      ) : filtered.length === 0 ? (
+        <div className="card p-5 text-center">
+          <p className="bold mt-2">No students found</p>
+          <p className="fs-p9 text-secondary mt-1">
+            {students.length === 0 ? "No students in your department." : "Try a different search or filter."}
+          </p>
+        </div>
       ) : (
-        <div className="card p-0" style={{ overflow: "hidden" }}>
-          <table className="w-100">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Student</th>
-                <th>Department</th>
-                <th>CGPA</th>
-                <th>Roll No</th>
-                <th>Skills</th>
-                <th>Placement</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.length === 0 ? (
-                <tr>
-                  <td colSpan="8" className="text-center p-5">
-                    <p className="fs-4">📭</p>
-                    <p className="bold mt-1">No students found</p>
-                    <p className="fs-p8 text-secondary">
-                      {students.length === 0
-                        ? "No students in your department."
-                        : "Try a different search or filter."}
-                    </p>
-                  </td>
-                </tr>
-              ) : (
-                filtered.map((student, idx) => {
-                  const isPlaced = student.workingStatus === "Placed";
-                  return (
-                    <tr key={student.studentId || student.id || idx} className="hover-bg">
-                      <td className="fs-p9 text-secondary">{idx + 1}</td>
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
+          gap: 14,
+        }}>
+          {filtered.map((student, idx) => {
+            const isPlaced = student.workingStatus === "Placed";
+            const pct      = parseFloat(student.percentage) || 0;
+            return (
+              <div key={student.studentId || student.id || idx} className="card p-4"
+                style={{ borderTop: `3px solid ${isPlaced ? "var(--success)" : "var(--gray-300)"}` }}>
 
-                      <td>
-                        <div className="row items-center g-2">
-                          <div className="bg-primary text-white br-circle bold"
-                            style={{ width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.9rem", flexShrink: 0 }}>
-                            {student.name?.charAt(0) || "S"}
-                          </div>
-                          <div>
-                            <p className="bold fs-p9">{student.name}</p>
-                            <p className="fs-p8 text-secondary">{student.email}</p>
-                          </div>
-                        </div>
-                      </td>
+                {/* Top row — avatar + status */}
+                <div className="row space-between items-center mb-3">
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <div className="bg-primary text-white br-circle bold" style={{
+                      width: 38, height: 38,
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      fontSize: "0.9rem", flexShrink: 0,
+                    }}>
+                      {student.name?.charAt(0) || "S"}
+                    </div>
+                    <div>
+                      <p className="bold fs-p9">{student.name}</p>
+                      <p className="fs-p8 text-secondary" style={{ wordBreak: "break-all" }}>{student.email}</p>
+                    </div>
+                  </div>
+                  <span style={{
+                    fontSize: "0.68rem", fontWeight: 700,
+                    padding: "3px 10px", borderRadius: 20,
+                    background: isPlaced ? "rgba(22,163,74,0.1)" : "rgba(107,114,128,0.1)",
+                    color: isPlaced ? "var(--success)" : "var(--gray-500)",
+                    flexShrink: 0,
+                  }}>
+                    {isPlaced ? "Placed" : "Unplaced"}
+                  </span>
+                </div>
 
-                      <td>
-                        <span className="fs-p9 br-md"
-                          style={{ background: "rgba(50,85,99,0.08)", color: "var(--primary)", padding: "3px 10px" }}>
-                          {student.departmentModel?.departmentName || departmentName || "—"}
-                        </span>
-                      </td>
+                {/* Info row */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
+                  <div style={{ background: "var(--gray-100)", borderRadius: 6, padding: "6px 10px" }}>
+                    <p className="fs-p8 text-secondary">CGPA</p>
+                    <p className="bold fs-p9" style={{ color: cgpaColor(pct) }}>{student.percentage || "—"}</p>
+                  </div>
+                  <div style={{ background: "var(--gray-100)", borderRadius: 6, padding: "6px 10px" }}>
+                    <p className="fs-p8 text-secondary">Roll No</p>
+                    <p className="bold fs-p9">{student.rollNumber || "—"}</p>
+                  </div>
+                </div>
 
-                      <td>
-                        <span className="bold fs-p9" style={{
-                          color: student.percentage >= 8 ? "var(--success)"
-                               : student.percentage >= 6 ? "var(--warning)"
-                               : "var(--danger)"
-                        }}>
-                          {student.percentage || "—"}
-                        </span>
-                      </td>
+                {/* Skills */}
+                {student.skills ? (
+                  <div className="row g-1 mb-3" style={{ flexWrap: "wrap" }}>
+                    {student.skills.split(",").slice(0, 3).map((sk) => (
+                      <span key={sk} style={{
+                        background: "var(--gray-200)", color: "var(--gray-700)",
+                        borderRadius: 20, padding: "2px 8px", fontSize: "0.68rem",
+                      }}>{sk.trim()}</span>
+                    ))}
+                    {student.skills.split(",").length > 3 && (
+                      <span className="fs-p7 text-secondary">+{student.skills.split(",").length - 3} more</span>
+                    )}
+                  </div>
+                ) : (
+                  <p className="fs-p8 text-secondary mb-3">No skills listed</p>
+                )}
 
-                      <td><span className="fs-p9">{student.rollNumber || "—"}</span></td>
-
-                      <td>
-                        {student.skills ? (
-                          <div className="row g-1 flex-wrap">
-                            {student.skills.split(",").slice(0, 2).map((sk) => (
-                              <span key={sk} className="fs-p8 br-md"
-                                style={{ background: "var(--gray-200)", padding: "2px 8px", color: "var(--gray-700)" }}>
-                                {sk.trim()}
-                              </span>
-                            ))}
-                            {student.skills.split(",").length > 2 && (
-                              <span className="fs-p7 text-secondary">
-                                +{student.skills.split(",").length - 2}
-                              </span>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="fs-p8 text-secondary">—</span>
-                        )}
-                      </td>
-
-                      <td>
-                        <span className="status-item fs-p8 bold"
-                          style={{
-                            background: isPlaced ? "rgba(22,163,74,0.1)" : "rgba(107,114,128,0.1)",
-                            color:      isPlaced ? "var(--success)"       : "var(--gray-500)",
-                          }}>
-                          {isPlaced ? "Placed" : "Unplaced"}
-                        </span>
-                      </td>
-
-                      <td>
-                        <button className="btn btn-primary w-auto"
-                          style={{ padding: "5px 12px", fontSize: "0.78rem" }}
-                          onClick={() => { setSelectedStudent(student); setPredictionResult(null); setPredictionError(""); }}>
-                          💼 Assign Job
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
+                {/* Action */}
+                <button className="btn btn-primary w-100"
+                  style={{ padding: "8px", fontSize: "0.82rem", borderRadius: 8 }}
+                  onClick={() => { setSelectedStudent(student); setPredictionResult(null); setPredictionError(""); }}>
+                  Assign Job
+                </button>
+              </div>
+            );
+          })}
         </div>
       )}
 
+      {/* ── ASSIGN JOB MODAL ── */}
       {selectedStudent && (
         <div className="modal-overlay" onClick={closeModal}>
           <div className="card p-5"
@@ -371,8 +286,11 @@ function TutorStudents() {
             {/* Modal Header */}
             <div className="row space-between items-center mb-4">
               <div className="row items-center g-3">
-                <div className="bg-primary text-white br-circle bold"
-                  style={{ width: 48, height: 48, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.2rem", flexShrink: 0 }}>
+                <div className="bg-primary text-white br-circle bold" style={{
+                  width: 48, height: 48,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: "1.2rem", flexShrink: 0,
+                }}>
                   {selectedStudent.name?.charAt(0) || "S"}
                 </div>
                 <div>
@@ -380,7 +298,7 @@ function TutorStudents() {
                   <p className="fs-p8 text-secondary">{selectedStudent.email}</p>
                 </div>
               </div>
-              <span className="cursor-pointer fs-4 text-secondary" onClick={closeModal}>✖</span>
+              <span className="cursor-pointer fs-4 text-secondary" onClick={closeModal}>x</span>
             </div>
 
             {/* Student Info Grid */}
@@ -398,17 +316,16 @@ function TutorStudents() {
                   </div>
                 </div>
               ))}
-
               {selectedStudent.skills && (
                 <div className="col-12">
                   <div className="card p-2">
-                    <p className="fs-p8 text-secondary mb-2">🛠️ Skills</p>
-                    <div className="row g-1 flex-wrap">
+                    <p className="fs-p8 text-secondary mb-2">Skills</p>
+                    <div className="row g-1" style={{ flexWrap: "wrap" }}>
                       {selectedStudent.skills.split(",").map((sk) => (
-                        <span key={sk} className="fs-p8 br-md"
-                          style={{ background: "rgba(50,85,99,0.08)", color: "var(--primary)", padding: "3px 10px" }}>
-                          {sk.trim()}
-                        </span>
+                        <span key={sk} style={{
+                          background: "rgba(50,85,99,0.08)", color: "var(--primary)",
+                          borderRadius: 20, padding: "3px 10px", fontSize: "0.78rem",
+                        }}>{sk.trim()}</span>
                       ))}
                     </div>
                   </div>
@@ -418,7 +335,7 @@ function TutorStudents() {
 
             {/* Job Selector */}
             <div className="form-group mb-3">
-              <label className="form-control-label mb-1">💼 Select Job to Assign</label>
+              <label className="form-control-label mb-1">Select Job to Assign</label>
               <select className="form-control" value={selectedJob}
                 onChange={(e) => { setSelectedJob(e.target.value); setPredictionResult(null); setPredictionError(""); }}>
                 <option value="">Choose a job...</option>
@@ -432,73 +349,70 @@ function TutorStudents() {
 
             {/* Job Preview */}
             {selectedJobData && (
-              <div className="br-md mb-3 p-3"
-                style={{ background: "rgba(50,85,99,0.05)", border: "1px solid rgba(50,85,99,0.15)" }}>
+              <div className="mb-3 p-3" style={{
+                background: "rgba(50,85,99,0.04)", border: "1px solid rgba(50,85,99,0.15)",
+                borderRadius: 8,
+              }}>
                 <p className="bold fs-p9">{selectedJobData.companyModel?.companyName}</p>
                 <p className="fs-p8 text-secondary mb-2">{selectedJobData.title || selectedJobData.tiitle}</p>
                 {selectedJobData.description && (
-                  <p className="fs-p8 text-secondary mb-2" style={{ fontStyle: "italic" }}>
-                    {selectedJobData.description.slice(0, 120)}{selectedJobData.description.length > 120 ? "..." : ""}
+                  <p className="fs-p8 text-secondary mb-2" style={{ fontStyle: "italic", lineHeight: 1.6 }}>
+                    {selectedJobData.description.slice(0, 180)}{selectedJobData.description.length > 180 ? "…" : ""}
                   </p>
                 )}
-                <div className="row g-2">
+                <div className="row g-2" style={{ flexWrap: "wrap" }}>
                   {selectedJobData.eligiblePercentage && (
-                    <span className="fs-p8 br-md"
-                      style={{ background: "rgba(50,85,99,0.08)", color: "var(--primary)", padding: "3px 10px" }}>
-                      📊 Eligibility: {selectedJobData.eligiblePercentage}%
+                    <span style={{ background: "rgba(50,85,99,0.08)", color: "var(--primary)", borderRadius: 20, padding: "3px 10px", fontSize: "0.78rem" }}>
+                      Eligibility: {selectedJobData.eligiblePercentage}%
                     </span>
                   )}
                   {selectedJobData.lastDateToApply && (
-                    <span className="fs-p8 br-md"
-                      style={{ background: "rgba(239,68,68,0.08)", color: "var(--danger)", padding: "3px 10px" }}>
-                      📅 Deadline: {selectedJobData.lastDateToApply}
+                    <span style={{ background: "rgba(239,68,68,0.08)", color: "var(--danger)", borderRadius: 20, padding: "3px 10px", fontSize: "0.78rem" }}>
+                      Deadline: {selectedJobData.lastDateToApply}
                     </span>
                   )}
                   {selectedJobData.requiredCandidate && (
-                    <span className="fs-p8 br-md"
-                      style={{ background: "rgba(22,163,74,0.08)", color: "var(--success)", padding: "3px 10px" }}>
-                      👥 Openings: {selectedJobData.requiredCandidate}
+                    <span style={{ background: "rgba(22,163,74,0.08)", color: "var(--success)", borderRadius: 20, padding: "3px 10px", fontSize: "0.78rem" }}>
+                      Openings: {selectedJobData.requiredCandidate}
                     </span>
                   )}
                 </div>
               </div>
             )}
 
+            {/* Check Skill Match button */}
             {selectedJob && (
               <div className="mb-3">
                 <button
-                  className="btn w-100"
+                  onClick={runPrediction}
+                  disabled={predicting}
                   style={{
+                    width: "100%", padding: "10px", borderRadius: 8,
                     background: predicting ? "var(--gray-200)" : "rgba(50,85,99,0.1)",
                     color: "var(--primary)",
                     border: "1px solid rgba(50,85,99,0.3)",
-                    fontWeight: 600,
-                    fontSize: "0.85rem",
-                    padding: "10px",
-                    borderRadius: 8,
+                    fontWeight: 600, fontSize: "0.85rem",
                     cursor: predicting ? "not-allowed" : "pointer",
-                  }}
-                  onClick={runPrediction}
-                  disabled={predicting}
-                >
-                  {predicting ? "⏳ Analyzing resume..." : "🎯 Check Skill Match"}
+                  }}>
+                  {predicting ? "Analyzing resume..." : "Check Skill Match"}
                 </button>
               </div>
             )}
 
             {/* Prediction Error */}
             {predictionError && (
-              <div className="br-md p-3 mb-3"
-                style={{ background: "rgba(239,68,68,0.07)", border: "1px solid rgba(239,68,68,0.2)" }}>
-                <p className="fs-p9" style={{ color: "var(--danger)" }}>⚠️ {predictionError}</p>
+              <div className="alert-danger mb-3">
+                <p className="fs-p9 text-danger">{predictionError}</p>
               </div>
             )}
 
             {/* Prediction Result */}
             {predictionResult && (
-              <div className="br-md p-3 mb-3"
-                style={{ background: "rgba(50,85,99,0.04)", border: "1px solid rgba(50,85,99,0.15)" }}>
-                <p className="bold fs-p9 mb-3">📊 Skill Match Result</p>
+              <div className="mb-3 p-3" style={{
+                background: "rgba(50,85,99,0.04)", border: "1px solid rgba(50,85,99,0.15)",
+                borderRadius: 8,
+              }}>
+                <p className="bold fs-p9 mb-3">Skill Match Result</p>
 
                 {/* Technical Skills */}
                 <div className="mb-3">
@@ -507,50 +421,37 @@ function TutorStudents() {
                     {predictionResult.technical_skills?.match_percentage != null ? (
                       <span className="bold fs-p9" style={{
                         padding: "2px 12px", borderRadius: 12,
-                        background: predictionResult.technical_skills.match_percentage >= 70
-                          ? "rgba(22,163,74,0.12)" : predictionResult.technical_skills.match_percentage >= 40
-                          ? "rgba(234,179,8,0.12)" : "rgba(239,68,68,0.10)",
-                        color: predictionResult.technical_skills.match_percentage >= 70
-                          ? "var(--success)" : predictionResult.technical_skills.match_percentage >= 40
-                          ? "var(--warning)" : "var(--danger)",
+                        background: predictionResult.technical_skills.match_percentage >= 70 ? "rgba(22,163,74,0.12)"
+                          : predictionResult.technical_skills.match_percentage >= 40 ? "rgba(234,179,8,0.12)" : "rgba(239,68,68,0.10)",
+                        color: predictionResult.technical_skills.match_percentage >= 70 ? "var(--success)"
+                          : predictionResult.technical_skills.match_percentage >= 40 ? "var(--warning)" : "var(--danger)",
                       }}>
                         {predictionResult.technical_skills.match_percentage}%
                       </span>
-                    ) : (
-                      <span className="fs-p8 text-secondary">No skills in job description</span>
-                    )}
+                    ) : <span className="fs-p8 text-secondary">No skills in job description</span>}
                   </div>
-
                   {predictionResult.technical_skills?.matched?.length > 0 && (
                     <div className="mb-2">
-                      <p className="fs-p8 text-secondary mb-1">✅ Matched</p>
-                      <div className="row g-1 flex-wrap">
+                      <p className="fs-p8 text-secondary mb-1">Matched</p>
+                      <div className="row g-1" style={{ flexWrap: "wrap" }}>
                         {predictionResult.technical_skills.matched.map((sk) => (
-                          <span key={sk} className="fs-p8 br-md"
-                            style={{ background: "rgba(22,163,74,0.1)", color: "var(--success)", padding: "2px 10px" }}>
-                            {sk}
-                          </span>
+                          <span key={sk} style={{ background: "rgba(22,163,74,0.1)", color: "var(--success)", borderRadius: 20, padding: "2px 10px", fontSize: "0.78rem" }}>{sk}</span>
                         ))}
                       </div>
                     </div>
                   )}
-
                   {predictionResult.technical_skills?.missing?.length > 0 && (
                     <div>
-                      <p className="fs-p8 text-secondary mb-1">❌ Missing</p>
-                      <div className="row g-1 flex-wrap">
+                      <p className="fs-p8 text-secondary mb-1">Missing</p>
+                      <div className="row g-1" style={{ flexWrap: "wrap" }}>
                         {predictionResult.technical_skills.missing.map((sk) => (
-                          <span key={sk} className="fs-p8 br-md"
-                            style={{ background: "rgba(239,68,68,0.08)", color: "var(--danger)", padding: "2px 10px" }}>
-                            {sk}
-                          </span>
+                          <span key={sk} style={{ background: "rgba(239,68,68,0.08)", color: "var(--danger)", borderRadius: 20, padding: "2px 10px", fontSize: "0.78rem" }}>{sk}</span>
                         ))}
                       </div>
                     </div>
                   )}
                 </div>
 
-                {/* Divider */}
                 <div style={{ borderTop: "1px solid var(--border-color)", marginBottom: 12 }} />
 
                 {/* Soft Skills */}
@@ -560,43 +461,31 @@ function TutorStudents() {
                     {predictionResult.soft_skills?.match_percentage != null ? (
                       <span className="bold fs-p9" style={{
                         padding: "2px 12px", borderRadius: 12,
-                        background: predictionResult.soft_skills.match_percentage >= 70
-                          ? "rgba(22,163,74,0.12)" : predictionResult.soft_skills.match_percentage >= 40
-                          ? "rgba(234,179,8,0.12)" : "rgba(239,68,68,0.10)",
-                        color: predictionResult.soft_skills.match_percentage >= 70
-                          ? "var(--success)" : predictionResult.soft_skills.match_percentage >= 40
-                          ? "var(--warning)" : "var(--danger)",
+                        background: predictionResult.soft_skills.match_percentage >= 70 ? "rgba(22,163,74,0.12)"
+                          : predictionResult.soft_skills.match_percentage >= 40 ? "rgba(234,179,8,0.12)" : "rgba(239,68,68,0.10)",
+                        color: predictionResult.soft_skills.match_percentage >= 70 ? "var(--success)"
+                          : predictionResult.soft_skills.match_percentage >= 40 ? "var(--warning)" : "var(--danger)",
                       }}>
                         {predictionResult.soft_skills.match_percentage}%
                       </span>
-                    ) : (
-                      <span className="fs-p8 text-secondary">No skills in job description</span>
-                    )}
+                    ) : <span className="fs-p8 text-secondary">No skills in job description</span>}
                   </div>
-
                   {predictionResult.soft_skills?.matched?.length > 0 && (
                     <div className="mb-2">
-                      <p className="fs-p8 text-secondary mb-1">✅ Matched</p>
-                      <div className="row g-1 flex-wrap">
+                      <p className="fs-p8 text-secondary mb-1">Matched</p>
+                      <div className="row g-1" style={{ flexWrap: "wrap" }}>
                         {predictionResult.soft_skills.matched.map((sk) => (
-                          <span key={sk} className="fs-p8 br-md"
-                            style={{ background: "rgba(22,163,74,0.1)", color: "var(--success)", padding: "2px 10px" }}>
-                            {sk}
-                          </span>
+                          <span key={sk} style={{ background: "rgba(22,163,74,0.1)", color: "var(--success)", borderRadius: 20, padding: "2px 10px", fontSize: "0.78rem" }}>{sk}</span>
                         ))}
                       </div>
                     </div>
                   )}
-
                   {predictionResult.soft_skills?.missing?.length > 0 && (
                     <div>
-                      <p className="fs-p8 text-secondary mb-1">❌ Missing</p>
-                      <div className="row g-1 flex-wrap">
+                      <p className="fs-p8 text-secondary mb-1">Missing</p>
+                      <div className="row g-1" style={{ flexWrap: "wrap" }}>
                         {predictionResult.soft_skills.missing.map((sk) => (
-                          <span key={sk} className="fs-p8 br-md"
-                            style={{ background: "rgba(239,68,68,0.08)", color: "var(--danger)", padding: "2px 10px" }}>
-                            {sk}
-                          </span>
+                          <span key={sk} style={{ background: "rgba(239,68,68,0.08)", color: "var(--danger)", borderRadius: 20, padding: "2px 10px", fontSize: "0.78rem" }}>{sk}</span>
                         ))}
                       </div>
                     </div>
@@ -605,20 +494,17 @@ function TutorStudents() {
               </div>
             )}
 
-            {/* Modal Footer Buttons */}
+            {/* Footer Buttons */}
             <div className="row g-2">
               <button className="btn btn-primary" onClick={assignJob} disabled={!selectedJob}>
-                ✅ Assign Job
+                Assign Job
               </button>
-              <button className="btn btn-muted" onClick={closeModal}>
-                Cancel
-              </button>
+              <button className="btn btn-muted" onClick={closeModal}>Cancel</button>
             </div>
 
           </div>
         </div>
       )}
-
     </div>
   );
 }

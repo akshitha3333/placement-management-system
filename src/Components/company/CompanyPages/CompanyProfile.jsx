@@ -20,6 +20,18 @@ const getHeaders = () => ({
   },
 });
 
+// Decode JWT payload to get the logged-in user's email (stored as "sub")
+const getEmailFromToken = () => {
+  try {
+    const token = Cookies.get("token") || "";
+    const payload = token.split(".")[1];
+    const decoded = JSON.parse(atob(payload.replace(/-/g, "+").replace(/_/g, "/")));
+    return (decoded.sub || decoded.email || "").toLowerCase();
+  } catch {
+    return "";
+  }
+};
+
 function DisplayVal({ value }) {
   return (
     <div style={{
@@ -33,34 +45,32 @@ function DisplayVal({ value }) {
 }
 
 function CompanyProfile() {
-  const [profile,  setProfile]  = useState(null);
-  const [form,     setForm]     = useState({ companyName: "", website: "", about: "" });
-  const [loading,  setLoading]  = useState(true);
-  const [message,  setMessage]  = useState("");
-  const [msgType,  setMsgType]  = useState("");
-  const [showMap,  setShowMap]  = useState(false);
+  const [profile, setProfile] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState("");
+  const [msgType, setMsgType] = useState("");
+  const [showMap, setShowMap] = useState(false);
 
   useEffect(() => {
+    const loggedInEmail = getEmailFromToken();
+
     axios.get(rest.companys, getHeaders())
       .then((res) => {
         const list = res.data?.data || res.data || [];
-        const me   = Array.isArray(list) ? list[0] : list;
-        console.log("Company profile:", me);
+        const arr  = Array.isArray(list) ? list : [list];
+        // Match the company whose email matches the logged-in user
+        const me = arr.find(
+          (c) => (c.email || "").toLowerCase() === loggedInEmail
+        ) || arr[0];
         setProfile(me);
-        setForm({
-          companyName: me?.companyName || "",
-          website:     me?.website     || "",
-          about:       me?.about       || "",
-        });
       })
       .catch((err) => {
         console.error("fetch profile error:", err.response?.data || err.message);
-        setMessage("Failed to load profile."); setMsgType("error");
+        setMessage("Failed to load profile.");
+        setMsgType("error");
       })
       .finally(() => setLoading(false));
   }, []);
-
-  const handleChange = (e) => setForm((p) => ({ ...p, [e.target.name]: e.target.value }));
 
   const hasMap = profile?.latitude && profile?.longitude &&
     !isNaN(parseFloat(profile.latitude)) && !isNaN(parseFloat(profile.longitude));
@@ -80,7 +90,6 @@ function CompanyProfile() {
           <h2 className="fs-5 bold">Company Profile</h2>
           <p className="fs-p9 text-secondary">Manage your company information</p>
         </div>
-
       </div>
 
       {/* Message */}
@@ -123,20 +132,18 @@ function CompanyProfile() {
       {/* Content grid */}
       <div className="row" style={{ gap: 14, alignItems: "flex-start" }}>
 
-        {/* Left — editable fields */}
+        {/* Left — company details */}
         <div style={{ flex: 1 }}>
           <div className="card p-4 mb-3">
             <p className="fs-p8 bold text-secondary mb-3" style={{ textTransform: "uppercase", letterSpacing: "0.05em" }}>
               Company Details
             </p>
 
-            {/* Company Name */}
             <div className="form-group mb-3">
               <label className="form-control-label">Company Name</label>
               <DisplayVal value={profile?.companyName} />
             </div>
 
-            {/* Website */}
             <div className="form-group mb-3">
               <label className="form-control-label">Website</label>
               {profile?.website ? (
@@ -146,7 +153,6 @@ function CompanyProfile() {
               ) : <DisplayVal value="" />}
             </div>
 
-            {/* About */}
             <div className="form-group mb-0">
               <label className="form-control-label">About Company</label>
               <DisplayVal value={profile?.about} />
@@ -162,7 +168,7 @@ function CompanyProfile() {
             </p>
 
             {[
-              { label: "Registered Email", value: email },
+              { label: "Registered Email", value: email                    },
               { label: "Phone",            value: profile?.phone        || "—" },
               { label: "Industry",         value: profile?.industryType || "—" },
               { label: "Location",         value: profile?.location     || "—" },

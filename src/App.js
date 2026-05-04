@@ -14,7 +14,7 @@ import AdminStudents    from './Components/admin/Adminpage/AdminStudents';
 import AdminCompanies   from './Components/admin/Adminpage/AdminCompanies';
 import AdminTutors      from './Components/admin/Adminpage/AdminTutors';
 import AdminDepartments from './Components/admin/Adminpage/AdminDepartments';
-import AdminOffers      from './Components/admin/Adminpage/AdminOffers';
+import AdminOffers      from './Components/admin/Adminpage/Adminplacedstudents';
 
 // Company
 import CompanyLogin          from './Components/company/CompanyLogin';
@@ -56,6 +56,7 @@ import TutorFeedback        from './Components/Tutor/TutorPages/TutorFeedback';
 import TutorMeetings        from './Components/Tutor/TutorPages/TutorMeetings';
 import TutorPlacementReport from './Components/Tutor/TutorPages/TutorPlacementReport';
 import TutorSelectedStudents from './Components/Tutor/TutorPages/Tutorselectedstudents';
+import AdminPlacedStudents from './Components/admin/Adminpage/Adminplacedstudents';
 
 function App() {
   return (
@@ -75,7 +76,7 @@ function App() {
             <Route path="companies"  element={<AdminCompanies />} />
             <Route path="tutors"     element={<AdminTutors />} />
             <Route path="departments"element={<AdminDepartments />} />
-            <Route path="offers"     element={<AdminOffers />} />
+            <Route path="placedstudents"     element={<AdminPlacedStudents />} />
           </Route>
 
           <Route path="/company-login"    element={<CompanyLogin />} />

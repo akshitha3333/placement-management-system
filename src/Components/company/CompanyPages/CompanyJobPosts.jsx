@@ -23,22 +23,27 @@ const emptyForm = {
   postedDate:         "",
   lastDateToApply:    "",
   eligiblePercentage: "",
-  skillIds:           [], // array of selected skill IDs
+  skillIds:           [],
   poster:             null,
 };
 
 function CompanyJobPosts() {
-  const [posts,          setPosts]          = useState([]);
-  const [skills,         setSkills]         = useState([]); // all available skills from /classification/skills
-  const [showModal,      setShowModal]      = useState(false);
-  const [showDetail,     setShowDetail]     = useState(false);
-  const [selected,       setSelected]       = useState(null);
-  const [form,           setForm]           = useState(emptyForm);
-  const [posterPreview,  setPosterPreview]  = useState(null);
-  const [loading,        setLoading]        = useState(true);
-  const [submitting,     setSubmitting]     = useState(false);
-  const [message,        setMessage]        = useState("");
-  const [msgType,        setMsgType]        = useState("");
+  const [posts,         setPosts]         = useState([]);
+  const [skills,        setSkills]        = useState([]);
+  const [showModal,     setShowModal]     = useState(false);
+  const [showDetail,    setShowDetail]    = useState(false);
+  const [selected,      setSelected]      = useState(null);
+  const [form,          setForm]          = useState(emptyForm);
+  const [posterPreview, setPosterPreview] = useState(null);
+  const [loading,       setLoading]       = useState(true);
+  const [submitting,    setSubmitting]    = useState(false);
+  const [message,       setMessage]       = useState("");
+  const [msgType,       setMsgType]       = useState("");
+
+  const wordCount = (text) =>
+    text.trim() === "" ? 0 : text.trim().split(/\s+/).length;
+
+  const descWords = wordCount(form.description);
 
   const fetchPosts = async () => {
     setLoading(true);
@@ -46,7 +51,6 @@ function CompanyJobPosts() {
       const res  = await axios.get(rest.jobPost, getJsonHeaders());
       const list = Array.isArray(res.data?.data) ? res.data.data
                  : Array.isArray(res.data)        ? res.data : [];
-      console.log("Job posts fetched:", list.length, list);
       setPosts(list);
     } catch (err) {
       console.error("GET job posts error:", err.response?.data || err.message);
@@ -55,26 +59,30 @@ function CompanyJobPosts() {
     }
   };
 
-  // Fetch all skills for the dropdown
   const fetchSkills = async () => {
     try {
       const res  = await axios.get(rest.skills, getJsonHeaders());
       const list = Array.isArray(res.data?.data) ? res.data.data
                  : Array.isArray(res.data)        ? res.data : [];
-      console.log("Skills fetched:", list.length, list);
       setSkills(list);
     } catch (err) {
       console.error("GET skills error:", err.response?.data || err.message);
     }
   };
 
-  useEffect(() => {
-    fetchPosts();
-    fetchSkills();
-  }, []);
+  useEffect(() => { fetchPosts(); fetchSkills(); }, []);
 
   const handleChange = (e) =>
     setForm({ ...form, [e.target.name]: e.target.value });
+
+  // Description-specific onChange — blocks input beyond 500 words
+  const handleDescriptionChange = (e) => {
+    const text  = e.target.value;
+    const words = wordCount(text);
+    if (words <= 500) {
+      setForm((prev) => ({ ...prev, description: text }));
+    }
+  };
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
@@ -84,7 +92,6 @@ function CompanyJobPosts() {
     }
   };
 
-  // Toggle a skill in/out of the selected skillIds array
   const toggleSkill = (skillId) => {
     setForm((prev) => ({
       ...prev,
@@ -96,22 +103,10 @@ function CompanyJobPosts() {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-
-    if (!form.tiitle.trim()) {
-      setMessage("Job title is required.");
-      setMsgType("error");
-      return;
-    }
-    if (!form.poster) {
-      setMessage("Poster image is required.");
-      setMsgType("error");
-      return;
-    }
-    if (form.skillIds.length === 0) {
-      setMessage("Please select at least one skill.");
-      setMsgType("error");
-      return;
-    }
+    if (!form.tiitle.trim())       { setMessage("Job title is required.");              setMsgType("error"); return; }
+    if (!form.description.trim())  { setMessage("Job description is required.");        setMsgType("error"); return; }
+    if (!form.poster)              { setMessage("Poster image is required.");           setMsgType("error"); return; }
+    if (form.skillIds.length === 0){ setMessage("Please select at least one skill.");  setMsgType("error"); return; }
 
     setSubmitting(true);
     setMessage("");
@@ -126,8 +121,6 @@ function CompanyJobPosts() {
     form.skillIds.forEach((id) => formData.append("skillIds", id));
     formData.append("poster", form.poster);
 
-    console.log("Posting job — skillIds:", form.skillIds);
-
     axios.post(rest.jobPost, formData, getHeaders())
       .then((res) => {
         console.log("Job post response:", res.data);
@@ -136,7 +129,7 @@ function CompanyJobPosts() {
         setPosterPreview(null);
         setMessage("Job posted successfully!");
         setMsgType("success");
-        fetchPosts(); // refresh list — ensures company filter is applied
+        fetchPosts();
         setTimeout(() => setMessage(""), 3000);
       })
       .catch((err) => {
@@ -188,23 +181,17 @@ function CompanyJobPosts() {
         <button
           className="btn btn-primary"
           style={{ width: "auto", padding: "8px 18px", borderRadius: "10px" }}
-          onClick={() => {
-            setShowModal(true);
-            setMessage("");
-            setForm(emptyForm);
-            setPosterPreview(null);
-          }}
+          onClick={() => { setShowModal(true); setMessage(""); setForm(emptyForm); setPosterPreview(null); }}
         >
           + Post New Job
         </button>
       </div>
 
-      {/* Global message (outside modal) */}
+      {/* Global message */}
       {message && !showModal && (
         <div className={msgType === "success" ? "alert-success mb-3" : "alert-danger mb-3"}>
           <p className="fs-p9" style={{
-            color: msgType === "success" ? "var(--success)" : "var(--danger)",
-            fontWeight: "600",
+            color: msgType === "success" ? "var(--success)" : "var(--danger)", fontWeight: "600",
           }}>
             {message}
           </p>
@@ -227,36 +214,26 @@ function CompanyJobPosts() {
                 <h4 className="bold fs-p9" style={{ margin: 0 }}>{post.tiitle || "Untitled"}</h4>
                 <StatusBadge s={post.status} />
               </div>
-
               {post.companyModel && (
                 <p className="fs-p8 text-secondary mb-1">
                   {post.companyModel.companyName} • {post.companyModel.location || "—"}
                 </p>
               )}
-
               <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", margin: "8px 0" }}>
                 {post.requiredCandidate && (
-                  <span className="fs-p8" style={{
-                    background: "rgba(14,165,233,0.1)", color: "var(--info)",
-                    padding: "3px 10px", borderRadius: "12px",
-                  }}>
+                  <span className="fs-p8" style={{ background: "rgba(14,165,233,0.1)", color: "var(--info)", padding: "3px 10px", borderRadius: "12px" }}>
                     {post.requiredCandidate} openings
                   </span>
                 )}
                 {post.eligiblePercentage && (
-                  <span className="fs-p8" style={{
-                    background: "rgba(245,158,11,0.1)", color: "var(--warning)",
-                    padding: "3px 10px", borderRadius: "12px",
-                  }}>
+                  <span className="fs-p8" style={{ background: "rgba(245,158,11,0.1)", color: "var(--warning)", padding: "3px 10px", borderRadius: "12px" }}>
                     {post.eligiblePercentage}% eligible
                   </span>
                 )}
               </div>
-
               <p className="fs-p8 text-secondary">
                 Posted: {post.postedDate || "—"} | Deadline: {post.lastDateToApply || "—"}
               </p>
-
               {post.description && (
                 <p className="fs-p8 text-secondary mt-1" style={{
                   overflow: "hidden", display: "-webkit-box",
@@ -265,7 +242,6 @@ function CompanyJobPosts() {
                   {post.description}
                 </p>
               )}
-
               <div className="row mt-3" style={{ gap: "8px" }}>
                 <button
                   className="btn btn-sm btn-info"
@@ -299,12 +275,10 @@ function CompanyJobPosts() {
 
             <hr style={{ marginBottom: "16px", borderColor: "var(--border-color)" }} />
 
-            {/* Modal message */}
             {message && (
               <div className={msgType === "success" ? "alert-success mb-3" : "alert-danger mb-3"}>
                 <p className="fs-p9" style={{
-                  color: msgType === "success" ? "var(--success)" : "var(--danger)",
-                  fontWeight: "600",
+                  color: msgType === "success" ? "var(--success)" : "var(--danger)", fontWeight: "600",
                 }}>
                   {message}
                 </p>
@@ -316,39 +290,21 @@ function CompanyJobPosts() {
               {/* Job Title */}
               <div className="form-group mb-3">
                 <label className="form-control-label">Job Title *</label>
-                <input
-                  className="form-control"
-                  name="tiitle"
-                  value={form.tiitle}
-                  onChange={handleChange}
-                  placeholder="e.g. Software Engineer"
-                  required
-                />
+                <input className="form-control" name="tiitle" value={form.tiitle}
+                  onChange={handleChange} placeholder="e.g. Software Engineer" />
               </div>
 
               {/* Required Candidates + Eligible % */}
               <div className="row mb-3" style={{ gap: "10px" }}>
                 <div style={{ flex: 1 }}>
                   <label className="form-control-label">Required Candidates *</label>
-                  <input
-                    className="form-control"
-                    name="requiredCandidate"
-                    value={form.requiredCandidate}
-                    onChange={handleChange}
-                    placeholder="e.g. 10"
-                    required
-                  />
+                  <input className="form-control" name="requiredCandidate"
+                    value={form.requiredCandidate} onChange={handleChange} placeholder="e.g. 10" />
                 </div>
                 <div style={{ flex: 1 }}>
                   <label className="form-control-label">Eligible Percentage *</label>
-                  <input
-                    className="form-control"
-                    name="eligiblePercentage"
-                    value={form.eligiblePercentage}
-                    onChange={handleChange}
-                    placeholder="e.g. 75"
-                    required
-                  />
+                  <input className="form-control" name="eligiblePercentage"
+                    value={form.eligiblePercentage} onChange={handleChange} placeholder="e.g. 75" />
                 </div>
               </div>
 
@@ -356,43 +312,56 @@ function CompanyJobPosts() {
               <div className="row mb-3" style={{ gap: "10px" }}>
                 <div style={{ flex: 1 }}>
                   <label className="form-control-label">Posted Date *</label>
-                  <input
-                    type="date"
-                    className="form-control"
-                    name="postedDate"
-                    value={form.postedDate}
-                    onChange={handleChange}
-                    required
-                  />
+                  <input type="date" className="form-control" name="postedDate"
+                    value={form.postedDate} onChange={handleChange} />
                 </div>
                 <div style={{ flex: 1 }}>
                   <label className="form-control-label">Last Date to Apply *</label>
-                  <input
-                    type="date"
-                    className="form-control"
-                    name="lastDateToApply"
-                    value={form.lastDateToApply}
-                    onChange={handleChange}
-                    required
-                  />
+                  <input type="date" className="form-control" name="lastDateToApply"
+                    value={form.lastDateToApply} onChange={handleChange} />
                 </div>
               </div>
 
-              {/* Description */}
+              {/* Description with 500-word limit */}
               <div className="form-group mb-3">
-                <label className="form-control-label">Job Description *</label>
+                <div className="row space-between items-center mb-1">
+                  <label className="form-control-label" style={{ margin: 0 }}>Job Description *</label>
+                  <span style={{
+                    fontSize: "0.75rem", fontWeight: 700,
+                    color: descWords === 500 ? "var(--danger)" : descWords > 0 ? "var(--success)" : "var(--gray-500)",
+                  }}>
+                    {descWords} / 500 words
+                  </span>
+                </div>
                 <textarea
                   className="form-control"
-                  rows="3"
+                  rows={8}
                   name="description"
                   value={form.description}
-                  onChange={handleChange}
-                  placeholder="Describe the role and responsibilities..."
-                  required
+                  onChange={handleDescriptionChange}
+                  placeholder="Describe the role, responsibilities, qualifications... (0–500 words)"
+                  style={{
+                    resize: "vertical",
+                    minHeight: "160px",
+                    lineHeight: "1.6",
+                    fontSize: "0.88rem",
+                    border: descWords === 500
+                      ? "1.5px solid var(--danger)"
+                      : descWords > 0
+                      ? "1.5px solid var(--success)"
+                      : undefined,
+                  }}
                 />
+                <p className="fs-p8 mt-1" style={{
+                  color: descWords === 500 ? "var(--danger)" : "var(--gray-400)",
+                }}>
+                  {descWords === 500
+                    ? "✕ Word limit reached — maximum 500 words allowed"
+                    : `${500 - descWords} words remaining`}
+                </p>
               </div>
 
-              {/* ── Skills — dropdown, multi-select ── */}
+              {/* Skills */}
               <div className="form-group mb-3">
                 <label className="form-control-label">
                   Required Skills *
@@ -406,7 +375,6 @@ function CompanyJobPosts() {
                     </span>
                   )}
                 </label>
-
                 {skills.length === 0 ? (
                   <div className="alert-info">
                     <p className="fs-p9" style={{ color: "var(--info)" }}>
@@ -424,19 +392,18 @@ function CompanyJobPosts() {
                         if (!form.skillIds.includes(id)) {
                           setForm((prev) => ({ ...prev, skillIds: [...prev.skillIds, id] }));
                         }
-                        e.target.value = ""; 
+                        e.target.value = "";
                       }}
                     >
                       <option value="">-- Select a skill to add --</option>
                       {skills
-                        .filter((sk) => !form.skillIds.includes(sk.skillId)) // hide already selected
+                        .filter((sk) => !form.skillIds.includes(sk.skillId))
                         .map((sk) => (
                           <option key={sk.skillId} value={sk.skillId}>
                             {sk.skill || sk.skillName || sk.name}
                           </option>
                         ))}
                     </select>
-
                     {form.skillIds.length > 0 && (
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
                         {form.skillIds.map((id) => (
@@ -447,10 +414,10 @@ function CompanyJobPosts() {
                             display: "inline-flex", alignItems: "center", gap: 6,
                           }}>
                             {getSkillName(id)}
-                            <span
-                              onClick={() => toggleSkill(id)}
-                              style={{ cursor: "pointer", fontWeight: 700, fontSize: "0.9rem", lineHeight: 1 }}
-                            >×</span>
+                            <span onClick={() => toggleSkill(id)}
+                              style={{ cursor: "pointer", fontWeight: 700, fontSize: "0.9rem", lineHeight: 1 }}>
+                              ×
+                            </span>
                           </span>
                         ))}
                       </div>
@@ -483,36 +450,22 @@ function CompanyJobPosts() {
                       <p className="fs-p8 text-secondary">PNG, JPG, JPEG supported</p>
                     </>
                   )}
-                  <input
-                    id="posterInput"
-                    type="file"
-                    accept="image/*"
-                    style={{ display: "none" }}
-                    onChange={handleFileChange}
-                  />
+                  <input id="posterInput" type="file" accept="image/*"
+                    style={{ display: "none" }} onChange={handleFileChange} />
                 </div>
               </div>
 
               {/* Buttons */}
               <div className="row" style={{ gap: "10px" }}>
-                <button
-                  type="submit"
-                  className="btn btn-primary"
-                  style={{ borderRadius: "10px", flex: 1 }}
-                  disabled={submitting}
-                >
+                <button type="submit" className="btn btn-primary"
+                  style={{ borderRadius: "10px", flex: 1 }} disabled={submitting}>
                   {submitting ? "Posting..." : "Post Job"}
                 </button>
-                <button
-                  type="button"
-                  className="btn btn-muted"
-                  style={{ borderRadius: "10px", flex: 1 }}
-                  onClick={() => setShowModal(false)}
-                >
+                <button type="button" className="btn btn-muted"
+                  style={{ borderRadius: "10px", flex: 1 }} onClick={() => setShowModal(false)}>
                   Cancel
                 </button>
               </div>
-
             </form>
           </div>
         </div>
@@ -531,38 +484,34 @@ function CompanyJobPosts() {
                 <p className="bold fs-4" style={{ margin: 0 }}>{selected.tiitle}</p>
                 <StatusBadge s={selected.status} />
               </div>
-              <button
-                className="btn btn-sm btn-muted"
+              <button className="btn btn-sm btn-muted"
                 style={{ width: "auto", padding: "4px 10px", borderRadius: "8px" }}
-                onClick={() => setShowDetail(false)}
-              >x</button>
+                onClick={() => setShowDetail(false)}>x</button>
             </div>
-
             <hr style={{ marginBottom: "12px", borderColor: "var(--border-color)" }} />
-
             <p className="fs-p8 text-secondary bold mb-2" style={{ textTransform: "uppercase", letterSpacing: "0.05em" }}>
               Job Details
             </p>
             <table className="w-100">
               <tbody>
-                <Row label="Job Post ID"          value={`JP${String(selected.jobPostId).padStart(3, "0")}`} />
-                <Row label="Required Candidates"  value={selected.requiredCandidate} />
-                <Row label="Eligible %"           value={selected.eligiblePercentage ? `${selected.eligiblePercentage}%` : "—"} />
-                <Row label="Posted Date"          value={selected.postedDate} />
-                <Row label="Last Date to Apply"   value={selected.lastDateToApply} />
+                <Row label="Job Post ID"         value={`JP${String(selected.jobPostId).padStart(3, "0")}`} />
+                <Row label="Required Candidates" value={selected.requiredCandidate} />
+                <Row label="Eligible %"          value={selected.eligiblePercentage ? `${selected.eligiblePercentage}%` : "—"} />
+                <Row label="Posted Date"         value={selected.postedDate} />
+                <Row label="Last Date to Apply"  value={selected.lastDateToApply} />
               </tbody>
             </table>
-
             {selected.description && (
               <>
                 <hr style={{ margin: "12px 0", borderColor: "var(--border-color)" }} />
                 <p className="fs-p8 text-secondary bold mb-1" style={{ textTransform: "uppercase", letterSpacing: "0.05em" }}>
                   Description
                 </p>
-                <p className="fs-p9">{selected.description}</p>
+                <p className="fs-p9" style={{ lineHeight: "1.7", whiteSpace: "pre-wrap" }}>
+                  {selected.description}
+                </p>
               </>
             )}
-
             {selected.companyModel && (
               <>
                 <hr style={{ margin: "12px 0", borderColor: "var(--border-color)" }} />
@@ -583,7 +532,6 @@ function CompanyJobPosts() {
           </div>
         </div>
       )}
-
     </div>
   );
 }
