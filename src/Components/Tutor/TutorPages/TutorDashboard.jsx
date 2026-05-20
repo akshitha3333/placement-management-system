@@ -11,6 +11,16 @@ const getHeader = () => ({
   },
 });
 
+// Decode JWT to get logged-in user's email — same helper used in TutorStudents
+const getEmailFromToken = () => {
+  try {
+    const token   = Cookies.get("token") || "";
+    const payload = token.split(".")[1];
+    const decoded = JSON.parse(atob(payload.replace(/-/g, "+").replace(/_/g, "/")));
+    return (decoded.sub || decoded.email || "").toLowerCase();
+  } catch { return ""; }
+};
+
 function TutorDashboard() {
   const navigate = useNavigate();
   const [tutor,       setTutor]       = useState(null);
@@ -22,6 +32,8 @@ function TutorDashboard() {
   useEffect(() => {
     const init = async () => {
       try {
+        const loggedInEmail = getEmailFromToken();
+
         const [tutorRes, stuRes, jobRes, sugRes] = await Promise.allSettled([
           axios.get(rest.tutor,          getHeader()),
           axios.get(rest.students,       getHeader()),
@@ -30,25 +42,28 @@ function TutorDashboard() {
         ]);
 
         if (tutorRes.status === "fulfilled") {
-          const d = tutorRes.value.data?.data || tutorRes.value.data || [];
-          const me = Array.isArray(d) ? d[0] : d;
+          const d       = tutorRes.value.data?.data || tutorRes.value.data || [];
+          const list    = Array.isArray(d) ? d : [d];
+          // ── Find the tutor whose email matches the logged-in user (same as TutorStudents)
+          const me = list.find((t) => (t.email || "").toLowerCase() === loggedInEmail)
+                     || list[0];
           setTutor(me);
           console.log("Tutor profile:", me);
         }
+
         if (stuRes.status === "fulfilled") {
           const d = stuRes.value.data?.data || stuRes.value.data || [];
           setStudents(Array.isArray(d) ? d : []);
-          console.log("Students:", d.length);
         }
+
         if (jobRes.status === "fulfilled") {
           const d = jobRes.value.data?.data || jobRes.value.data || [];
           setJobs(Array.isArray(d) ? d : []);
-          console.log("Jobs:", d.length);
         }
+
         if (sugRes.status === "fulfilled") {
           const d = sugRes.value.data?.data || sugRes.value.data || [];
           setSuggestions(Array.isArray(d) ? d : []);
-          console.log("Suggestions:", d.length);
         }
       } catch (err) {
         console.error("TutorDashboard error:", err);
@@ -59,14 +74,13 @@ function TutorDashboard() {
     init();
   }, []);
 
-  // Tutor info — backend field is "tutorName" not "name"
-  const tutorName  = tutor?.tutorName  || tutor?.name || "Tutor";
-  const tutorDept  = tutor?.departmentModel?.departmentName || "—";
-  const tutorDeptId = tutor?.departmentModel?.departmentId  || tutor?.departmentId;
+  const tutorName   = tutor?.tutorName || tutor?.name || "Tutor";
+  const tutorDept   = tutor?.departmentModel?.departmentName || "—";
+  const tutorDeptId = tutor?.departmentModel?.departmentId   || tutor?.departmentId;
 
-  // Filter students in tutor's department
+  // Only show students from the logged-in tutor's department
   const myStudents = students.filter((s) => {
-    if (!tutorDeptId) return true;
+    if (!tutorDeptId) return false;
     const stuDeptId = s?.departmentModel?.departmentId || s?.departmentId;
     return String(stuDeptId) === String(tutorDeptId);
   });
@@ -112,10 +126,10 @@ function TutorDashboard() {
       {/* Stat cards */}
       <div className="row mb-4" style={{ gap: 12 }}>
         {[
-          { label: "My Students",      value: myStudents.length,  sub: `in ${tutorDept}`,          color: "var(--primary)", path: "/tutor-page/students"          },
-          { label: "Active Jobs",      value: activeJobs.length,  sub: `${jobs.length} total`,     color: "#0ea5e9",        path: "/tutor-page/job-posts"          },
-          { label: "Suggestions Made", value: assignedCount,      sub: "jobs recommended",         color: "var(--success)", path: "/tutor-page/students"           },
-          { label: "Meetings",         value: "View",             sub: "scheduled meetings",       color: "var(--warning)", path: "/tutor-page/meetings"           },
+          { label: "My Students",      value: myStudents.length, sub: `in ${tutorDept}`,      color: "var(--primary)", path: "/tutor-page/students"  },
+          { label: "Active Jobs",      value: activeJobs.length, sub: `${jobs.length} total`, color: "#0ea5e9",        path: "/tutor-page/job-posts" },
+          { label: "Suggestions Made", value: assignedCount,     sub: "jobs recommended",     color: "var(--success)", path: "/tutor-page/students"  },
+          { label: "Meetings",         value: "View",            sub: "scheduled meetings",   color: "var(--warning)", path: "/tutor-page/meetings"  },
         ].map((s, i) => (
           <div key={i} style={{ flex: 1 }}>
             <div
@@ -193,7 +207,7 @@ function TutorDashboard() {
           </div>
         </div>
 
-        {/* Right column — Jobs + Progress */}
+        {/* Right column */}
         <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 12 }}>
 
           {/* Recent Job Posts */}
@@ -224,9 +238,7 @@ function TutorDashboard() {
                     <div className="row space-between items-center">
                       <div>
                         <p className="bold fs-p9">{job.tiitle || job.title || "—"}</p>
-                        <p className="fs-p8 text-secondary">
-                          {job.companyModel?.companyName || "—"}
-                        </p>
+                        <p className="fs-p8 text-secondary">{job.companyModel?.companyName || "—"}</p>
                       </div>
                       <span style={{
                         fontSize: "0.72rem", fontWeight: 600, padding: "2px 8px", borderRadius: 10,
@@ -242,7 +254,7 @@ function TutorDashboard() {
             )}
           </div>
 
-          {/* Assignment rate card */}
+          {/* Assignment rate */}
           <div className="card p-4" style={{ background: "var(--gray-100)", border: "none" }}>
             <h4 className="bold mb-3">Assignment Rate</h4>
             <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
@@ -259,12 +271,11 @@ function TutorDashboard() {
               }} />
             </div>
 
-            {/* Quick nav */}
             <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 6 }}>
               {[
-                { label: "Feedback",         path: "/tutor-page/feedback"          },
-                { label: "Student Location",  path: "/tutor-page/student-location" },
-                { label: "Meetings",          path: "/tutor-page/meetings"         },
+                { label: "Feedback",        path: "/tutor-page/feedback"          },
+                { label: "Student Location", path: "/tutor-page/student-location" },
+                { label: "Meetings",         path: "/tutor-page/meetings"         },
               ].map((a, i) => (
                 <div
                   key={i}

@@ -13,7 +13,6 @@ const getHeader = () => ({
 
 function StudentDashboard() {
   const navigate = useNavigate();
-  const [jobs,        setJobs]        = useState([]);
   const [suggestions, setSuggestions] = useState([]);
   const [apps,        setApps]        = useState([]);
   const [profile,     setProfile]     = useState(null);
@@ -22,34 +21,24 @@ function StudentDashboard() {
   useEffect(() => {
     const init = async () => {
       try {
-        const [jobRes, sugRes, appRes, stuRes] = await Promise.allSettled([
-          axios.get(rest.jobPost,        getHeader()),
+        const [sugRes, appRes, profileRes] = await Promise.allSettled([
           axios.get(rest.jobSuggestions, getHeader()),
-          axios.get(rest.jobApplications,getHeader()),
-          axios.get(rest.students,       getHeader()),
+          axios.get(rest.jobApplications, getHeader()),
+          axios.get(rest.students.replace("students", "student-profile"), getHeader()),
         ]);
 
-        if (jobRes.status === "fulfilled") {
-          const d = jobRes.value.data?.data || jobRes.value.data || [];
-          setJobs(Array.isArray(d) ? d : []);
-          console.log("Jobs:", d.length);
-        }
         if (sugRes.status === "fulfilled") {
           const d = sugRes.value.data?.data || sugRes.value.data || [];
           setSuggestions(Array.isArray(d) ? d : []);
-          console.log("Suggestions:", d.length);
         }
         if (appRes.status === "fulfilled") {
           const d = appRes.value.data?.data || appRes.value.data || [];
           setApps(Array.isArray(d) ? d : []);
-          console.log("Applications:", d.length);
         }
-        if (stuRes.status === "fulfilled") {
-          const d = stuRes.value.data?.data || stuRes.value.data || [];
-          // students endpoint for STUDENT role returns only the logged-in student
+        if (profileRes.status === "fulfilled") {
+          const d = profileRes.value.data?.data || profileRes.value.data;
           const me = Array.isArray(d) ? d[0] : d;
           setProfile(me);
-          console.log("Student profile:", me);
         }
       } catch (err) {
         console.error("StudentDashboard error:", err);
@@ -64,21 +53,16 @@ function StudentDashboard() {
   const dept       = profile?.departmentModel?.departmentName || "—";
   const percentage = profile?.percentage || "—";
   const rollNo     = profile?.rollNumber || "—";
-  const phone      = profile?.phone || "—";
+  const email      = profile?.userModel?.email || profile?.email || "—";
 
-  const activeJobs  = jobs.filter((j) => !j.lastDateToApply || new Date(j.lastDateToApply) >= new Date());
-  const recentJobs  = jobs.slice(0, 4);
-
-  // Profile completion
   const checks = [
-    { label: "Name",       done: !!profile?.name },
+    { label: "Name",       done: !!profile?.name       },
     { label: "Department", done: !!profile?.departmentModel?.departmentId },
-    { label: "Phone",      done: !!profile?.phone },
+    { label: "Phone",      done: !!profile?.phone      },
     { label: "Percentage", done: !!profile?.percentage },
     { label: "Roll No",    done: !!profile?.rollNumber },
   ];
-  const completedCount = checks.filter((c) => c.done).length;
-  const profilePct     = Math.round((completedCount / checks.length) * 100);
+  const profilePct = Math.round((checks.filter((c) => c.done).length / checks.length) * 100);
 
   return (
     <div className="p-4" style={{ overflowY: "auto", height: "calc(100vh - 70px)" }}>
@@ -92,7 +76,7 @@ function StudentDashboard() {
           <div>
             <h2 className="bold mb-1">Welcome, {loading ? "..." : name}!</h2>
             <p className="fs-p9" style={{ opacity: 0.8 }}>
-              {dept} · Roll No: {rollNo} · {percentage !== "—" ? `${percentage}%` : ""}
+              {dept} · Roll No: {rollNo} · {percentage !== "—" ? `${percentage}%` : ""} · {email}
             </p>
           </div>
           <button
@@ -112,10 +96,9 @@ function StudentDashboard() {
       {/* Stat cards */}
       <div className="row mb-4" style={{ gap: 12 }}>
         {[
-          { label: "Available Jobs",   value: activeJobs.length,   sub: "open for application",    color: "var(--primary)", path: "/student-page/job-posts"          },
-          { label: "Recommended",      value: suggestions.length,  sub: "by your tutor",           color: "#0ea5e9",        path: "/student-page/student-recommended" },
-          { label: "My Applications",  value: apps.length,         sub: "submitted",               color: "var(--warning)", path: "/student-page/applications"        },
-          { label: "Offers",           value: "View",              sub: "check offer letters",     color: "var(--success)", path: "/student-page/offers"              },
+          { label: "Recommended",     value: suggestions.length, sub: "by your tutor",       color: "#0ea5e9",        path: "/student-page/student-recommended" },
+          { label: "My Applications", value: apps.length,        sub: "submitted",           color: "var(--warning)", path: "/student-page/applications"        },
+          { label: "Offers",          value: "View",             sub: "check offer letters", color: "var(--success)", path: "/student-page/offers"              },
         ].map((s, i) => (
           <div key={i} style={{ flex: 1 }}>
             <div
@@ -131,80 +114,14 @@ function StudentDashboard() {
         ))}
       </div>
 
-      {/* Job posts + Profile sidebar */}
+      {/* Profile completion + Quick links */}
       <div className="row" style={{ gap: 12 }}>
 
-        {/* Recent job posts */}
-        <div style={{ flex: 2 }}>
-          <div className="card p-4">
-            <div className="row space-between items-center mb-3">
-              <h4 className="bold">Recent Job Posts</h4>
-              <button
-                className="btn btn-primary w-auto"
-                style={{ padding: "6px 14px", fontSize: "0.8rem" }}
-                onClick={() => navigate("/student-page/job-posts")}
-              >
-                View All
-              </button>
-            </div>
-
-            {loading ? (
-              <p className="text-secondary fs-p9">Loading...</p>
-            ) : recentJobs.length === 0 ? (
-              <div className="text-center p-4">
-                <p className="bold">No job posts yet</p>
-                <p className="text-secondary fs-p9 mt-1">Check back soon!</p>
-              </div>
-            ) : (
-              recentJobs.map((job, i) => {
-                const isOpen = !job.lastDateToApply || new Date(job.lastDateToApply) >= new Date();
-                return (
-                  <div key={job.jobPostId || i} className="p-3 mb-2 hover-bg" style={{
-                    border: "1px solid var(--border-color)", borderRadius: 8,
-                    borderLeft: `3px solid ${isOpen ? "var(--success)" : "var(--gray-400)"}`,
-                  }}>
-                    <div className="row space-between items-center">
-                      <div>
-                        <p className="bold fs-p9">{job.tiitle || job.title || "—"}</p>
-                        <p className="fs-p8 text-secondary">
-                          {job.companyModel?.companyName || "—"} · Min {job.eligiblePercentage || "—"}% · {job.requiredCandidate || "—"} seats
-                        </p>
-                      </div>
-                      <div style={{ textAlign: "right" }}>
-                        <p className="fs-p8 text-secondary mb-1">Deadline: {job.lastDateToApply || "Open"}</p>
-                        {isOpen ? (
-                          <button
-                            className="btn btn-primary w-auto"
-                            style={{ padding: "4px 12px", fontSize: "0.75rem" }}
-                            onClick={() => navigate("/student-page/student-recommended")}
-                          >
-                            Apply
-                          </button>
-                        ) : (
-                          <span style={{
-                            fontSize: "0.72rem", fontWeight: 600, padding: "2px 8px", borderRadius: 10,
-                            background: "rgba(220,38,38,0.1)", color: "var(--danger)",
-                          }}>
-                            Closed
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </div>
-
-        {/* Profile sidebar */}
+        {/* Profile strength */}
         <div style={{ flex: 1 }}>
-
-          {/* Profile strength */}
-          <div className="card p-4 mb-3">
+          <div className="card p-4">
             <h4 className="bold mb-3">Profile Strength</h4>
 
-            {/* Circle gauge */}
             <div style={{ position: "relative", width: 80, height: 80, margin: "0 auto 16px" }}>
               <svg viewBox="0 0 36 36" style={{ transform: "rotate(-90deg)", width: 80, height: 80 }}>
                 <circle cx="18" cy="18" r="15.9" fill="none" stroke="var(--gray-200)" strokeWidth="3" />
@@ -241,15 +158,17 @@ function StudentDashboard() {
               Complete Profile
             </button>
           </div>
+        </div>
 
-          {/* Quick links */}
+        {/* Quick links */}
+        <div style={{ flex: 1 }}>
           <div className="card p-4">
             <h4 className="bold mb-3">Quick Access</h4>
             {[
-              { label: "My Interviews",  path: "/student-page/interviews",         color: "var(--warning)"  },
-              { label: "My Offers",      path: "/student-page/offers",             color: "var(--success)"  },
-              { label: "Meetings",       path: "/student-page/meetings",           color: "#0ea5e9"          },
-              { label: "My Resume",      path: "/student-page/student-resume",     color: "var(--primary)"  },
+              { label: "My Interviews", path: "/student-page/interviews", color: "var(--warning)" },
+              { label: "My Offers",     path: "/student-page/offers",     color: "var(--success)" },
+              { label: "Meetings",      path: "/student-page/meetings",   color: "#0ea5e9"        },
+              { label: "My Resume",     path: "/student-page/profile",    color: "var(--primary)" },
             ].map((a, i) => (
               <div
                 key={i}
@@ -266,6 +185,7 @@ function StudentDashboard() {
             ))}
           </div>
         </div>
+
       </div>
     </div>
   );

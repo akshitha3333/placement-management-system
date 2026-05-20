@@ -10,7 +10,7 @@ const getHeaders = () => ({
   },
 });
 
-// ── Rating config ──────────────────────────────────────────
+
 const ratingCfg = (r) => ({
   Excellent:           { bg: "rgba(22,163,74,0.1)",  color: "#16a34a" },
   Good:                { bg: "rgba(14,165,233,0.1)", color: "#0ea5e9" },
@@ -18,7 +18,7 @@ const ratingCfg = (r) => ({
   "Needs Improvement": { bg: "rgba(220,38,38,0.1)",  color: "#dc2626" },
 }[r] || { bg: "rgba(107,114,128,0.1)", color: "#6b7280" });
 
-// ── Parse "[Rating]||sName:X||tName:Y||text:Z" ────────────
+
 const parseFb = (fb) => {
   const raw = fb.feedback || "";
   if (raw.includes("||sName:")) {
@@ -36,10 +36,10 @@ const parseFb = (fb) => {
   };
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
+
 function TutorFeedback() {
   const [feedbacks,    setFeedbacks]    = useState([]);
-  const [companies,    setCompanies]    = useState({}); // { companyId: companyName }
+  const [companies,    setCompanies]    = useState({}); 
   const [loading,      setLoading]      = useState(true);
   const [error,        setError]        = useState("");
   const [filterRating, setFilterRating] = useState("");
@@ -50,13 +50,13 @@ function TutorFeedback() {
   const fetchFeedbacks = async () => {
     setLoading(true); setError("");
     try {
-      // Fetch feedbacks + companies list in parallel
+      
       const [res, compRes] = await Promise.all([
         axios.get(rest.feedback,  getHeaders()),
         axios.get(rest.companys,  getHeaders()),
       ]);
 
-      // Build companyId → companyName map
+    
       const compList = compRes.data?.data || compRes.data || [];
       const compMap  = {};
       (Array.isArray(compList) ? compList : []).forEach((c) => {
@@ -69,7 +69,7 @@ function TutorFeedback() {
       const all    = Array.isArray(fbList) ? fbList : [];
       console.log("TutorFeedback — raw feedbacks:", all);
 
-      // Only company → tutor feedbacks
+     
       const incoming = all.filter(
         (f) => f.feedback_by_role === "COMPANY" && f.feedback_to_role === "TUTOR"
       );
@@ -83,10 +83,10 @@ function TutorFeedback() {
     }
   };
 
-  // ── Stats ─────────────────────────────────────────────────
+ 
   const countRating = (r) => feedbacks.filter((f) => parseFb(f).rating === r).length;
 
-  // ── Filter ────────────────────────────────────────────────
+  
   const filtered = feedbacks.filter((f) => {
     const { rating, studentName } = parseFb(f);
     const matchRating  = !filterRating || rating === filterRating;
@@ -94,7 +94,7 @@ function TutorFeedback() {
     return matchRating && matchSearch;
   });
 
-  // ─────────────────────────────────────────────────────────
+  
   return (
     <div className="p-4" style={{ overflowY: "auto", height: "calc(100vh - 70px)" }}>
 

@@ -42,10 +42,11 @@ const formatDT = (inv) => {
   console.log("RAW datetime value:", dt, "| from inv keys:", Object.keys(inv));
   if (!dt) return "—";
   try {
-    return new Date(dt).toLocaleString("en-IN", {
-      day: "2-digit", month: "short", year: "numeric",
-      hour: "2-digit", minute: "2-digit",
-    });
+    return new Date(dt).toLocaleString(undefined, {
+day: "2-digit", month: "short", year: "numeric",
+hour: "2-digit", minute: "2-digit", hour12: true,
+timeZoneName: "short",
+});
   } catch { return String(dt); }
 };
 

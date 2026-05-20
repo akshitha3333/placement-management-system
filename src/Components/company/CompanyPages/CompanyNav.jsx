@@ -77,15 +77,6 @@ function CompanyNav({ children }) {
           💬 Feedback
         </div>
 
-
-        {/* <p className="fs-p8 text-gray-300 mb-2">REPORTS</p> */}
-
-        {/* <div className="p-1 hover-bg cursor-pointer"
-          onClick={() => navigate("/applications")}>
-          📊 Analytics
-        </div> */}
-
-
         {/* SYSTEM */}
         <p className="fs-p8 text-gray-300 mb-2">SYSTEM</p>
 
@@ -107,79 +98,17 @@ function CompanyNav({ children }) {
 
   {/* LEFT - Search */}
   <div className="w-30">
-    <input
+    {/* <input
       type="text"
       placeholder="Search students, jobs, applications..."
       className="form-control"
-    />
+    /> */}
   </div>
 
   {/* RIGHT */}
   <div className="row items-center">
 
-    {/* Quick Actions */}
-    <div className="position-relative me-3 cursor-pointer">
-      <button className="btn-sm bg-primary text-white">
-        + Quick Actions
-      </button>
-
-      <div
-        className="card p-2 position-absoulte"
-        style={{
-          top: "45px",
-          right: "0",
-          width: "180px",
-          display: "none"
-        }}
-      >
-        <div className="p-2 hover-bg cursor-pointer">📄 Post a Job</div>
-        <div className="p-2 hover-bg cursor-pointer">📅 Schedule Interview</div>
-      </div>
-    </div>
-
-    <div className="me-3 position-relative cursor-pointer">
-      🔔
-      <span
-        className="bg-danger text-white br-circle"
-        style={{
-          position: "absolute",
-          top: "-5px",
-          right: "-8px",
-          fontSize: "10px",
-          padding: "2px 6px"
-        }}
-      >
-        3
-      </span>
-
-      <div
-        className="card position-absoulte"
-        style={{
-          top: "40px",
-          right: "0",
-          width: "260px",
-          display: "none"
-        }}
-      >
-        <div className="p-2 bold">Notifications</div>
-
-        <div className="activity-item">
-          <p className="fs-p9">New application received</p>
-          <span className="fs-p8 text-gray-300">2 min ago</span>
-        </div>
-
-        <div className="activity-item">
-          <p className="fs-p9">Interview scheduled</p>
-          <span className="fs-p8 text-gray-300">1 hour ago</span>
-        </div>
-
-        <div className="activity-item">
-          <p className="fs-p9">Offer accepted</p>
-          <span className="fs-p8 text-gray-300">3 hours ago</span>
-        </div>
-      </div>
-    </div>
-
+   
     {/* PROFILE */}
     <div className="row items-center cursor-pointer">
       <div

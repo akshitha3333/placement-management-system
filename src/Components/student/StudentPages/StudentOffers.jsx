@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import axios from "axios";
 import Cookies from "js-cookie";
 const rest = require("../../../Rest");
+const BASE_URL = "http://localhost:2026";
 
 function StudentOffers() {
   const [offers,         setOffers]         = useState([]);
@@ -107,33 +108,14 @@ function StudentOffers() {
   };
 
   const openOfferLetter = (pdfBase64, title = "Offer Letter") => {
-    if (!pdfBase64) { alert("Offer letter PDF not available."); return; }
-    try {
-  
-      const raw = pdfBase64.startsWith("data:")
-        ? pdfBase64.split(",")[1]
-        : pdfBase64;
-      const binary = atob(raw);
-      const bytes  = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-      const blob    = new Blob([bytes], { type: "application/pdf" });
-      const blobUrl = URL.createObjectURL(blob);
-
-      const win = window.open(blobUrl, "_blank");
-      if (!win) {
-        // Fallback: download the file if popup is blocked
-        const a = document.createElement("a");
-        a.href = blobUrl;
-        a.download = `${title}.pdf`;
-        a.click();
-      }
-      // Revoke after 60s to free memory
-      setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
-    } catch (err) {
-      console.error("openOfferLetter error:", err);
-      alert("Could not open the offer letter. Please try again.");
-    }
-  };
+  if (!pdfBase64) { alert("Offer letter not available."); return; }
+  const url = `${BASE_URL}/uploads/offer/${encodeURIComponent(pdfBase64)}`;
+  const win = window.open(url, "_blank");
+  if (!win) {
+    const a = document.createElement("a");
+    a.href = url; a.download = title + ".pdf"; a.click();
+  }
+};
 
   const handleAccept = async (interviewId, offerLetterId) => {
     setActionLoading((p) => ({ ...p, [offerLetterId]: true }));

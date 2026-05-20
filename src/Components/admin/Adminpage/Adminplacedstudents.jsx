@@ -13,8 +13,6 @@ L.Icon.Default.mergeOptions({
   shadowUrl:     "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
 });
 
-// rest.jobApplications = "http://localhost:2026/api/job/job-applications"
-// → baseJob            = "http://localhost:2026/api/job"
 const baseJob  = rest.jobApplications.replace("/job-applications", "");
 const BASE_URL = "http://localhost:2026";
 
@@ -34,7 +32,6 @@ const fmt = (d) => {
   } catch { return d; }
 };
 
-// Admin uses auth-gated blob fetch because /uploads/** is behind JWT
 const openFileWithAuth = async (filename, folder) => {
   if (!filename) { alert("File not available."); return; }
   const url = `${BASE_URL}/uploads/${folder}/${encodeURIComponent(filename)}`;
@@ -48,19 +45,21 @@ const openFileWithAuth = async (filename, folder) => {
     window.open(blobUrl, "_blank");
     setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
   } catch (e) {
-    console.error("Failed to open file:", e);
     alert("Could not open file: " + e.message);
   }
 };
 
 function AdminPlacedStudents() {
-  const [rows,       setRows]       = useState([]);
-  const [loading,    setLoading]    = useState(true);
-  const [error,      setError]      = useState("");
-  const [search,     setSearch]     = useState("");
-  const [deptFilter, setDeptFilter] = useState("");
-  const [modal,      setModal]      = useState(null);
-  const [mapModal,   setMapModal]   = useState(false);
+  const [rows,           setRows]           = useState([]);
+  const [loading,        setLoading]        = useState(true);
+  const [error,          setError]          = useState("");
+  const [search,         setSearch]         = useState("");
+  const [deptFilter,     setDeptFilter]     = useState("");
+  const [modal,          setModal]          = useState(null);
+  const [mapModal,       setMapModal]       = useState(false);
+  // blockedIds = Set of studentIds that are already PLACED in the DB
+  const [blockedIds,     setBlockedIds]     = useState(new Set());
+  const [blocking,       setBlocking]       = useState(false);
 
   useEffect(() => { fetchAll(); }, []);
 
@@ -70,32 +69,27 @@ function AdminPlacedStudents() {
     setRows([]);
 
     try {
-      // ─────────────────────────────────────────────────────────────────────
-      // WHY this endpoint?
-      //
-      // GET /api/job/job-applications  → getJobApplications3()
-      //   has branches for STUDENT / TUTOR / COMPANY only.
-      //   When ADMINISTRATOR calls it, no branch matches → returns [].
-      //
-      // GET /api/job/offer-letters     → getOfferLetter2()
-      //   calls offerLetterRepository.findAll() with NO role check.
-      //   Returns every offer letter with full nested graph in one call.
-      // ─────────────────────────────────────────────────────────────────────
-      const res       = await axios.get(`${baseJob}/offer-letters`, getHeaders());
-      const allOffers = res.data?.data || res.data || [];
-      console.log("offer-letters total:", allOffers.length);
+      const [offersRes, studentsRes] = await Promise.all([
+        axios.get(`${baseJob}/offer-letters`, getHeaders()),
+        axios.get(rest.students, getHeaders()),
+      ]);
 
-      // Keep only ACCEPTED offers (OfferLetterStatus enum value = "Accepted")
+      const allOffers   = offersRes.data?.data   || offersRes.data   || [];
+      const allStudents = studentsRes.data?.data  || studentsRes.data || [];
+      const statusMap = {};
+      (Array.isArray(allStudents) ? allStudents : []).forEach((s) => {
+        if (s.studentId) statusMap[s.studentId] = (s.workingStatus || "").toUpperCase();
+      });
+      const alreadyBlocked = new Set(
+        Object.entries(statusMap)
+          .filter(([, status]) => status === "PLACED")
+          .map(([id]) => Number(id))
+      );
+      setBlockedIds(alreadyBlocked);
+
       const placedRows = allOffers
         .filter((ol) => (ol.status || "").toLowerCase() === "accepted")
         .map((ol) => {
-          // Nested graph:
-          // OfferLetterModel
-          //   └─ interviewModel
-          //        └─ jobApplicationModel
-          //             ├─ resumeModel → studentModel → departmentModel
-          //             └─ jobSuggestionModel → jobPostModel → companyModel
-
           const interview = ol.interviewModel             || {};
           const app       = interview.jobApplicationModel || {};
           const resume    = app.resumeModel               || {};
@@ -104,10 +98,13 @@ function AdminPlacedStudents() {
           const company   = jobPost.companyModel          || {};
           const student   = resume.studentModel || suggest.studentModel || {};
 
+          const sid = student.studentId || null;
+
           return {
             offerLetterId: ol.offerLetterId || ol.id       || null,
             offerFileName: ol.offerLetter                  || null,
             interviewId:   interview.interviewId           || null,
+            studentId:     sid,
             studentName:   student.name                    || "—",
             studentEmail:  student.email                   || "—",
             studentPhone:  student.phone                   || "—",
@@ -127,13 +124,40 @@ function AdminPlacedStudents() {
           };
         });
 
-      console.log("Placed students:", placedRows.length, placedRows);
       setRows(placedRows);
     } catch (err) {
       console.error("fetchAll error:", err.response?.data || err.message);
       setError("Failed to load placed student data. Please try again.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const blockStudent = async (studentId, studentName) => {
+    if (!studentId) { alert("Student ID not found. Cannot block."); return; }
+    if (!window.confirm(`Block ${studentName}?\n\nThis will mark them as PLACED and stop tutors from recommending new jobs to them.`)) return;
+
+    setBlocking(true);
+    try {
+      await axios.patch(
+        `${BASE_URL}/api/actors/students/${studentId}/block`,
+        {},
+        getHeaders()
+      );
+
+      // Update blocked set immediately — no need to reload the whole page
+      setBlockedIds((prev) => new Set([...prev, Number(studentId)]));
+
+      // Also update the modal so the button changes right away
+      setModal((prev) => prev ? { ...prev, _blocked: true } : prev);
+
+      alert(`${studentName} has been blocked successfully.\n\nTutors can no longer recommend new jobs to this student.`);
+    } catch (err) {
+      console.error("Block student error:", err);
+      const msg = err.response?.data?.message || err.message || "Unknown error";
+      alert(`Failed to block student.\n\nError: ${msg}\n\nPlease try again.`);
+    } finally {
+      setBlocking(false);
     }
   };
 
@@ -159,6 +183,8 @@ function AdminPlacedStudents() {
     return matchSearch && matchDept;
   });
 
+  const blockedCount = rows.filter((r) => r.studentId && blockedIds.has(Number(r.studentId))).length;
+
   const uniqueCompanies = new Set(
     rows.map((r) => r.companyName).filter((c) => c !== "—")
   ).size;
@@ -174,7 +200,7 @@ function AdminPlacedStudents() {
         <div>
           <h2 className="fs-5 bold mb-1">Placed Students</h2>
           <p className="fs-p9 text-secondary">
-            All students across departments who accepted an offer letter
+            Students who accepted an offer letter. Block them to stop tutors from recommending new jobs.
           </p>
         </div>
         <button
@@ -194,11 +220,7 @@ function AdminPlacedStudents() {
       {error && (
         <div className="card p-3 mb-3" style={{ borderLeft: "4px solid var(--danger)" }}>
           <p className="fs-p9" style={{ color: "var(--danger)" }}>{error}</p>
-          <button
-            className="btn btn-primary mt-2 w-auto"
-            style={{ padding: "6px 18px" }}
-            onClick={fetchAll}
-          >
+          <button className="btn btn-primary mt-2 w-auto" style={{ padding: "6px 18px" }} onClick={fetchAll}>
             Retry
           </button>
         </div>
@@ -208,10 +230,11 @@ function AdminPlacedStudents() {
       <div className="row mb-4" style={{ gap: 10 }}>
         {[
           { label: "Placed Students", value: rows.length,     color: "var(--success)" },
+          { label: "Blocked",         value: blockedCount,    color: "#dc2626"        },
           { label: "Companies",       value: uniqueCompanies, color: "#0ea5e9"        },
           { label: "Departments",     value: uniqueDepts,     color: "var(--warning)" },
         ].map((s, i) => (
-          <div key={i} style={{ flex: "0 0 160px" }}>
+          <div key={i} style={{ flex: "0 0 150px" }}>
             <div className="card p-3 text-center">
               <h2 className="bold" style={{ color: s.color }}>
                 {loading ? "..." : s.value}
@@ -254,9 +277,7 @@ function AdminPlacedStudents() {
       ) : rows.length === 0 ? (
         <div className="card p-5 text-center">
           <p className="bold mb-1">No placed students yet</p>
-          <p className="fs-p9 text-secondary">
-            Students appear here once they accept an offer letter.
-          </p>
+          <p className="fs-p9 text-secondary">Students appear here once they accept an offer letter.</p>
         </div>
       ) : filtered.length === 0 ? (
         <div className="card p-4 text-center">
@@ -281,240 +302,305 @@ function AdminPlacedStudents() {
             <div style={{ flex: 1, textAlign: "center" }}>%</div>
             <div style={{ flex: 2 }}>Company</div>
             <div style={{ flex: 2 }}>Job Title</div>
-            <div style={{ flex: 2 }}>Offer Accepted</div>
+            <div style={{ flex: 1, textAlign: "center" }}>Status</div>
             <div style={{ flex: 1, textAlign: "center" }}>Action</div>
           </div>
 
           {/* Table rows */}
-          {filtered.map((r, idx) => (
-            <div
-              key={r.offerLetterId || idx}
-              className="row items-center"
-              style={{
-                padding: "11px 16px",
-                borderBottom: "1px solid var(--border-color)",
-                borderLeft: "4px solid var(--success)",
-                background: "#fff",
-              }}
-            >
-              <div style={{ width: 36 }} className="fs-p9 text-secondary">{idx + 1}</div>
+          {filtered.map((r, idx) => {
+            const isBlocked = r.studentId && blockedIds.has(Number(r.studentId));
+            return (
+              <div
+                key={r.offerLetterId || idx}
+                className="row items-center"
+                style={{
+                  padding: "11px 16px",
+                  borderBottom: "1px solid var(--border-color)",
+                  borderLeft: `4px solid ${isBlocked ? "#dc2626" : "var(--success)"}`,
+                  background: isBlocked ? "#fff9f9" : "#fff",
+                }}
+              >
+                <div style={{ width: 36 }} className="fs-p9 text-secondary">{idx + 1}</div>
 
-              <div style={{ flex: 3, display: "flex", alignItems: "center", gap: 10 }}>
-                <div style={{
-                  width: 34, height: 34, borderRadius: "50%", flexShrink: 0,
-                  background: "rgba(22,163,74,0.15)", color: "#16a34a",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  fontWeight: 700, fontSize: "0.85rem",
-                }}>
-                  {(r.studentName || "S").charAt(0).toUpperCase()}
+                <div style={{ flex: 3, display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{
+                    width: 34, height: 34, borderRadius: "50%", flexShrink: 0,
+                    background: isBlocked ? "rgba(220,38,38,0.12)" : "rgba(22,163,74,0.15)",
+                    color: isBlocked ? "#dc2626" : "#16a34a",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontWeight: 700, fontSize: "0.85rem",
+                  }}>
+                    {(r.studentName || "S").charAt(0).toUpperCase()}
+                  </div>
+                  <div>
+                    <p className="bold fs-p9">{r.studentName}</p>
+                    <p className="fs-p8 text-secondary">{r.studentEmail}</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="bold fs-p9">{r.studentName}</p>
-                  <p className="fs-p8 text-secondary">{r.studentEmail}</p>
+
+                <div style={{ flex: 2 }} className="fs-p9">{r.department}</div>
+                <div style={{ flex: 1, textAlign: "center" }} className="fs-p9">{r.rollNo}</div>
+                <div style={{ flex: 1, textAlign: "center" }} className="fs-p9">
+                  {r.percentage !== "—" ? `${r.percentage}%` : "—"}
+                </div>
+
+                <div style={{ flex: 2 }}>
+                  <p className="bold fs-p9">{r.companyName}</p>
+                  <p className="fs-p8 text-secondary">{r.location}</p>
+                </div>
+
+                <div style={{ flex: 2 }} className="fs-p9">{r.jobTitle}</div>
+
+                <div style={{ flex: 1, textAlign: "center" }}>
+                  {isBlocked ? (
+                    <span style={{
+                      fontSize: "0.7rem", fontWeight: 600, padding: "3px 8px",
+                      borderRadius: 6, background: "rgba(220,38,38,0.1)", color: "#dc2626",
+                    }}>
+                      Blocked
+                    </span>
+                  ) : (
+                    <span style={{
+                      fontSize: "0.7rem", fontWeight: 600, padding: "3px 8px",
+                      borderRadius: 6, background: "rgba(22,163,74,0.1)", color: "#16a34a",
+                    }}>
+                      Active
+                    </span>
+                  )}
+                </div>
+
+                <div style={{ flex: 1, textAlign: "center" }}>
+                  <button
+                    onClick={() => { setModal(r); setMapModal(false); }}
+                    className="btn btn-primary w-auto"
+                    style={{ padding: "5px 14px", fontSize: "0.78rem" }}
+                  >
+                    View
+                  </button>
                 </div>
               </div>
-
-              <div style={{ flex: 2 }} className="fs-p9">{r.department}</div>
-              <div style={{ flex: 1, textAlign: "center" }} className="fs-p9">{r.rollNo}</div>
-              <div style={{ flex: 1, textAlign: "center" }} className="fs-p9">
-                {r.percentage !== "—" ? `${r.percentage}%` : "—"}
-              </div>
-
-              <div style={{ flex: 2 }}>
-                <p className="bold fs-p9">{r.companyName}</p>
-                <p className="fs-p8 text-secondary">{r.location}</p>
-              </div>
-
-              <div style={{ flex: 2 }} className="fs-p9">{r.jobTitle}</div>
-              <div style={{ flex: 2 }} className="fs-p9">{fmt(r.offerDate)}</div>
-
-              <div style={{ flex: 1, textAlign: "center" }}>
-                <button
-                  onClick={() => { setModal(r); setMapModal(false); }}
-                  className="btn btn-primary w-auto"
-                  style={{ padding: "5px 14px", fontSize: "0.78rem" }}
-                >
-                  View
-                </button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
       {/* Detail Modal */}
-      {modal && (
-        <div
-          className="modal-overlay"
-          onClick={() => { setModal(null); setMapModal(false); }}
-        >
+      {modal && (() => {
+        const isBlocked = (modal.studentId && blockedIds.has(Number(modal.studentId))) || modal._blocked;
+        return (
           <div
-            className="card"
-            style={{ width: 680, maxWidth: "96%", maxHeight: "92vh", overflowY: "auto" }}
-            onClick={(e) => e.stopPropagation()}
+            className="modal-overlay"
+            onClick={() => { setModal(null); setMapModal(false); }}
           >
             <div
-              className="row space-between items-center p-4"
-              style={{ borderBottom: "1px solid var(--border-color)" }}
+              className="card"
+              style={{ width: 680, maxWidth: "96%", maxHeight: "92vh", overflowY: "auto" }}
+              onClick={(e) => e.stopPropagation()}
             >
-              <div className="row items-center" style={{ gap: 12 }}>
-                <div style={{
-                  width: 40, height: 40, borderRadius: "50%",
-                  background: "rgba(22,163,74,0.15)", color: "#16a34a",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  fontWeight: 700, fontSize: "1rem",
-                }}>
-                  {(modal.studentName || "S").charAt(0).toUpperCase()}
+              {/* Modal Header */}
+              <div
+                className="row space-between items-center p-4"
+                style={{ borderBottom: "1px solid var(--border-color)" }}
+              >
+                <div className="row items-center" style={{ gap: 12 }}>
+                  <div style={{
+                    width: 40, height: 40, borderRadius: "50%",
+                    background: isBlocked ? "rgba(220,38,38,0.12)" : "rgba(22,163,74,0.15)",
+                    color: isBlocked ? "#dc2626" : "#16a34a",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontWeight: 700, fontSize: "1rem",
+                  }}>
+                    {(modal.studentName || "S").charAt(0).toUpperCase()}
+                  </div>
+                  <div>
+                    <p className="bold">{modal.studentName}</p>
+                    <p className="fs-p8 text-secondary">{modal.department} · {modal.rollNo}</p>
+                  </div>
+                  <span style={{
+                    fontSize: "0.72rem", fontWeight: 600,
+                    padding: "4px 12px", borderRadius: 10,
+                    background: isBlocked ? "rgba(220,38,38,0.1)" : "rgba(22,163,74,0.1)",
+                    color: isBlocked ? "#dc2626" : "#16a34a",
+                  }}>
+                    {isBlocked ? "Blocked" : "✓ Placed"}
+                  </span>
                 </div>
-                <div>
-                  <p className="bold">{modal.studentName}</p>
-                  <p className="fs-p8 text-secondary">{modal.department} · {modal.rollNo}</p>
-                </div>
-                <span style={{
-                  fontSize: "0.72rem", fontWeight: 600,
-                  padding: "4px 12px", borderRadius: 10,
-                  background: "rgba(22,163,74,0.1)", color: "#16a34a",
-                }}>
-                  ✓ Placed
+                <span
+                  className="cursor-pointer fs-4 text-secondary"
+                  onClick={() => { setModal(null); setMapModal(false); }}
+                >
+                  ×
                 </span>
               </div>
-              <span
-                className="cursor-pointer fs-4 text-secondary"
-                onClick={() => { setModal(null); setMapModal(false); }}
-              >
-                ×
-              </span>
-            </div>
 
-            <div className="p-4" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div className="p-4" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
 
-              <div>
-                <p className="fs-p8 text-secondary bold mb-2"
-                  style={{ textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                  Student Info
-                </p>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
-                  {[
-                    { label: "Name",       value: modal.studentName  },
-                    { label: "Email",      value: modal.studentEmail },
-                    { label: "Phone",      value: modal.studentPhone },
-                    { label: "Roll No",    value: modal.rollNo       },
-                    { label: "Percentage", value: modal.percentage !== "—" ? `${modal.percentage}%` : "—" },
-                    { label: "Year",       value: modal.year         },
-                  ].map((f) => (
-                    <div key={f.label}
-                      style={{ background: "var(--gray-100)", borderRadius: 8, padding: "8px 12px" }}>
-                      <p className="fs-p8 text-secondary">{f.label}</p>
-                      <p className="bold fs-p9">{f.value || "—"}</p>
+                {/* Block / Already Blocked button */}
+                {isBlocked ? (
+                  <div style={{
+                    padding: "12px 16px", borderRadius: 8,
+                    background: "rgba(220,38,38,0.06)",
+                    border: "1px solid rgba(220,38,38,0.2)",
+                    display: "flex", alignItems: "center", gap: 10,
+                  }}>
+                    <span style={{ fontSize: "1rem" }}>🚫</span>
+                    <div>
+                      <p style={{ fontWeight: 600, fontSize: "0.85rem", color: "#dc2626" }}>
+                        Student is blocked
+                      </p>
+                      <p style={{ fontSize: "0.78rem", color: "#dc2626", opacity: 0.8 }}>
+                        Tutors can no longer recommend new job posts to this student.
+                      </p>
                     </div>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <p className="fs-p8 text-secondary bold mb-2"
-                  style={{ textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                  Company & Placement
-                </p>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                  {[
-                    { label: "Company",       value: modal.companyName    },
-                    { label: "Job Title",     value: modal.jobTitle       },
-                    { label: "Industry",      value: modal.industry       },
-                    { label: "Location",      value: modal.location       },
-                    { label: "Company Email", value: modal.companyEmail   },
-                    { label: "Website",       value: modal.website        },
-                    { label: "Offer Date",    value: fmt(modal.offerDate) },
-                  ].map((f) => (
-                    <div key={f.label}
-                      style={{ background: "var(--gray-100)", borderRadius: 8, padding: "8px 12px" }}>
-                      <p className="fs-p8 text-secondary">{f.label}</p>
-                      <p className="bold fs-p9">{f.value || "—"}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="row" style={{ gap: 10 }}>
-                <button
-                  onClick={() => openFileWithAuth(modal.offerFileName, "offer")}
-                  disabled={!modal.offerFileName}
-                  style={{
-                    flex: 1, padding: "12px", borderRadius: 8,
-                    background: modal.offerFileName ? "var(--primary)" : "var(--gray-200)",
-                    color: modal.offerFileName ? "#fff" : "var(--text-secondary)",
-                    border: "none",
-                    cursor: modal.offerFileName ? "pointer" : "not-allowed",
-                    fontWeight: 600, fontSize: "0.85rem",
-                    display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                  }}
-                >
-                  <span style={{
-                    background: modal.offerFileName ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.1)",
-                    borderRadius: 4, padding: "1px 6px", fontSize: "0.7rem", fontWeight: 700,
-                  }}>PDF</span>
-                  {modal.offerFileName ? "View Offer Letter" : "No Offer Letter"}
-                </button>
-
-                {hasMap(modal) && (
+                  </div>
+                ) : (
                   <button
-                    onClick={() => setMapModal((v) => !v)}
+                    onClick={() => blockStudent(modal.studentId, modal.studentName)}
+                    disabled={blocking}
                     style={{
-                      flex: 1, padding: "12px", borderRadius: 8,
-                      background: mapModal ? "var(--secondary)" : "#fff",
-                      color: mapModal ? "#fff" : "var(--primary)",
-                      border: "1px solid var(--primary)",
-                      cursor: "pointer", fontWeight: 600, fontSize: "0.85rem",
+                      width: "100%", padding: "12px", borderRadius: 8,
+                      background: blocking ? "#e5e7eb" : "#dc2626",
+                      color: blocking ? "#6b7280" : "#fff",
+                      border: "none", cursor: blocking ? "not-allowed" : "pointer",
+                      fontWeight: 600, fontSize: "0.85rem",
+                      display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
                     }}
                   >
-                    {mapModal ? "Hide Map" : "Show Location on Map"}
+                    {blocking ? "Blocking..." : "🚫 Block Student — stop tutor recommendations"}
                   </button>
                 )}
-              </div>
 
-              {mapModal && hasMap(modal) && (
-                <div style={{ borderRadius: 10, overflow: "hidden", border: "1px solid var(--border-color)" }}>
-                  <MapContainer
-                    key={`${modal.latitude}-${modal.longitude}`}
-                    center={[parseFloat(modal.latitude), parseFloat(modal.longitude)]}
-                    zoom={14} style={{ height: 280, width: "100%" }} scrollWheelZoom
-                  >
-                    <TileLayer
-                      attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                      url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                    />
-                    <Marker position={[parseFloat(modal.latitude), parseFloat(modal.longitude)]}>
-                      <Popup>
-                        <p style={{ fontWeight: 700 }}>{modal.companyName}</p>
-                        <p style={{ fontSize: "0.78rem" }}>{modal.location}</p>
-                        <p style={{ fontSize: "0.78rem", color: "#16a34a" }}>
-                          {modal.studentName} placed here
-                        </p>
-                      </Popup>
-                    </Marker>
-                  </MapContainer>
-                  <div style={{
-                    padding: "8px 12px", borderTop: "1px solid var(--border-color)",
-                    display: "flex", justifyContent: "space-between", alignItems: "center",
-                  }}>
-                    <p className="fs-p8 text-secondary">
-                      {parseFloat(modal.latitude).toFixed(5)}, {parseFloat(modal.longitude).toFixed(5)}
-                    </p>
-                    <a
-                      href={`https://www.google.com/maps?q=${modal.latitude},${modal.longitude}`}
-                      target="_blank" rel="noreferrer"
-                      style={{ fontSize: "0.78rem", color: "var(--info)", fontWeight: 600 }}
-                    >
-                      Open in Google Maps
-                    </a>
+                {/* Student Info */}
+                <div>
+                  <p className="fs-p8 text-secondary bold mb-2"
+                    style={{ textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                    Student Info
+                  </p>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+                    {[
+                      { label: "Name",       value: modal.studentName  },
+                      { label: "Email",      value: modal.studentEmail },
+                      { label: "Phone",      value: modal.studentPhone },
+                      { label: "Roll No",    value: modal.rollNo       },
+                      { label: "Percentage", value: modal.percentage !== "—" ? `${modal.percentage}%` : "—" },
+                      { label: "Year",       value: modal.year         },
+                    ].map((f) => (
+                      <div key={f.label}
+                        style={{ background: "var(--gray-100)", borderRadius: 8, padding: "8px 12px" }}>
+                        <p className="fs-p8 text-secondary">{f.label}</p>
+                        <p className="bold fs-p9">{f.value || "—"}</p>
+                      </div>
+                    ))}
                   </div>
                 </div>
-              )}
 
+                {/* Company Info */}
+                <div>
+                  <p className="fs-p8 text-secondary bold mb-2"
+                    style={{ textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                    Company & Placement
+                  </p>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                    {[
+                      { label: "Company",       value: modal.companyName    },
+                      { label: "Job Title",     value: modal.jobTitle       },
+                      { label: "Industry",      value: modal.industry       },
+                      { label: "Location",      value: modal.location       },
+                      { label: "Company Email", value: modal.companyEmail   },
+                      { label: "Website",       value: modal.website        },
+                      { label: "Offer Date",    value: fmt(modal.offerDate) },
+                    ].map((f) => (
+                      <div key={f.label}
+                        style={{ background: "var(--gray-100)", borderRadius: 8, padding: "8px 12px" }}>
+                        <p className="fs-p8 text-secondary">{f.label}</p>
+                        <p className="bold fs-p9">{f.value || "—"}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Offer Letter + Map buttons */}
+                <div className="row" style={{ gap: 10 }}>
+                  <button
+                    onClick={() => openFileWithAuth(modal.offerFileName, "offer")}
+                    disabled={!modal.offerFileName}
+                    style={{
+                      flex: 1, padding: "12px", borderRadius: 8,
+                      background: modal.offerFileName ? "var(--primary)" : "var(--gray-200)",
+                      color: modal.offerFileName ? "#fff" : "var(--text-secondary)",
+                      border: "none",
+                      cursor: modal.offerFileName ? "pointer" : "not-allowed",
+                      fontWeight: 600, fontSize: "0.85rem",
+                      display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                    }}
+                  >
+                    <span style={{
+                      background: modal.offerFileName ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.1)",
+                      borderRadius: 4, padding: "1px 6px", fontSize: "0.7rem", fontWeight: 700,
+                    }}>PDF</span>
+                    {modal.offerFileName ? "View Offer Letter" : "No Offer Letter"}
+                  </button>
+
+                  {hasMap(modal) && (
+                    <button
+                      onClick={() => setMapModal((v) => !v)}
+                      style={{
+                        flex: 1, padding: "12px", borderRadius: 8,
+                        background: mapModal ? "var(--secondary)" : "#fff",
+                        color: mapModal ? "#fff" : "var(--primary)",
+                        border: "1px solid var(--primary)",
+                        cursor: "pointer", fontWeight: 600, fontSize: "0.85rem",
+                      }}
+                    >
+                      {mapModal ? "Hide Map" : "Show Location on Map"}
+                    </button>
+                  )}
+                </div>
+
+                {mapModal && hasMap(modal) && (
+                  <div style={{ borderRadius: 10, overflow: "hidden", border: "1px solid var(--border-color)" }}>
+                    <MapContainer
+                      key={`${modal.latitude}-${modal.longitude}`}
+                      center={[parseFloat(modal.latitude), parseFloat(modal.longitude)]}
+                      zoom={14} style={{ height: 280, width: "100%" }} scrollWheelZoom
+                    >
+                      <TileLayer
+                        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                      />
+                      <Marker position={[parseFloat(modal.latitude), parseFloat(modal.longitude)]}>
+                        <Popup>
+                          <p style={{ fontWeight: 700 }}>{modal.companyName}</p>
+                          <p style={{ fontSize: "0.78rem" }}>{modal.location}</p>
+                          <p style={{ fontSize: "0.78rem", color: "#16a34a" }}>
+                            {modal.studentName} placed here
+                          </p>
+                        </Popup>
+                      </Marker>
+                    </MapContainer>
+                    <div style={{
+                      padding: "8px 12px", borderTop: "1px solid var(--border-color)",
+                      display: "flex", justifyContent: "space-between", alignItems: "center",
+                    }}>
+                      <p className="fs-p8 text-secondary">
+                        {parseFloat(modal.latitude).toFixed(5)}, {parseFloat(modal.longitude).toFixed(5)}
+                      </p>
+                      <a
+                        href={`https://www.google.com/maps?q=${modal.latitude},${modal.longitude}`}
+                        target="_blank" rel="noreferrer"
+                        style={{ fontSize: "0.78rem", color: "var(--info)", fontWeight: 600 }}
+                      >
+                        Open in Google Maps
+                      </a>
+                    </div>
+                  </div>
+                )}
+
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
     </div>
   );

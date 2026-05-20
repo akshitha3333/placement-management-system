@@ -51,10 +51,7 @@ function StudentNav({ children }) {
             <input type="text" placeholder="Search jobs, companies..." className="form-control" />
           </div>
           <div className="row items-center">
-            <div className="me-3 position-relative cursor-pointer">
-              🔔
-              <span style={{ position: "absolute", top: "-5px", right: "-8px", background: "red", color: "white", fontSize: "10px", padding: "2px 5px", borderRadius: "50%" }}>1</span>
-            </div>
+            
             <div className="row items-center cursor-pointer">
               <div className="bg-primary text-white br-circle me-2" style={{ width: "35px", height: "35px", display: "flex", alignItems: "center", justifyContent: "center" }}>S</div>
               <span className="bold">Student</span>

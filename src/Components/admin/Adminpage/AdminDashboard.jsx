@@ -3,6 +3,8 @@ import axios from "axios";
 import Cookies from "js-cookie";
 const rest = require("../../../Rest");
 
+const baseJob = rest.jobApplications.replace("/job-applications", "");
+
 const getHeader = () => ({
   headers: {
     "Content-Type": "application/json",
@@ -11,20 +13,20 @@ const getHeader = () => ({
 });
 
 function AdminDashboard() {
-  const [students,    setStudents]    = useState([]);
-  const [companies,   setCompanies]   = useState([]);
-  const [jobPosts,    setJobPosts]    = useState([]);
-  const [suggestions, setSuggestions] = useState([]);
-  const [loading,     setLoading]     = useState(true);
+  const [students,  setStudents]  = useState([]);
+  const [companies, setCompanies] = useState([]);
+  const [jobPosts,  setJobPosts]  = useState([]);
+  const [placed,    setPlaced]    = useState([]);
+  const [loading,   setLoading]   = useState(true);
 
   useEffect(() => {
     const fetchAll = async () => {
       try {
-        const [studRes, compRes, jobRes, sugRes] = await Promise.allSettled([
-          axios.get(rest.students,       getHeader()),
-          axios.get(rest.companys,       getHeader()),
-          axios.get(rest.jobPost,        getHeader()),
-          axios.get(rest.jobSuggestions, getHeader()),
+        const [studRes, compRes, jobRes, offerRes] = await Promise.allSettled([
+          axios.get(rest.students,              getHeader()),
+          axios.get(rest.companys,              getHeader()),
+          axios.get(rest.jobPost,               getHeader()),
+          axios.get(`${baseJob}/offer-letters`, getHeader()),
         ]);
         if (studRes.status === "fulfilled") {
           const d = studRes.value.data?.data || studRes.value.data || [];
@@ -38,11 +40,14 @@ function AdminDashboard() {
           const d = jobRes.value.data?.data || jobRes.value.data || [];
           setJobPosts(Array.isArray(d) ? d : []);
         }
-        if (sugRes.status === "fulfilled") {
-          const d = sugRes.value.data?.data || sugRes.value.data || [];
-          setSuggestions(Array.isArray(d) ? d : []);
+        if (offerRes.status === "fulfilled") {
+          const all = offerRes.value.data?.data || offerRes.value.data || [];
+          // Only accepted offer letters = placed students
+          const accepted = (Array.isArray(all) ? all : []).filter(
+            (ol) => (ol.status || "").toLowerCase() === "accepted"
+          );
+          setPlaced(accepted);
         }
-        console.log("Admin dashboard loaded");
       } catch (err) {
         console.error("AdminDashboard error:", err);
       } finally {
@@ -52,22 +57,34 @@ function AdminDashboard() {
     fetchAll();
   }, []);
 
-  const totalStudents     = students.length;
-  const verifiedStudents  = students.filter((s) => s.workingStatus === "VERIFIED").length;
-  const totalCompanies    = companies.length;
-  const verifiedCompanies = companies.filter((c) => (c.status || "").toUpperCase() === "VERIFIED").length;
-  const activeJobs        = jobPosts.filter((j) => (j.status || "").toUpperCase() === "ACTIVE").length;
-  const totalSuggestions  = suggestions.length;
+  const totalStudents    = students.length;
+  const placedCount      = placed.length;
+  const unplacedCount    = totalStudents - placedCount;
+  const placementRate    = totalStudents > 0 ? Math.round((placedCount / totalStudents) * 100) : 0;
+  const totalCompanies   = companies.length;
+  const verifiedCompanies= companies.filter((c) => (c.status || "").toUpperCase() === "VERIFIED").length;
+  const activeJobs       = jobPosts.length;
 
+  // Department breakdown using offer letter nested data
   const deptMap = {};
   students.forEach((s) => {
     const name = s.departmentModel?.departmentName || "Other";
-    if (!deptMap[name]) deptMap[name] = { total: 0, verified: 0 };
+    if (!deptMap[name]) deptMap[name] = { total: 0, placed: 0 };
     deptMap[name].total += 1;
-    if (s.workingStatus === "VERIFIED") deptMap[name].verified += 1;
+  });
+  placed.forEach((ol) => {
+    const interview = ol.interviewModel             || {};
+    const app       = interview.jobApplicationModel  || {};
+    const resume    = app.resumeModel               || {};
+    const suggest   = app.jobSuggestionModel        || {};
+    const student   = resume.studentModel || suggest.studentModel || {};
+    const name      = student.departmentModel?.departmentName || "Other";
+    if (deptMap[name]) deptMap[name].placed += 1;
+    else deptMap[name] = { total: 0, placed: 1 };
   });
   const deptList = Object.entries(deptMap).map(([name, v]) => ({ name, ...v }));
 
+  // Industry breakdown
   const industryMap = {};
   companies.forEach((c) => {
     const k = c.industryType || "Other";
@@ -81,25 +98,23 @@ function AdminDashboard() {
 
   const barColors = ["var(--primary)", "#0ea5e9", "var(--warning)", "var(--success)", "var(--danger)"];
 
-  if (loading) {
-    return <div className="p-5 text-center"><p className="text-secondary">Loading dashboard...</p></div>;
-  }
+  if (loading) return <div className="p-5 text-center"><p className="text-secondary">Loading dashboard...</p></div>;
 
   return (
     <div className="p-4" style={{ overflowY: "auto", height: "calc(100vh - 70px)" }}>
 
-    
       <div className="mb-4">
         <h2 className="fs-5 bold mb-1">Admin Dashboard</h2>
         <p className="fs-p9 text-secondary">Placement system overview</p>
       </div>
 
+      {/* Top Stats — no job suggestions */}
       <div className="row mb-4" style={{ gap: 12 }}>
         {[
-          { label: "Total Students",   value: totalStudents,    sub: `${verifiedStudents} verified`,    color: "var(--primary)" },
-          { label: "Companies",        value: totalCompanies,   sub: `${verifiedCompanies} verified`,   color: "#0ea5e9"         },
-          { label: "Active Job Posts", value: activeJobs,       sub: `${jobPosts.length} total`,        color: "var(--success)"  },
-          { label: "Job Suggestions",  value: totalSuggestions, sub: "from tutors",                     color: "var(--warning)"  },
+          { label: "Total Students",   value: totalStudents,      sub: `${placedCount} placed · ${unplacedCount} unplaced`, color: "var(--primary)" },
+          { label: "Placement Rate",   value: `${placementRate}%`,sub: `${placedCount} of ${totalStudents} placed`,          color: "var(--success)" },
+          { label: "Total Job Posts",  value: activeJobs,         sub: `${jobPosts.length} posted`,                          color: "#0ea5e9"         },
+          { label: "Total Companies",  value: totalCompanies,     sub: `${verifiedCompanies} verified`,                      color: "var(--warning)"  },
         ].map((s, i) => (
           <div key={i} style={{ flex: 1 }}>
             <div className="card p-4" style={{ borderLeft: `4px solid ${s.color}` }}>
@@ -111,12 +126,40 @@ function AdminDashboard() {
         ))}
       </div>
 
-     
+      {/* Placement Progress Bar */}
+      <div className="card p-4 mb-4">
+        <div className="row space-between items-center mb-3">
+          <h4 className="bold">Overall Placement Progress</h4>
+          <span className="bold fs-p9" style={{ color: "var(--success)" }}>{placementRate}%</span>
+        </div>
+        <div style={{ height: 12, borderRadius: 6, background: "var(--gray-200)", overflow: "hidden", marginBottom: 12 }}>
+          <div style={{
+            width: `${placementRate}%`, height: "100%", borderRadius: 6,
+            background: "linear-gradient(90deg, var(--primary), var(--success))",
+            transition: "width 0.8s ease",
+          }} />
+        </div>
+        <div className="row" style={{ gap: 16 }}>
+          {[
+            { label: "Placed",   value: placedCount,   color: "var(--success)" },
+            { label: "Unplaced", value: unplacedCount, color: "var(--warning)" },
+            { label: "Total",    value: totalStudents, color: "var(--primary)" },
+          ].map((s, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ width: 10, height: 10, borderRadius: "50%", background: s.color, flexShrink: 0 }} />
+              <span className="fs-p9 text-secondary">{s.label}:</span>
+              <span className="bold fs-p9" style={{ color: s.color }}>{s.value}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
       <div className="row mb-4" style={{ gap: 12 }}>
 
+        {/* Department Breakdown */}
         <div style={{ flex: 1 }}>
           <div className="card p-4">
-            <h4 className="bold mb-3">Students by Department</h4>
+            <h4 className="bold mb-3">Placement by Department</h4>
             {deptList.length === 0 ? (
               <p className="text-secondary fs-p9">No student data.</p>
             ) : (
@@ -125,22 +168,25 @@ function AdminDashboard() {
                   <tr>
                     <th className="fs-p8 text-secondary">Department</th>
                     <th className="fs-p8 text-secondary" style={{ textAlign: "center" }}>Total</th>
-                    <th className="fs-p8 text-secondary" style={{ textAlign: "center" }}>Verified</th>
+                    <th className="fs-p8 text-secondary" style={{ textAlign: "center" }}>Placed</th>
+                    <th className="fs-p8 text-secondary" style={{ textAlign: "center" }}>Unplaced</th>
                     <th className="fs-p8 text-secondary">Rate</th>
                   </tr>
                 </thead>
                 <tbody>
                   {deptList.map((d, i) => {
-                    const rate = d.total > 0 ? Math.round((d.verified / d.total) * 100) : 0;
+                    const rate     = d.total > 0 ? Math.round((d.placed / d.total) * 100) : 0;
+                    const unplaced = d.total - d.placed;
                     return (
                       <tr key={i} className="hover-bg">
                         <td className="bold fs-p9">{d.name}</td>
                         <td className="fs-p9" style={{ textAlign: "center" }}>{d.total}</td>
-                        <td className="fs-p9 bold" style={{ textAlign: "center", color: "var(--success)" }}>{d.verified}</td>
+                        <td className="fs-p9 bold" style={{ textAlign: "center", color: "var(--success)" }}>{d.placed}</td>
+                        <td className="fs-p9 bold" style={{ textAlign: "center", color: "var(--warning)" }}>{unplaced}</td>
                         <td>
                           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                             <div style={{ flex: 1, height: 6, borderRadius: 3, background: "var(--gray-200)", overflow: "hidden" }}>
-                              <div style={{ width: `${rate}%`, height: "100%", background: "var(--primary)", borderRadius: 3 }} />
+                              <div style={{ width: `${rate}%`, height: "100%", background: "var(--success)", borderRadius: 3 }} />
                             </div>
                             <span className="fs-p8 text-secondary">{rate}%</span>
                           </div>
@@ -154,6 +200,7 @@ function AdminDashboard() {
           </div>
         </div>
 
+        {/* Company Industries */}
         <div style={{ flex: 1 }}>
           <div className="card p-4">
             <h4 className="bold mb-3">Company Industries</h4>
@@ -175,11 +222,10 @@ function AdminDashboard() {
                     </div>
                   );
                 })}
-
                 <div className="row mt-3" style={{ gap: 10 }}>
                   {[
-                    { label: "Verified",   value: verifiedCompanies,                 color: "var(--success)" },
-                    { label: "Unverified", value: totalCompanies - verifiedCompanies, color: "var(--warning)" },
+                    { label: "Verified",   value: verifiedCompanies,                  color: "var(--success)" },
+                    { label: "Unverified", value: totalCompanies - verifiedCompanies,  color: "var(--warning)" },
                   ].map((s, i) => (
                     <div key={i} className="card p-2 text-center" style={{ flex: 1, boxShadow: "none" }}>
                       <p className="bold" style={{ color: s.color }}>{s.value}</p>
@@ -193,10 +239,11 @@ function AdminDashboard() {
         </div>
       </div>
 
-      <div className="card p-4 mb-4">
+      {/* Recent Job Posts */}
+      <div className="card p-4">
         <div className="row space-between items-center mb-3">
           <h4 className="bold">Recent Job Posts</h4>
-          <span className="fs-p8 text-secondary">{activeJobs} active / {jobPosts.length} total</span>
+          <span className="fs-p8 text-secondary">{jobPosts.length} total</span>
         </div>
         {recentJobs.length === 0 ? (
           <p className="text-secondary fs-p9 text-center p-3">No job posts yet.</p>
@@ -214,8 +261,7 @@ function AdminDashboard() {
             </thead>
             <tbody>
               {recentJobs.map((job, i) => {
-                const isActive = (job.status || "").toUpperCase() === "ACTIVE";
-                return (
+              const isActive = job.lastDateToApply ? new Date(job.lastDateToApply) >= new Date() : true;                return (
                   <tr key={job.jobPostId || i} className="hover-bg">
                     <td className="bold fs-p9">{job.tiitle || job.title || "—"}</td>
                     <td className="fs-p9 text-secondary">{job.companyModel?.companyName || "—"}</td>
@@ -237,22 +283,6 @@ function AdminDashboard() {
             </tbody>
           </table>
         )}
-      </div>
-
-      <div className="row" style={{ gap: 12 }}>
-        {[
-          { label: "Total Suggestions", value: totalSuggestions,  sub: "Tutor-recommended job matches", color: "var(--warning)", bg: "rgba(245,158,11,0.06)"  },
-          { label: "Verified Students", value: verifiedStudents,   sub: `of ${totalStudents} registered`,color: "var(--success)", bg: "rgba(22,163,74,0.06)"   },
-          { label: "Verified Companies",value: verifiedCompanies,  sub: `${totalCompanies - verifiedCompanies} pending`,color: "var(--primary)", bg: "rgba(50,85,99,0.06)" },
-        ].map((c, i) => (
-          <div key={i} style={{ flex: 1 }}>
-            <div className="card p-4" style={{ background: c.bg, border: "none" }}>
-              <p className="fs-p9 text-secondary bold mb-2">{c.label}</p>
-              <h2 className="bold mb-1" style={{ color: c.color }}>{c.value}</h2>
-              <p className="fs-p8 text-secondary">{c.sub}</p>
-            </div>
-          </div>
-        ))}
       </div>
 
     </div>

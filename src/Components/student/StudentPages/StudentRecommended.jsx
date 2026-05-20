@@ -7,16 +7,21 @@ const rest = require("../../../Rest");
 function StudentRecommendations() {
   const navigate = useNavigate();
 
-  const [suggestions,    setSuggestions]    = useState([]);
-  const [loading,        setLoading]        = useState(true);
-  const [error,          setError]          = useState("");
-  const [search,         setSearch]         = useState("");
-  const [expandedId,     setExpandedId]     = useState(null); // which row is open
-  const [applied,        setApplied]        = useState({});   // { [jobSuggestionId]: true }
-  const [applying,       setApplying]       = useState(null);
-  const [showModal,      setShowModal]      = useState(null); // suggestion object
-  const [resumes,        setResumes]        = useState([]);
-  const [selectedResume, setSelectedResume] = useState(null);
+  const [suggestions,      setSuggestions]      = useState([]);
+  const [loading,          setLoading]          = useState(true);
+  const [error,            setError]            = useState("");
+  const [search,           setSearch]           = useState("");
+  const [expandedId,       setExpandedId]       = useState(null);
+  const [applied,          setApplied]          = useState({});
+  const [applying,         setApplying]         = useState(null);
+  const [showModal,        setShowModal]        = useState(null);
+  const [resumes,          setResumes]          = useState([]);
+  const [selectedResume,   setSelectedResume]   = useState(null);
+
+  // ── Skill prediction state ──
+  const [predicting,       setPredicting]       = useState(false);
+  const [predictionResult, setPredictionResult] = useState(null);
+  const [predictionError,  setPredictionError]  = useState("");
 
   const getHeaders = () => ({
     headers: {
@@ -30,7 +35,6 @@ function StudentRecommendations() {
       const res  = await axios.get(rest.jobSuggestions, getHeaders());
       const list = res.data?.data || res.data || [];
       const arr  = Array.isArray(list) ? list : [];
-      console.log("Suggestions raw:", arr);
       setSuggestions(arr);
 
       const appliedMap = {};
@@ -39,7 +43,6 @@ function StudentRecommendations() {
           appliedMap[s.jobSuggestionId] = true;
         }
       });
-      console.log("Applied map from backend:", appliedMap);
       setApplied(appliedMap);
     } catch (err) {
       console.error("fetchSuggestions error:", err.response?.data || err.message);
@@ -52,7 +55,6 @@ function StudentRecommendations() {
       const res  = await axios.get(rest.studentResume, getHeaders());
       const data = res.data?.data || res.data || [];
       const list = Array.isArray(data) ? data : [];
-      console.log("Resumes:", list);
       setResumes(list);
     } catch (err) {
       console.error("fetchResumes error:", err.response?.data || err.message);
@@ -71,22 +73,19 @@ function StudentRecommendations() {
   const applyToJob = async () => {
     if (!showModal || !selectedResume) return;
     const { jobSuggestionId } = showModal;
-
     setApplying(jobSuggestionId);
     try {
       const payload = { resumeId: selectedResume.resumeId };
-      console.log("Applying — suggestionId:", jobSuggestionId, "payload:", payload);
-
-      const res = await axios.post(
+      await axios.post(
         `${rest.jobSuggestions}/${jobSuggestionId}/job-applications`,
         payload,
         getHeaders()
       );
-      console.log("Apply response:", res.data);
-
       setApplied((prev) => ({ ...prev, [jobSuggestionId]: true }));
       setShowModal(null);
       setSelectedResume(null);
+      setPredictionResult(null);
+      setPredictionError("");
       setExpandedId(null);
       alert("Application submitted successfully!");
     } catch (err) {
@@ -98,12 +97,65 @@ function StudentRecommendations() {
     }
   };
 
-  const jobTitle   = (job) => job?.tiitle || job?.title || "—";
-  const getTutorName = (sug) =>
-    sug?.tutorModel?.tutorName || sug?.tutorModel?.name || "Your Tutor";
+  
+  const runPrediction = async (jobPostModel) => {
+    if (resumes.length === 0) {
+      setPredictionError("No resume found. Please upload a resume in your Profile first.");
+      return;
+    }
+
+    // Use the latest resume (same logic as getPrimaryResume)
+    const myResume = resumes[resumes.length - 1];
+
+    if (!myResume?.resume2) {
+      setPredictionError("Resume file not available. Please re-upload your resume.");
+      return;
+    }
+
+    setPredicting(true);
+    setPredictionResult(null);
+    setPredictionError("");
+
+    try {
+      // Strip wrong MIME prefix from backend and rebuild as PDF
+      const b64  = myResume.resume2.includes(",")
+        ? myResume.resume2.split(",")[1]
+        : myResume.resume2;
+      const bin  = atob(b64);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+
+      const file = new File(
+        [new Blob([bytes], { type: "application/pdf" })],
+        (myResume.resumeTitle || "resume") + ".pdf",
+        { type: "application/pdf" }
+      );
+
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("job_description", jobPostModel?.description || jobPostModel?.tiitle || jobPostModel?.title || "");
+
+      const res = await axios.post(rest.predictionAPI, fd, {
+        headers: { Authorization: `Bearer ${Cookies.get("token")}` },
+      });
+      setPredictionResult(res.data);
+    } catch (err) {
+      if (err.code === "ERR_NETWORK")
+        setPredictionError("Prediction service is not available right now. Please try later.");
+      else if (err.response?.status === 401)
+        setPredictionError("Session expired. Please log in again.");
+      else
+        setPredictionError("Prediction failed: " + (err.response?.data?.error || err.message));
+    } finally {
+      setPredicting(false);
+    }
+  };
+
+  const jobTitle     = (job) => job?.tiitle || job?.title || "—";
+  const getTutorName = (sug) => sug?.tutorModel?.tutorName || sug?.tutorModel?.name || "Your Tutor";
 
   const filtered = suggestions.filter((sug) => {
-    const q = search.toLowerCase();
+    const q       = search.toLowerCase();
     if (!q) return true;
     const company = (sug.jobPostModel?.companyModel?.companyName || "").toLowerCase();
     const title   = jobTitle(sug.jobPostModel).toLowerCase();
@@ -121,7 +173,7 @@ function StudentRecommendations() {
         <div>
           <h2 className="fs-5 bold mb-1">Tutor Recommendations</h2>
           <p className="fs-p9 text-secondary">
-            Jobs your tutor handpicked — click View to read details, then Apply
+            Jobs your tutor handpicked — view details, check your skill match, then apply
           </p>
         </div>
         <button
@@ -226,7 +278,6 @@ function StudentRecommendations() {
                     {job.eligiblePercentage ? `${job.eligiblePercentage}%` : "—"}
                   </div>
 
-                  {/* Status badge */}
                   <div style={{ flex: 1, textAlign: "center" }}>
                     <span style={{
                       fontSize: "0.72rem", fontWeight: 600, padding: "3px 10px", borderRadius: 12,
@@ -241,7 +292,14 @@ function StudentRecommendations() {
                     <button
                       className="btn btn-muted w-auto"
                       style={{ padding: "5px 12px", fontSize: "0.78rem" }}
-                      onClick={() => setExpandedId(isOpen ? null : sug.jobSuggestionId)}
+                      onClick={() => {
+                        // Reset prediction when toggling rows
+                        if (!isOpen) {
+                          setPredictionResult(null);
+                          setPredictionError("");
+                        }
+                        setExpandedId(isOpen ? null : sug.jobSuggestionId);
+                      }}
                     >
                       {isOpen ? "Close" : "View"}
                     </button>
@@ -253,6 +311,8 @@ function StudentRecommendations() {
                         onClick={() => {
                           setShowModal(sug);
                           setSelectedResume(null);
+                          setPredictionResult(null);
+                          setPredictionError("");
                         }}
                       >
                         Apply
@@ -275,6 +335,7 @@ function StudentRecommendations() {
                   </div>
                 </div>
 
+                {/* Expanded detail panel */}
                 {isOpen && (
                   <div style={{
                     padding: "20px 24px",
@@ -284,6 +345,7 @@ function StudentRecommendations() {
                   }}>
                     <div className="row" style={{ gap: 24 }}>
 
+                      {/* Left — job details */}
                       <div style={{ flex: 1 }}>
                         <h4 className="bold mb-2">{jobTitle(job)}</h4>
                         <p className="fs-p9 text-secondary mb-3">
@@ -302,10 +364,10 @@ function StudentRecommendations() {
 
                         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                           {[
-                            { label: "Openings",    value: job.requiredCandidate },
-                            { label: "Min %",       value: job.eligiblePercentage ? `${job.eligiblePercentage}%` : null },
-                            { label: "Posted",      value: job.postedDate },
-                            { label: "Last Date",   value: job.lastDateToApply },
+                            { label: "Openings",  value: job.requiredCandidate },
+                            { label: "Min %",     value: job.eligiblePercentage ? `${job.eligiblePercentage}%` : null },
+                            { label: "Posted",    value: job.postedDate },
+                            { label: "Last Date", value: job.lastDateToApply },
                           ].filter((f) => f.value).map((f) => (
                             <div key={f.label} style={{
                               background: "#fff", border: "1px solid var(--border-color)",
@@ -318,7 +380,10 @@ function StudentRecommendations() {
                         </div>
                       </div>
 
+                      {/* Right — tutor info, skill match, apply */}
                       <div style={{ flex: 1 }}>
+
+                        {/* Tutor card */}
                         <div style={{
                           background: "rgba(50,85,99,0.06)", borderRadius: 8,
                           padding: "12px 14px", marginBottom: 14,
@@ -340,6 +405,7 @@ function StudentRecommendations() {
                           </div>
                         </div>
 
+                        {/* Tutor note */}
                         {sug.note && (
                           <div style={{
                             background: "rgba(14,165,233,0.07)",
@@ -351,6 +417,146 @@ function StudentRecommendations() {
                           </div>
                         )}
 
+                        {/* ── Skill Match button ── */}
+                        {!isApplied && (
+                          <button
+                            onClick={() => runPrediction(job)}
+                            disabled={predicting}
+                            style={{
+                              width: "100%", padding: "10px", borderRadius: 8, marginBottom: 12,
+                              background: predicting ? "var(--gray-200)" : "rgba(50,85,99,0.1)",
+                              color: "var(--primary)",
+                              border: "1px solid rgba(50,85,99,0.3)",
+                              fontWeight: 600, fontSize: "0.85rem",
+                              cursor: predicting ? "not-allowed" : "pointer",
+                            }}
+                          >
+                            {predicting ? "Analyzing your resume..." : "⭐ Check My Skill Match"}
+                          </button>
+                        )}
+
+                        {/* Prediction error */}
+                        {predictionError && expandedId === sug.jobSuggestionId && (
+                          <div className="alert-danger mb-3">
+                            <p className="fs-p9 text-danger">{predictionError}</p>
+                          </div>
+                        )}
+
+                        {/* ── Prediction result ── */}
+                        {predictionResult && expandedId === sug.jobSuggestionId && (
+                          <div className="mb-3 p-3" style={{
+                            background: "rgba(50,85,99,0.04)",
+                            border: "1px solid rgba(50,85,99,0.15)",
+                            borderRadius: 8,
+                          }}>
+                            <p className="bold fs-p9 mb-3">Your Skill Match Result</p>
+
+                            {["technical_skills", "soft_skills"].map((key) => {
+                              const data  = predictionResult[key];
+                              const label = key === "technical_skills" ? "Technical Skills" : "Soft Skills";
+                              const pct   = data?.match_percentage;
+                              const color = pct >= 70
+                                ? "var(--success)"
+                                : pct >= 40
+                                ? "var(--warning)"
+                                : "var(--danger)";
+
+                              return (
+                                <div key={key} className="mb-3">
+                                  {/* Skill category header + % badge */}
+                                  <div className="row space-between items-center mb-2">
+                                    <p className="fs-p9 bold">{label}</p>
+                                    {pct != null ? (
+                                      <span className="bold fs-p9" style={{
+                                        padding: "2px 12px", borderRadius: 12,
+                                        background: pct >= 70
+                                          ? "rgba(22,163,74,0.12)"
+                                          : pct >= 40
+                                          ? "rgba(234,179,8,0.12)"
+                                          : "rgba(239,68,68,0.10)",
+                                        color,
+                                      }}>
+                                        {pct}%
+                                      </span>
+                                    ) : (
+                                      <span className="fs-p8 text-secondary">No data</span>
+                                    )}
+                                  </div>
+
+                                  {/* Progress bar */}
+                                  {pct != null && (
+                                    <div style={{
+                                      height: 6, borderRadius: 4, marginBottom: 10,
+                                      background: "var(--gray-200)", overflow: "hidden",
+                                    }}>
+                                      <div style={{
+                                        width: `${pct}%`, height: "100%",
+                                        background: color, borderRadius: 4,
+                                        transition: "width 0.5s ease",
+                                      }} />
+                                    </div>
+                                  )}
+
+                                  {/* Matched skills */}
+                                  {data?.matched?.length > 0 && (
+                                    <div className="mb-2">
+                                      <p className="fs-p8 text-secondary mb-1">✓ Matched</p>
+                                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                                        {data.matched.map((sk) => (
+                                          <span key={sk} style={{
+                                            background: "rgba(22,163,74,0.1)", color: "var(--success)",
+                                            borderRadius: 20, padding: "2px 10px", fontSize: "0.75rem",
+                                            fontWeight: 600,
+                                          }}>
+                                            {sk}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Missing skills */}
+                                  {data?.missing?.length > 0 && (
+                                    <div>
+                                      <p className="fs-p8 text-secondary mb-1">✗ Missing — prepare these</p>
+                                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                                        {data.missing.map((sk) => (
+                                          <span key={sk} style={{
+                                            background: "rgba(239,68,68,0.08)", color: "var(--danger)",
+                                            borderRadius: 20, padding: "2px 10px", fontSize: "0.75rem",
+                                            fontWeight: 600,
+                                          }}>
+                                            {sk}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {key === "technical_skills" && (
+                                    <div style={{ borderTop: "1px solid var(--border-color)", margin: "12px 0" }} />
+                                  )}
+                                </div>
+                              );
+                            })}
+
+                            {/* Tip for missing skills */}
+                            {(predictionResult?.technical_skills?.missing?.length > 0 ||
+                              predictionResult?.soft_skills?.missing?.length > 0) && (
+                              <div style={{
+                                background: "rgba(245,158,11,0.07)",
+                                border: "1px solid rgba(245,158,11,0.25)",
+                                borderRadius: 8, padding: "10px 14px", marginTop: 4,
+                              }}>
+                                <p className="fs-p8" style={{ color: "var(--warning)", fontWeight: 600 }}>
+                                  💡 Tip: Work on the missing skills above before applying to improve your chances!
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Apply / Already applied */}
                         {isApplied ? (
                           <div>
                             <div className="alert-success mb-3">
@@ -373,7 +579,7 @@ function StudentRecommendations() {
                         ) : (
                           <button
                             className="btn btn-primary"
-                            style={{ padding: "10px 24px", fontSize: "0.9rem" }}
+                            style={{ padding: "10px 24px", fontSize: "0.9rem", width: "100%" }}
                             onClick={() => {
                               setShowModal(sug);
                               setSelectedResume(null);
@@ -402,6 +608,7 @@ function StudentRecommendations() {
         </div>
       )}
 
+      {/* ── Apply modal ── */}
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(null)}>
           <div
@@ -411,7 +618,7 @@ function StudentRecommendations() {
           >
             <div className="row space-between items-center mb-3">
               <h4 className="bold">Apply for Job</h4>
-              <span className="cursor-pointer fs-4 text-secondary" onClick={() => setShowModal(null)}>x</span>
+              <span className="cursor-pointer fs-4 text-secondary" onClick={() => setShowModal(null)}>✖</span>
             </div>
 
             <p className="bold fs-p9 mb-1">{jobTitle(showModal.jobPostModel)}</p>
@@ -447,14 +654,13 @@ function StudentRecommendations() {
                           border: isSel ? "2px solid var(--primary)" : "1px solid var(--border-color)",
                           cursor: "pointer",
                           background: isSel ? "rgba(50,85,99,0.06)" : "#fff",
-                          display: "flex", alignItems: "center",
-                          justifyContent: "space-between",
+                          display: "flex", alignItems: "center", justifyContent: "space-between",
                         }}
                       >
                         <div>
                           <p className="bold fs-p9">{r.resumeTitle || "Resume"}</p>
                           <p className="fs-p8 text-secondary">
-                            ID: {r.resumeId}{r.date ? ` · ${r.date}` : ""}
+                            {r.date ? r.date : "Uploaded"}
                           </p>
                         </div>
                         {isSel && (

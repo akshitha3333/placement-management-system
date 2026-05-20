@@ -3,15 +3,7 @@ import axios from "axios";
 import Cookies from "js-cookie";
 const rest = require("../../../Rest");
 
-const SUGGESTED_SKILLS = [
-  "JavaScript","Python","Java","C++","React","Node.js","SQL","MongoDB",
-  "Spring Boot","Django","Flutter","AWS","Docker","Machine Learning","Git","Figma",
-  "TypeScript","Linux","Kubernetes","Data Analysis",
-];
-
-
-
-const TABS = ["Personal", "Academic", "Skills", "Resumes"];
+const TABS = ["Personal", "Academic", "Resumes"];
 
 const getHeaders = () => ({
   headers: {
@@ -24,27 +16,6 @@ const getMultipartHeaders = () => ({
     Authorization: `Bearer ${Cookies.get("token") || ""}`,
   },
 });
-
-function Tag({ label, onRemove, editing, variant = "skill" }) {
-  const c = variant === "skill"
-    ? { bg: "rgba(50,85,99,0.1)",  color: "#325563", border: "rgba(50,85,99,0.3)"   }
-    : { bg: "rgba(88,60,160,0.1)", color: "#483b8f", border: "rgba(88,60,160,0.3)"  };
-  return (
-    <span style={{
-      display: "inline-flex", alignItems: "center", gap: 5,
-      background: c.bg, color: c.color, border: `1px solid ${c.border}`,
-      borderRadius: 16, padding: "4px 12px", fontSize: "0.8rem", fontWeight: 600,
-    }}>
-      {label}
-      {editing && (
-        <span onClick={() => onRemove(label)}
-          style={{ cursor: "pointer", color: "var(--danger)", fontSize: "0.75rem" }}>
-          x
-        </span>
-      )}
-    </span>
-  );
-}
 
 function DisplayVal({ value }) {
   return (
@@ -59,24 +30,23 @@ function DisplayVal({ value }) {
 }
 
 export default function StudentProfile() {
-  const [activeTab,     setActiveTab]     = useState("Personal");
-  const [editing,       setEditing]       = useState(false);
-  const [loading,       setLoading]       = useState(true);
-  const [saving,        setSaving]        = useState(false);
-  const [message,       setMessage]       = useState("");
-  const [msgType,       setMsgType]       = useState("");
-  const [studentData,   setStudentData]   = useState(null);
+  const [activeTab,   setActiveTab]   = useState("Personal");
+  const [editing,     setEditing]     = useState(false);
+  const [loading,     setLoading]     = useState(true);
+  const [saving,      setSaving]      = useState(false);
+  const [message,     setMessage]     = useState("");
+  const [msgType,     setMsgType]     = useState("");
+  const [studentData, setStudentData] = useState(null);
 
   const [form, setForm] = useState({
     name: "", phone: "", rollNumber: "", percentage: "", year: "",
   });
 
-  const [skills,   setSkills]   = useState([]);
-  const [newSkill, setNewSkill] = useState("");
-
-  const [resumes,       setResumes]       = useState([]);
+  // ── Single resume state ──
+  const [resume,        setResume]        = useState(null);  // single resume object
   const [resumeTitle,   setResumeTitle]   = useState("");
   const [uploading,     setUploading]     = useState(false);
+  const [replacing,     setReplacing]     = useState(false); // toggle re-upload UI
   const [dragging,      setDragging]      = useState(false);
   const [resumeMsg,     setResumeMsg]     = useState("");
   const [resumeMsgType, setResumeMsgType] = useState("");
@@ -92,7 +62,6 @@ export default function StudentProfile() {
 
         if (profileRes.status === "fulfilled") {
           const me = profileRes.value.data?.data || profileRes.value.data;
-          console.log("Student profile:", me);
           setStudentData(me);
           setForm({
             name:       me?.name       || "",
@@ -101,14 +70,13 @@ export default function StudentProfile() {
             percentage: me?.percentage || "",
             year:       me?.year       || "",
           });
-          if (me?.skills) setSkills(me.skills.split(",").map((s) => s.trim()).filter(Boolean));
         }
 
         if (resumeRes.status === "fulfilled") {
           const list = resumeRes.value.data?.data || resumeRes.value.data || [];
           const arr  = Array.isArray(list) ? list : [list].filter(Boolean);
-          console.log("Resumes:", arr.length, arr);
-          setResumes(arr);
+          // Always use the latest resume as the single resume
+          setResume(arr.length > 0 ? arr[arr.length - 1] : null);
         }
       } catch (err) {
         console.error("init error:", err);
@@ -126,27 +94,24 @@ export default function StudentProfile() {
     try {
       const studentId = studentData?.studentId || studentData?.id;
       const payload   = {
-        ...studentData,           // keep non-editable fields intact
+        ...studentData,
         name:       form.name,
         phone:      form.phone,
         rollNumber: form.rollNumber,
         percentage: form.percentage,
         year:       form.year,
       };
-      console.log("Saving profile payload:", payload);
-      const res = await axios.patch(
+      await axios.patch(
         `${rest.students.replace("students", "student-profile")}/${studentId}`,
         payload,
         getHeaders()
       );
-      console.log("Save response:", res.data);
       setStudentData((prev) => ({ ...prev, ...payload }));
       setEditing(false);
       setMessage("Profile saved successfully!");
       setMsgType("success");
       setTimeout(() => setMessage(""), 3000);
     } catch (err) {
-      console.error("save error:", err.response?.data || err.message);
       setMessage(err.response?.data?.message || "Failed to save profile.");
       setMsgType("error");
     } finally { setSaving(false); }
@@ -168,82 +133,90 @@ export default function StudentProfile() {
 
   const handleChange = (e) => setForm((p) => ({ ...p, [e.target.name]: e.target.value }));
 
-  const addSkill = () => {
-    const v = newSkill.trim();
-    if (!v || skills.includes(v)) return;
-    setSkills((p) => [...p, v]); setNewSkill("");
-  };
-
-
-
+  // ── Upload / replace the single resume ──
   const uploadResume = async (file) => {
-    if (file.type !== "application/pdf") {
-      setResumeMsg("Only PDF files are accepted."); setResumeMsgType("error"); return;
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      setResumeMsg("File exceeds the 5 MB limit."); setResumeMsgType("error"); return;
-    }
-    const title = resumeTitle.trim() || file.name.replace(/\.pdf$/i, "");
-    setUploading(true); setResumeMsg("");
-    try {
-      const fd = new FormData();
-      fd.append("resume", file);
-      const res = await axios.post(
-        `${rest.studentResume}?resumeTitle=${encodeURIComponent(title)}`,
-        fd, getMultipartHeaders()
-      );
-      console.log("Upload response:", res.data);
-      const saved = res.data?.data || res.data;
-      setResumes((p) => [...p, saved]);
-      setResumeTitle("");
-      setResumeMsg("Resume uploaded successfully!");
-      setResumeMsgType("success");
-      setTimeout(() => setResumeMsg(""), 3000);
-    } catch (err) {
-      console.error("upload error:", err.response?.data || err.message);
-      setResumeMsg(err.response?.data?.message || "Upload failed.");
-      setResumeMsgType("error");
-    } finally { setUploading(false); }
+  if (file.type !== "application/pdf") {
+    setResumeMsg("Only PDF files are accepted."); setResumeMsgType("error"); return;
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    setResumeMsg("File exceeds the 5 MB limit."); setResumeMsgType("error"); return;
+  }
+  const title = resumeTitle.trim() || file.name.replace(/\.pdf$/i, "");
+  setUploading(true); setResumeMsg("");
+  try {
+    const fd = new FormData();
+    fd.append("resume", file);
+    await axios.post(
+      `${rest.studentResume}?resumeTitle=${encodeURIComponent(title)}`,
+      fd, getMultipartHeaders()
+    );
+
+    // Re-fetch the full resume list so we get resume2 (base64 PDF data)
+    const resumeRes = await axios.get(rest.studentResume, getHeaders());
+    const list = resumeRes.data?.data || resumeRes.data || [];
+    const arr  = Array.isArray(list) ? list : [list].filter(Boolean);
+    setResume(arr.length > 0 ? arr[arr.length - 1] : null);
+
+    setResumeTitle("");
+    setReplacing(false);
+    setResumeMsg("Resume uploaded successfully!");
+    setResumeMsgType("success");
+    setTimeout(() => setResumeMsg(""), 3000);
+  } catch (err) {
+    setResumeMsg(err.response?.data?.message || "Upload failed.");
+    setResumeMsgType("error");
+  } finally { setUploading(false); }
+};
+
+  const processFile = (files) => {
+    const pdf = Array.from(files).find((f) => f.type === "application/pdf");
+    if (!pdf) { setResumeMsg("PDF only."); setResumeMsgType("error"); return; }
+    uploadResume(pdf);
   };
 
-  const processFiles = (files) => {
-    const pdfs = Array.from(files).filter((f) => f.type === "application/pdf");
-    if (pdfs.length === 0) { setResumeMsg("PDF only."); setResumeMsgType("error"); return; }
-    pdfs.forEach(uploadResume);
-  };
+  // ── View resume ──
+  // The backend sends resume2 with a wrong MIME type "data:image/jpeg;base64,..."
+  // but the actual bytes are a valid PDF. We strip the prefix and force application/pdf.
+  const openResume = () => {
+  if (!resume?.resume2) { alert("Resume file not available."); return; }
+  try {
+    const raw = resume.resume2.includes(",")
+      ? resume.resume2.split(",")[1]
+      : resume.resume2;
 
-  const openResume = (r) => {
-    const base64 = r.resume2;
-    if (!base64) { alert("Resume file not available."); return; }
-    try {
-      const raw    = base64.startsWith("data:") ? base64.split(",")[1] : base64;
-      const binary = atob(raw);
-      const bytes  = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-      const blob    = new Blob([bytes], { type: "application/pdf" });
-      const blobUrl = URL.createObjectURL(blob);
-      const win = window.open(blobUrl, "_blank");
-      if (!win) {
-        const a = document.createElement("a");
-        a.href = blobUrl; a.download = (r.resumeTitle || "resume") + ".pdf"; a.click();
-      }
-      setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
-    } catch (err) {
-      console.error("openResume error:", err);
-      alert("Could not open resume.");
+    const binary = atob(raw);
+    const bytes  = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+
+    // Force correct PDF MIME type — backend sends wrong "image/jpeg" for PDFs
+    const blob    = new Blob([bytes], { type: "application/pdf" });
+    const blobUrl = URL.createObjectURL(blob);
+
+    const win = window.open(blobUrl, "_blank");
+    if (!win || win.closed || typeof win.closed === "undefined") {
+      const a = document.createElement("a");
+      a.href     = blobUrl;
+      a.download = (resume.resumeTitle || "resume") + ".pdf";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
     }
-  };
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+  } catch (err) {
+    console.error("openResume error:", err);
+    alert("Could not open resume: " + err.message);
+  }
+};
 
   const dept  = studentData?.departmentModel?.departmentName || "—";
   const email = studentData?.userModel?.email || studentData?.email || "—";
 
   const checks = [
-    { label: "Full Name",   done: !!form.name       },
-    { label: "Phone",       done: !!form.phone       },
-    { label: "Roll Number", done: !!form.rollNumber  },
-    { label: "Percentage",  done: !!form.percentage  },
-    { label: "Skills",      done: skills.length > 0  },
-    { label: "Resume",      done: resumes.length > 0 },
+    { label: "Full Name",   done: !!form.name      },
+    { label: "Phone",       done: !!form.phone      },
+    { label: "Roll Number", done: !!form.rollNumber },
+    { label: "Percentage",  done: !!form.percentage },
+    { label: "Resume",      done: !!resume          },
   ];
   const pct = Math.round((checks.filter((c) => c.done).length / checks.length) * 100);
 
@@ -435,185 +408,160 @@ export default function StudentProfile() {
         </div>
       )}
 
-      {/* ── TAB: Skills ── */}
-      {activeTab === "Skills" && (
-        <div className="row" style={{ gap: 14 }}>
-
-          {/* Skills */}
-          <div style={{ flex: 1 }}>
-            <div className="card p-4">
-              <p className="fs-p8 bold text-secondary mb-3" style={{ textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                Skills
-              </p>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
-                {skills.length === 0
-                  ? <p className="fs-p9 text-secondary">No skills added yet</p>
-                  : skills.map((s) => <Tag key={s} label={s} onRemove={(v) => setSkills((p) => p.filter((x) => x !== v))} editing={true} variant="skill" />)
-                }
-              </div>
-              <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-                <input className="form-control" style={{ flex: 1 }}
-                  placeholder="Type skill + Enter"
-                  value={newSkill} onChange={(e) => setNewSkill(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && addSkill()} />
-                <button className="btn btn-primary w-auto" style={{ padding: "8px 14px" }} onClick={addSkill}>Add</button>
-              </div>
-              <div style={{ borderTop: "1px solid var(--border-color)", paddingTop: 10 }}>
-                <p className="fs-p8 text-secondary mb-2">Suggested — click to add</p>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                  {SUGGESTED_SKILLS.filter((s) => !skills.includes(s)).map((s) => (
-                    <span key={s} onClick={() => editing && setSkills((p) => [...p, s])}
-                      style={{
-                        fontSize: "0.78rem", padding: "3px 10px", borderRadius: 12,
-                        background: "var(--gray-100)", color: "var(--gray-600)",
-                        border: "1px solid var(--gray-300)",
-                        cursor: "pointer",
-                      }}>
-                      {s} +
-                    </span>
-                  ))}
-                </div>
-              </div>
-
-              {/* Save skills button */}
-              <button
-                className="btn btn-primary mt-3"
-                style={{ padding: "9px 24px" }}
-                onClick={async () => {
-                  setSaving(true); setMessage("");
-                  try {
-                    const studentId = studentData?.studentId || studentData?.id;
-                    const payload   = { ...studentData, skills: skills.join(", ") };
-                    await axios.patch(
-                      `${rest.students.replace("students", "student-profile")}/${studentId}`,
-                      payload,
-                      getHeaders()
-                    );
-                    setStudentData((p) => ({ ...p, skills: skills.join(", ") }));
-                    setMessage("Skills saved!"); setMsgType("success");
-                    setTimeout(() => setMessage(""), 2500);
-                  } catch (err) {
-                    setMessage("Failed to save skills."); setMsgType("error");
-                  } finally { setSaving(false); }
-                }}
-                disabled={saving}
-              >
-                {saving ? "Saving..." : "Save Skills"}
-              </button>
-            </div>
-          </div>
-
-        </div>
-      )}
-
       {/* ── TAB: Resumes ── */}
       {activeTab === "Resumes" && (
-        <div className="card p-4">
-          <div className="row space-between items-center mb-3">
+        <div className="card p-4" style={{ maxWidth: 560 }}>
+
+          <div className="row space-between items-center mb-1">
             <p className="fs-p8 bold text-secondary" style={{ textTransform: "uppercase", letterSpacing: "0.05em" }}>
-              Resumes
+              My Resume
             </p>
-            <p className="fs-p8 text-secondary">{resumes.length} uploaded · PDF only · Max 5 MB</p>
+            <p className="fs-p8 text-secondary">PDF only · Max 5 MB</p>
           </div>
 
+          {/* Feedback message */}
           {resumeMsg && (
             <div className={resumeMsgType === "success" ? "alert-success mb-3" : "alert-danger mb-3"}>
               <p className={resumeMsgType === "success" ? "text-success fs-p9" : "text-danger fs-p9"}>{resumeMsg}</p>
             </div>
           )}
 
-          {/* Existing resumes */}
-          {resumes.length === 0 && !uploading && (
-            <p className="text-secondary fs-p9 text-center p-3">No resumes uploaded yet.</p>
-          )}
-
-          {resumes.map((r, i) => (
-            <div key={r.resumeId || i} className="row items-center mb-2" style={{
-              padding: "10px 14px", borderRadius: 10,
-              border: "1px solid var(--border-color)",
-              background: i === 0 ? "rgba(50,85,99,0.04)" : "var(--gray-100)",
-              gap: 12,
+          {/* ── Existing resume card (shown when a resume exists and not replacing) ── */}
+          {resume && !replacing && (
+            <div style={{
+              display: "flex", alignItems: "center", gap: 14,
+              padding: "14px 16px", borderRadius: 12,
+              border: "1.5px solid var(--primary)",
+              background: "rgba(50,85,99,0.05)",
+              marginBottom: 16,
             }}>
+              {/* PDF icon */}
               <div style={{
-                width: 40, height: 40, borderRadius: 8, background: "#325563", color: "#fff",
+                width: 44, height: 44, borderRadius: 10,
+                background: "#325563", color: "#fff",
                 display: "flex", alignItems: "center", justifyContent: "center",
                 fontSize: "0.65rem", fontWeight: 700, flexShrink: 0,
               }}>
                 PDF
               </div>
+
+              {/* Title + date */}
               <div style={{ flex: 1, minWidth: 0 }}>
                 <p className="bold fs-p9" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {r.resumeTitle || `Resume ${i + 1}`}
+                  {resume.resumeTitle || resume.resume || "My Resume"}
                 </p>
                 <p className="fs-p8 text-secondary">
-                  {r.date ? new Date(r.date).toLocaleDateString("en-IN") : "Uploaded"}
+                  {resume.date ? new Date(resume.date).toLocaleDateString("en-IN") : "Uploaded"}
                 </p>
               </div>
-              {i === 0 && (
-                <span style={{
-                  fontSize: "0.72rem", padding: "3px 10px", borderRadius: 12,
-                  background: "rgba(50,85,99,0.12)", color: "var(--primary)", fontWeight: 600,
-                }}>
-                  Primary
-                </span>
-              )}
+
+              {/* View button */}
               <button
-                onClick={() => openResume(r)}
-                disabled={!r.resume2}
+                onClick={openResume}
                 className="btn btn-muted w-auto"
-                style={{ padding: "5px 14px", fontSize: "0.78rem" }}
+                style={{ padding: "6px 14px", fontSize: "0.78rem", whiteSpace: "nowrap" }}
               >
                 View
               </button>
-            </div>
-          ))}
 
-          {uploading && (
-            <div className="p-3 text-center mb-2" style={{
-              border: "1px dashed var(--border-color)", borderRadius: 10, background: "rgba(50,85,99,0.03)",
-            }}>
-              <p className="fs-p9 text-secondary">Uploading...</p>
+              {/* Replace button */}
+              <button
+                onClick={() => { setReplacing(true); setResumeMsg(""); }}
+                className="btn btn-primary w-auto"
+                style={{ padding: "6px 14px", fontSize: "0.78rem", whiteSpace: "nowrap" }}
+              >
+                Replace
+              </button>
             </div>
           )}
 
-          {/* Title + drop zone */}
-          <div className="mt-3">
-            <div className="form-group mb-2">
-              <label className="form-control-label">
-                Resume Title
-                <span className="fs-p8 text-secondary" style={{ fontWeight: 400, marginLeft: 6 }}>
-                  (optional — defaults to filename)
-                </span>
-              </label>
-              <input className="form-control" placeholder="e.g. Software Engineer Resume"
-                value={resumeTitle} onChange={(e) => setResumeTitle(e.target.value)} disabled={uploading} />
-            </div>
+          {/* ── Upload area: shown when no resume OR when replacing ── */}
+          {(!resume || replacing) && (
+            <>
+              {/* Warning banner shown only when replacing */}
+              {replacing && (
+                <div className="row items-center mb-3" style={{
+                  gap: 10, padding: "10px 14px", borderRadius: 8,
+                  background: "rgba(255,180,0,0.08)",
+                  border: "1px solid rgba(255,180,0,0.35)",
+                }}>
+                  <p className="fs-p9" style={{ flex: 1, color: "var(--text-secondary)" }}>
+                    Uploading a new resume will replace the existing one.
+                  </p>
+                  <button
+                    onClick={() => { setReplacing(false); setResumeMsg(""); setResumeTitle(""); }}
+                    className="btn btn-muted w-auto"
+                    style={{ padding: "4px 12px", fontSize: "0.78rem" }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
 
-            <div
-              onClick={() => !uploading && fileInputRef.current.click()}
-              onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
-              onDragLeave={() => setDragging(false)}
-              onDrop={(e) => { e.preventDefault(); setDragging(false); processFiles(e.dataTransfer.files); }}
-              style={{
-                border: `2px dashed ${dragging ? "var(--primary)" : "var(--border-color)"}`,
-                borderRadius: 12, padding: "2rem", textAlign: "center",
-                cursor: uploading ? "not-allowed" : "pointer",
-                background: dragging ? "rgba(50,85,99,0.04)" : "transparent",
-                opacity: uploading ? 0.5 : 1,
-              }}
-            >
-              <p className="bold fs-p9" style={{ color: "var(--gray-600)" }}>
-                {dragging ? "Drop PDF here!" : "Drop PDF here or click to upload"}
-              </p>
-              <p className="fs-p8 text-secondary mt-1">PDF only · Max 5 MB</p>
-              <input ref={fileInputRef} type="file" accept=".pdf" style={{ display: "none" }}
-                onChange={(e) => processFiles(e.target.files)} />
-            </div>
-          </div>
+              {/* Optional title */}
+              <div className="form-group mb-2">
+                <label className="form-control-label">
+                  Resume Title
+                  <span className="fs-p8 text-secondary" style={{ fontWeight: 400, marginLeft: 6 }}>
+                    (optional — defaults to filename)
+                  </span>
+                </label>
+                <input
+                  className="form-control"
+                  placeholder="e.g. Software Engineer Resume"
+                  value={resumeTitle}
+                  onChange={(e) => setResumeTitle(e.target.value)}
+                  disabled={uploading}
+                />
+              </div>
+
+              {/* Drag & drop zone */}
+              <div
+                onClick={() => !uploading && fileInputRef.current.click()}
+                onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+                onDragLeave={() => setDragging(false)}
+                onDrop={(e) => { e.preventDefault(); setDragging(false); processFile(e.dataTransfer.files); }}
+                style={{
+                  border: `2px dashed ${dragging ? "var(--primary)" : "var(--border-color)"}`,
+                  borderRadius: 12, padding: "2.5rem", textAlign: "center",
+                  cursor: uploading ? "not-allowed" : "pointer",
+                  background: dragging ? "rgba(50,85,99,0.04)" : "transparent",
+                  opacity: uploading ? 0.5 : 1,
+                  transition: "border-color 0.2s, background 0.2s",
+                }}
+              >
+                {uploading ? (
+                  <p className="fs-p9 text-secondary">Uploading...</p>
+                ) : (
+                  <>
+                    <p className="bold fs-p9" style={{ color: "var(--gray-600)" }}>
+                      {dragging ? "Drop PDF here!" : "Drop PDF here or click to upload"}
+                    </p>
+                    <p className="fs-p8 text-secondary mt-1">PDF only · Max 5 MB</p>
+                  </>
+                )}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pdf"
+                  style={{ display: "none" }}
+                  onChange={(e) => processFile(e.target.files)}
+                />
+              </div>
+            </>
+          )}
         </div>
       )}
 
-
     </div>
   );
+}
+
+/**
+ * EXPORTED UTILITY — returns the student's current resume.
+ * Used in tutor / prediction pages.
+ */
+export function getPrimaryResume(resumeList) {
+  if (!resumeList || resumeList.length === 0) return null;
+  return resumeList[resumeList.length - 1];
 }

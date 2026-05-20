@@ -61,10 +61,11 @@ const formatDT = (dt) => {
       date = new Date(String(dt).replace(" ", "T"));
     }
     if (isNaN(date.getTime())) return String(dt);
-    return date.toLocaleString("en-IN", {
-      day: "2-digit", month: "short", year: "numeric",
-      hour: "2-digit", minute: "2-digit",
-    });
+    return date.toLocaleString(undefined, {
+day: "2-digit", month: "short", year: "numeric",
+hour: "2-digit", minute: "2-digit", hour12: true,
+timeZoneName: "short",
+});
   } catch {
     return String(dt);
   }
