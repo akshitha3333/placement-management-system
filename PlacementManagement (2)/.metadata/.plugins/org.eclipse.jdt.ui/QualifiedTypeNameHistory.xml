@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<qualifiedTypeNameHistroy>
+    <fullyQualifiedTypeName name="java.security.Principal"/>
+    <fullyQualifiedTypeName name="placement.models.TutorModel"/>
+    <fullyQualifiedTypeName name="placement.models.DepartmentModel"/>
+    <fullyQualifiedTypeName name="placement.models.StudentModel"/>
+    <fullyQualifiedTypeName name="placement.models.JobSuggestionModel"/>
+    <fullyQualifiedTypeName name="placement.models.JobApplicationModel"/>
+    <fullyQualifiedTypeName name="placement.models.InterviewModel"/>
+    <fullyQualifiedTypeName name="placement.models.UserModel"/>
+    <fullyQualifiedTypeName name="java.util.ArrayList"/>
+    <fullyQualifiedTypeName name="java.util.List"/>
+    <fullyQualifiedTypeName name="placement.models.OfferLetterModel"/>
+</qualifiedTypeNameHistroy>

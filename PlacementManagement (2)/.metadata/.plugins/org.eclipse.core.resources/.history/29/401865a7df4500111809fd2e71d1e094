@@ -1,0 +1,126 @@
+package placement.services;
+
+import java.util.ArrayList;
+import java.util.List;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import jakarta.transaction.Transactional;
+import placement.models.CompanyModel;
+import placement.models.FeedBackModel;
+import placement.models.MeetingModel;
+import placement.models.StudentModel;
+import placement.models.TutorModel;
+import placement.models.UserModel;
+import placement.repositories.CompanyRepository;
+import placement.repositories.FeedbackRepository;
+import placement.repositories.MeetingRepository;
+import placement.repositories.StudentRepository;
+import placement.repositories.TutorRepository;
+import placement.repositories.UserRepository;
+
+@Service
+@Transactional
+public class InteractionService {
+	
+	@Autowired
+	private UserRepository userRepository;
+	
+	@Autowired
+	private StudentRepository studentRepository;
+	
+	
+	@Autowired
+	private CompanyRepository companyRepository;
+	
+	
+	@Autowired
+	private MeetingRepository meetingRepository;
+	
+	@Autowired
+	private TutorRepository  tutorRepository;
+
+	
+	@Autowired
+	private FeedbackRepository feedbackRepository;
+
+
+	public String scheduleMeeting(String name, MeetingModel meetingModel) {
+		TutorModel tutorModel = tutorRepository.findByEmail(name).get(0);
+		CompanyModel companyModel = companyRepository.findById(meetingModel.getCompanyId()).get();
+		StudentModel studentModel = studentRepository.findById(meetingModel.getStudentId()).get();
+		meetingModel.setCompanyModel(companyModel);
+		meetingModel.setTutorModel(tutorModel);
+		meetingModel.setStudentModel(studentModel);
+		meetingRepository.save(meetingModel);
+		return "meeting.scheduled";
+	}
+
+
+
+	public List<MeetingModel> getMeetings(String name) {
+		UserModel userModel = userRepository.findByEmail(name).get(0);
+		List<MeetingModel> meetingModelsList = new ArrayList<>();
+		if ("STUDENT".equalsIgnoreCase(userModel.getRole().toString())) {
+			StudentModel studentModel = studentRepository.findByEmail(name);
+			meetingModelsList = meetingRepository.findByStudentModel(studentModel);
+		}else if ("TUTOR".equalsIgnoreCase(userModel.getRole().toString())) {
+			TutorModel tutorModel = tutorRepository.findByEmail(name).get(0);
+			meetingModelsList = meetingRepository.findByTutorModel(tutorModel);
+     	}else if("COMPANY".equalsIgnoreCase(userModel.getRole().toString())) {
+     		CompanyModel companyModel = companyRepository.findByEmail(name);
+			meetingModelsList = meetingRepository.findByCompanyModel(companyModel);
+     	}
+		return meetingModelsList;
+	}
+
+
+
+	public String giveFeedback(FeedBackModel feedBackModel, String name) {
+		UserModel userModel = userRepository.findByEmail(name).get(0);
+		if ("STUDENT".equalsIgnoreCase(userModel.getRole().toString())) {
+			StudentModel studentModel = studentRepository.findByEmail(name);
+			feedBackModel.setFeedbackFrom(studentModel.getStudentId());
+			feedBackModel.setFeedback_by_role(userModel.getRole());
+			feedbackRepository.save(feedBackModel);
+		}else if("TUTOR".equalsIgnoreCase(userModel.getRole().toString())) {
+			TutorModel tutorModel = tutorRepository.findByEmail(name).get(0);
+			feedBackModel.setFeedbackFrom(tutorModel.getTutorId());
+			feedBackModel.setFeedback_by_role(userModel.getRole());
+			feedbackRepository.save(feedBackModel);
+
+		}else if("COMPANY".equalsIgnoreCase(userModel.getRole().toString())) {
+			CompanyModel companyModel = companyRepository.findByEmail(name);
+			feedBackModel.setFeedbackFrom(companyModel.getCompanyId());
+			feedBackModel.setFeedback_by_role(userModel.getRole());
+			feedbackRepository.save(feedBackModel);
+
+		}
+		return "feedback.submited";
+	}
+
+
+
+	public List<FeedBackModel> getFeedbacks(String name) {
+		UserModel userModel = userRepository.findByEmail(name).get(0);
+		List<FeedBackModel> feedBackModelList = new ArrayList<>();
+		if ("STUDENT".equalsIgnoreCase(userModel.getRole().toString())) {
+			StudentModel studentModel = studentRepository.findByEmail(name);
+			feedBackModelList = feedbackRepository.findByFeedbackFrom(studentModel.getStudentId());
+		}else if("TUTOR".equalsIgnoreCase(userModel.getRole().toString())) {
+			TutorModel tutorModel = tutorRepository.findByEmail(name).get(0);
+			feedBackModelList = feedbackRepository.findByFeedbackFrom(tutorModel.getTutorId());
+
+		}else if("COMPANY".equalsIgnoreCase(userModel.getRole().toString())) {
+			CompanyModel companyModel = companyRepository.findByEmail(name);
+			feedBackModelList = feedbackRepository.findByFeedbackFrom(companyModel.getCompanyId());
+		}
+		return feedBackModelList;
+
+	}
+
+
+
+
+	
+
+}

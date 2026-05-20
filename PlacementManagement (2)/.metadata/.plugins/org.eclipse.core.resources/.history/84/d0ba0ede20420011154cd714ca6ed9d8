@@ -1,0 +1,251 @@
+package placement.controllers;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.security.Principal;
+import java.time.LocalDate;
+import java.util.List;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+
+import placement.models.InterviewModel;
+import placement.models.JobApplicationModel;
+import placement.models.JobPostModel;
+import placement.models.JobSuggestionModel;
+import placement.models.OfferLetterModel;
+import placement.security.ApiResponse;
+import placement.security.ApiResponseBuilder;
+import placement.services.JobService;
+
+@RestController
+@RequestMapping("/api/job")
+public class JobController {
+	
+	@Autowired
+	private JobService jobService;
+	
+	@Value("${poster.path}")
+	private String posterPath;
+	
+	@Value("${offer-letter.path}")
+	private String offferPath;
+	
+	
+	
+	@Autowired
+	private ApiResponseBuilder apiResponseBuilder;
+	
+	
+	
+	@PostMapping(value = "/job-post", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<?> addJobPost(
+            @RequestParam("poster") MultipartFile file,
+            @RequestParam String title,
+            @RequestParam String description,
+            @RequestParam String requiredCandidate,
+            @RequestParam String postedDate,
+            @RequestParam String lastDateToApply,
+            @RequestParam String eligiblePercentage,
+            @RequestParam List<Long> skillIds,
+            Principal principal) {
+
+        try {
+            String fileName = file.getOriginalFilename();
+            File uploadedFile = new File(posterPath + File.separator + fileName);
+
+            FileOutputStream fos = new FileOutputStream(uploadedFile);
+            fos.write(file.getBytes());
+            fos.close();
+
+            JobPostModel job = new JobPostModel();
+            job.setTiitle(title);
+            job.setDescription(description);
+            job.setRequiredCandidate(requiredCandidate);
+            job.setPostedDate(postedDate);
+            job.setLastDateToApply(lastDateToApply);
+            job.setEligiblePercentage(eligiblePercentage);
+            job.setPoster(fileName);
+
+            // 🔹 Call service
+            String response = jobService.addJobPost(job, skillIds,principal.getName());
+
+            if (response.equals("EXISTS")) {
+                return ResponseEntity.status(HttpStatus.CONFLICT)
+                        .body("Job already exists");
+            }
+            return ResponseEntity.status(HttpStatus.CREATED)
+                    .body("Job posted successfully");
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Error while posting job");
+        }
+    }
+	
+	@GetMapping("/job-post")
+	public ResponseEntity<ApiResponse<List<JobPostModel>>> getJobPosts(Principal principal){
+		List<JobPostModel> jobPostModelsList = jobService.getJobPosts(principal.getName());
+		String message = jobPostModelsList.isEmpty() ? "tutors.not.found" : "tutors.retrieved.success";
+		Object[] args = jobPostModelsList.isEmpty() ? null : new Object[]{jobPostModelsList.size()};
+	    return apiResponseBuilder.success(jobPostModelsList, message, args);
+	}
+	
+	
+	@PostMapping("/job-suggestions")
+	public ResponseEntity<ApiResponse<Object>> addJobSuggestion(@RequestBody JobSuggestionModel jobSuggestionModel,Principal principal) {
+	    String messageKey = jobService.addJobSuggestion(jobSuggestionModel,principal.getName());
+	    return apiResponseBuilder.created(null,messageKey);
+	}
+	
+	@GetMapping("/job-suggestions")
+	public ResponseEntity<ApiResponse<List<JobSuggestionModel>>> getJobSuggestionModel(Principal principal){
+		List<JobSuggestionModel> jobSuggestionModelsList = jobService.getJobSuggestionModel(principal.getName());
+		String message = jobSuggestionModelsList.isEmpty() ? "job-suggestions.not.found" : "job-suggestions.retrieved.success";
+		Object[] args = jobSuggestionModelsList.isEmpty() ? null : new Object[]{jobSuggestionModelsList.size()};
+	    return apiResponseBuilder.success(jobSuggestionModelsList, message, args);
+	}
+	
+	
+	
+	@PostMapping("/job-suggestions/{jobSuggestionId}/job-applications")
+	public ResponseEntity<ApiResponse<Object>> applyJob(@PathVariable Long jobSuggestionId,@RequestBody JobApplicationModel jobApplicationModel) {
+	    String messageKey = jobService.applyJob(jobSuggestionId,jobApplicationModel);
+	    return apiResponseBuilder.created(null,messageKey);
+	}
+	
+	@GetMapping("/job-suggestions/{jobSuggestionId}/job-applications")
+	public ResponseEntity<ApiResponse<List<JobApplicationModel>>> getJobApplications(Principal principal,@PathVariable Long jobSuggestionId){
+		List<JobApplicationModel>  jobApplicationModelsList = jobService.getJobApplications(principal.getName(),jobSuggestionId);
+		String message = jobApplicationModelsList.isEmpty() ? "job-suggestions.not.found" : "job-suggestions.retrieved.success";
+		Object[] args = jobApplicationModelsList.isEmpty() ? null : new Object[]{jobApplicationModelsList.size()};
+	    return apiResponseBuilder.success(jobApplicationModelsList, message, args);
+	}
+	
+	@GetMapping("/job-post/{jobPostId}/job-applications")
+	public ResponseEntity<ApiResponse<List<JobApplicationModel>>> getJobApplications2(Principal principal,@PathVariable Long jobPostId){
+		List<JobApplicationModel>  jobApplicationModelsList = jobService.getJobApplications2(principal.getName(),jobPostId);
+		String message = jobApplicationModelsList.isEmpty() ? "job-suggestions.not.found" : "job-suggestions.retrieved.success";
+		Object[] args = jobApplicationModelsList.isEmpty() ? null : new Object[]{jobApplicationModelsList.size()};
+	    return apiResponseBuilder.success(jobApplicationModelsList, message, args);
+	}
+	
+	@GetMapping("/job-applications")
+	public ResponseEntity<ApiResponse<List<JobApplicationModel>>> getJobApplications3(Principal principal){
+		List<JobApplicationModel>  jobApplicationModelsList = jobService.getJobApplications3(principal.getName());
+		String message = jobApplicationModelsList.isEmpty() ? "job-suggestions.not.found" : "job-suggestions.retrieved.success";
+		Object[] args = jobApplicationModelsList.isEmpty() ? null : new Object[]{jobApplicationModelsList.size()};
+	    return apiResponseBuilder.success(jobApplicationModelsList, message, args);
+	}
+	
+	
+	@PostMapping("/job-application/{jobApplicationId}/interview")
+	public ResponseEntity<ApiResponse<Object>> scheduleInterview(@PathVariable Long jobApplicationId,@RequestBody InterviewModel interviewModel) {
+	    String messageKey = jobService.scheduleInterview(jobApplicationId,interviewModel);
+	    return apiResponseBuilder.created(null,messageKey);
+	}
+	
+	@PostMapping("re-schedule-interview/{interviewId}")
+	public ResponseEntity<ApiResponse<Object>> reScheduleInterview(@PathVariable Long interviewId,@RequestBody InterviewModel interviewModel) {
+	    String messageKey = jobService.reScheduleInterview(interviewId,interviewModel);
+	    return apiResponseBuilder.created(null,messageKey);
+	}
+	
+	@GetMapping("/job-application/{jobApplicationId}/interview")
+	public ResponseEntity<ApiResponse<List<InterviewModel>>> getInterviews(Principal principal,@PathVariable Long jobApplicationId){
+		List<InterviewModel>  interviewModelsList = jobService.getInterviews(principal.getName(),jobApplicationId);
+		String message = interviewModelsList.isEmpty() ? "job-suggestions.not.found" : "job-suggestions.retrieved.success";
+		Object[] args = interviewModelsList.isEmpty() ? null : new Object[]{interviewModelsList.size()};
+	    return apiResponseBuilder.success(interviewModelsList, message, args);
+	}
+	
+	@GetMapping("/interview-schedule/{interviewId}/acceptInterview")
+	public String acceptInterview(@PathVariable Long interviewId) {
+		return jobService.acceptInterview(interviewId);
+	}
+	
+	@GetMapping("/interview-schedule/{interviewId}/rejectInterview")
+	public String rejectInterview(@PathVariable Long interviewId) {
+		return jobService.rejectInterview(interviewId);
+	}
+	
+	
+	@GetMapping("/interview-schedule/{interviewId}/markAsSelected")
+	public String markAsSelected(@PathVariable Long interviewId) {
+		return jobService.markAsSelected(interviewId);
+	}
+	
+	@GetMapping("/interview-schedule/{interviewId}/not-selected")
+	public String notSelected(@PathVariable Long interviewId) {
+		return jobService.notSelected(interviewId);
+	}
+	
+	@GetMapping("/interview-schedule/{interviewId}/offer-letter")
+	public String releaseOffer(@PathVariable Long interviewId,@RequestBody OfferLetterModel offerLetterModel) {
+		return jobService.releaseOffer(interviewId,offerLetterModel);
+	}
+	
+	
+	
+	@PostMapping(value = "/interview-schedule/offer-letter", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<?> releaseOffer(
+            @RequestParam("offerLetter") MultipartFile file,
+            @RequestParam long interviewId
+            ) {
+
+        try {
+            String fileName = file.getOriginalFilename();
+            File uploadedFile = new File(offferPath + File.separator + fileName);
+
+            FileOutputStream fos = new FileOutputStream(uploadedFile);
+            fos.write(file.getBytes());
+            fos.close();
+
+             OfferLetterModel offerLetterModel = new OfferLetterModel();
+             offerLetterModel.setDate(LocalDate.now());
+             offerLetterModel.setOfferLetter(file.getOriginalFilename());
+            String response = jobService.releaseOffer(interviewId, offerLetterModel);
+
+            if (response.equals("EXISTS")) {
+                return ResponseEntity.status(HttpStatus.CONFLICT)
+                        .body("Offer Already Exists");
+            }
+            return ResponseEntity.status(HttpStatus.CREATED)
+                    .body("Offer Letter Released");
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Error while Releasing offer");
+        }
+    }
+	
+	@GetMapping("/offer-letter/{offerLetterId}/accept")
+	public String acceptOffer(@PathVariable Long offerLetterId) {
+		return jobService.acceptOffer(offerLetterId);
+	}
+	
+	@GetMapping("/offer-letter/{offerLetterId}/reject")
+	public String rejectOffer(@PathVariable Long offerLetterId) {
+		return jobService.rejectOffer(offerLetterId);
+	}
+	
+	
+	@GetMapping("/interview-schedule/{interviewId}/offer-letter")
+	public OfferLetterModel getOfferLetter(@PathVariable Long interviewId) {
+		return jobService.getOfferLetter(interviewId);
+	}
+
+
+}

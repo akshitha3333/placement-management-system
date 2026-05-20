@@ -1,0 +1,333 @@
+package placement.services;
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import jakarta.transaction.Transactional;
+import placement.enums.InterviewScheduleStatus;
+import placement.enums.JobApplicationStatus;
+import placement.enums.OfferLetterStatus;
+import placement.models.CompanyModel;
+import placement.models.InterviewModel;
+import placement.models.JobApplicationModel;
+import placement.models.JobPostModel;
+import placement.models.JobPostSkillModel;
+import placement.models.JobSuggestionModel;
+import placement.models.OfferLetterModel;
+import placement.models.PlacementReportModel;
+import placement.models.ResumeModel;
+import placement.models.SkillModel;
+import placement.models.StudentModel;
+import placement.models.TutorModel;
+import placement.models.UserModel;
+import placement.repositories.CompanyRepository;
+import placement.repositories.InterviewRepository;
+import placement.repositories.JobApplicationRepository;
+import placement.repositories.JobPostRepository;
+import placement.repositories.JobPostSkillRepository;
+import placement.repositories.JobSuggestionRepository;
+import placement.repositories.OfferLetterRepository;
+import placement.repositories.PlacementReportRepository;
+import placement.repositories.ResumeRepository;
+import placement.repositories.SkillRepository;
+import placement.repositories.StudentRepository;
+import placement.repositories.TutorRepository;
+import placement.repositories.UserRepository;
+
+@Service
+@Transactional
+public class JobService {
+	
+	@Autowired
+	private JobPostRepository jobPostRepository;
+	
+	@Autowired
+	private JobPostSkillRepository jobPostSkillRepository;
+	
+	@Autowired
+	private SkillRepository skillRepository;
+	
+	@Autowired
+	private CompanyRepository companyRepository;
+	
+	
+	@Autowired
+	private TutorRepository tutorRepository;
+	
+	@Autowired
+	private JobSuggestionRepository jobSuggestionRepository;
+	
+	@Autowired
+	private StudentRepository studentRepository;
+	
+	@Autowired
+	private JobApplicationRepository jobApplicationRepository;
+	
+	@Autowired
+	private ResumeRepository resumeRepository;
+	
+	@Autowired
+	private UserRepository userRepository;
+	
+	@Autowired
+	private InterviewRepository interviewRepository;
+	
+	@Autowired
+	private OfferLetterRepository offerLetterRepository;
+	
+	@Autowired
+	private PlacementReportRepository placementReportRepository;
+	
+	
+
+	 public String addJobPost(JobPostModel jobPostModel, List<Long> skillIds, String name) {
+		    CompanyModel companyModel = companyRepository.findByEmail(name);
+		    jobPostModel.setCompanyModel(companyModel);
+	        JobPostModel savedJob = jobPostRepository.save(jobPostModel);
+	        for (Long skillId : skillIds) {
+	            SkillModel skill = skillRepository.findById(skillId).orElseThrow(() -> new RuntimeException("Skill not found with id: " + skillId));
+	            JobPostSkillModel mapping = new JobPostSkillModel();
+	            mapping.setJobPostModel(savedJob);
+	            mapping.setSkillModel(skill);
+	            jobPostSkillRepository.save(mapping);
+	        }
+	        return "SUCCESS";
+	   }
+
+
+	public List<JobPostModel> getJobPosts(String name) {
+//	    CompanyModel companyModel = companyRepository.findByEmail(name);
+//		List<JobPostModel> jobPostModelsList = jobPostRepository.findByCompanyModel(companyModel);
+		List<JobPostModel> jobPostModelsList = new ArrayList<>();
+		UserModel userModel = userRepository.findByEmail(name).get(0);
+		if("COMPANY".equalsIgnoreCase(userModel.getRole().toString())) { 
+			CompanyModel companyModel = companyRepository.findByEmail(name);
+			jobPostModelsList = jobPostRepository.findByCompanyModel(companyModel);
+		}else {
+			jobPostModelsList = jobPostRepository.findAll();
+		}
+		return jobPostModelsList;
+	}
+
+
+	public String addJobSuggestion(JobSuggestionModel jobSuggestionModel, String name) {
+		TutorModel tutorModel = tutorRepository.findByEmail(name).get(0);
+		StudentModel studentModel  = studentRepository.findById(jobSuggestionModel.getStudentId()).get();
+		JobPostModel jobPostModel = jobPostRepository.findById(jobSuggestionModel.getJobPostId()).get();
+		jobSuggestionModel.setStudentModel(studentModel);
+		jobSuggestionModel.setJobPostModel(jobPostModel);
+		jobSuggestionModel.setStatus("PENDING");
+		jobSuggestionModel.setTutorModel(tutorModel);
+		jobSuggestionRepository.save(jobSuggestionModel);
+		return "job-suggestion-posted.created";
+	}
+
+
+	public List<JobSuggestionModel> getJobSuggestionModel(String name) {
+		System.out.println("hiii");
+		UserModel userModel = userRepository.findByEmail(name).get(0);
+		System.out.println(userModel.getRole());
+		List<JobSuggestionModel> jobSuggestionModelsList = new ArrayList<>();
+		if ("STUDENT".equalsIgnoreCase(userModel.getRole().toString())) {
+			System.out.println("ss");
+			StudentModel studentModel = studentRepository.findByEmail(name);
+			System.out.println(studentModel.getEmail());
+			jobSuggestionModelsList = jobSuggestionRepository.findByStudentModel(studentModel);
+		}else if ("TUTOR".equalsIgnoreCase(userModel.getRole().toString())) {
+			TutorModel tutorModel = tutorRepository.findByEmail(name).get(0);
+			jobSuggestionModelsList = jobSuggestionRepository.findByTutorModel(tutorModel);
+		}
+		System.out.println(jobSuggestionModelsList.size());
+		return jobSuggestionModelsList;
+	}
+
+
+	public String applyJob(long jobSuggestionId, JobApplicationModel jobApplicationModel) {
+		jobApplicationModel.setAppliedOn(LocalDate.now());
+		jobApplicationModel.setStatus(JobApplicationStatus.APPLIED);
+		JobSuggestionModel jobSuggestionModel = jobSuggestionRepository.findById(jobSuggestionId).get();
+		jobApplicationModel.setJobSuggestionModel(jobSuggestionModel);
+		jobSuggestionModel.setStatus("APPLIED");
+		jobSuggestionRepository.saveAndFlush(jobSuggestionModel);
+		ResumeModel resumeModel = resumeRepository.findById(jobApplicationModel.getResumeId()).get();
+		jobApplicationModel.setResumeModel(resumeModel);
+		jobApplicationRepository.save(jobApplicationModel);
+		return "job.application.submitted";
+	}
+
+
+	public List<JobApplicationModel> getJobApplications(String name, Long jobSuggestionId) {
+		UserModel userModel = userRepository.findByEmail(name).get(0);
+		List<JobApplicationModel> jobApplicationModelsList  = new ArrayList<>();
+		if("STUDENT".equalsIgnoreCase(userModel.getRole().toString())) {
+			JobSuggestionModel jobSuggestionModel = jobSuggestionRepository.findById(jobSuggestionId).get();
+			jobApplicationModelsList = jobApplicationRepository.findByJobSuggestionModel(jobSuggestionModel);
+		}else if("TUTOR".equalsIgnoreCase(userModel.getRole().toString())){
+			JobSuggestionModel jobSuggestionModel = jobSuggestionRepository.findById(jobSuggestionId).get();
+			jobApplicationModelsList = jobApplicationRepository.findByJobSuggestionModel(jobSuggestionModel);
+		}
+		return jobApplicationModelsList;
+	}
+
+
+	public List<JobApplicationModel> getJobApplications2(String name, Long jobPostId) {
+		UserModel userModel = userRepository.findByEmail(name).get(0);
+		List<JobApplicationModel> jobApplicationModelsList  = new ArrayList<>();
+		if("STUDENT".equalsIgnoreCase(userModel.getRole().toString())) {
+			JobPostModel jobPostModel = jobPostRepository.findById(jobPostId).get();
+			List<JobSuggestionModel> jobSuggestionModelsList = jobSuggestionRepository.findByJobPostModel(jobPostModel);
+			jobApplicationModelsList = jobApplicationRepository.findByJobSuggestionModelIn(jobSuggestionModelsList);
+		}else if("TUTOR".equalsIgnoreCase(userModel.getRole().toString())) {
+			JobPostModel jobPostModel = jobPostRepository.findById(jobPostId).get();
+			List<JobSuggestionModel> jobSuggestionModelsList = jobSuggestionRepository.findByJobPostModel(jobPostModel);
+			jobApplicationModelsList = jobApplicationRepository.findByJobSuggestionModelIn(jobSuggestionModelsList);
+		}else if(userModel.getRole().equals("COMPANY")) {
+			JobPostModel jobPostModel = jobPostRepository.findById(jobPostId).get();
+			List<JobSuggestionModel> jobSuggestionModelsList = jobSuggestionRepository.findByJobPostModel(jobPostModel);
+			jobApplicationModelsList = jobApplicationRepository.findByJobSuggestionModelIn(jobSuggestionModelsList);
+		}
+		return jobApplicationModelsList;
+	}
+
+
+	public String scheduleInterview(Long jobApplicationId, InterviewModel interviewModel) {
+		JobApplicationModel jobApplicationModel  = jobApplicationRepository.findById(jobApplicationId).get();
+		interviewModel.setJobApplicationModel(jobApplicationModel);
+		interviewModel.setStatus(InterviewScheduleStatus.Scheduled);
+		interviewRepository.save(interviewModel);
+		return "interview.scheduled";
+	}
+
+
+	public List<InterviewModel> getInterviews(String name, Long jobApplicationId) {
+		JobApplicationModel jobApplicationModel = jobApplicationRepository.findById(jobApplicationId).get();
+		List<InterviewModel> interviewModelsList = interviewRepository.findByJobApplicationModel(jobApplicationModel);
+		return interviewModelsList;
+	}
+
+
+	public List<JobApplicationModel> getJobApplications3(String name) {
+		UserModel userModel = userRepository.findByEmail(name).get(0);
+		List<JobApplicationModel> jobApplicationModelsList  = new ArrayList<>();
+		if("STUDENT".equalsIgnoreCase(userModel.getRole().toString())) {
+			StudentModel studentModel = studentRepository.findByEmail(name);
+			List<JobSuggestionModel> jobSuggestionModelsList = jobSuggestionRepository.findByStudentModel(studentModel);
+			jobApplicationModelsList = jobApplicationRepository.findByJobSuggestionModelIn(jobSuggestionModelsList);
+		}else if("TUTOR".equalsIgnoreCase(userModel.getRole().toString())) {
+			TutorModel tutorModel = tutorRepository.findByEmail(name).get(0);
+			List<JobSuggestionModel> jobSuggestionModelsList = jobSuggestionRepository.findByTutorModel(tutorModel);
+			jobApplicationModelsList = jobApplicationRepository.findByJobSuggestionModelIn(jobSuggestionModelsList);
+		}else if("COMPANY".equalsIgnoreCase(userModel.getRole().toString()))  {
+			CompanyModel companyModel = companyRepository.findByEmail(name);
+			List<JobPostModel> jobPostModelsList = jobPostRepository.findByCompanyModel(companyModel);
+			List<JobSuggestionModel> jobSuggestionModelsList = jobSuggestionRepository.findByJobPostModelIn(jobPostModelsList);
+			jobApplicationModelsList = jobApplicationRepository.findByJobSuggestionModelIn(jobSuggestionModelsList);
+		}
+		return jobApplicationModelsList;
+	}
+
+
+	public String acceptInterview(Long interviewId) {
+		InterviewModel interviewModel = interviewRepository.findById(interviewId).get();
+		interviewModel.setStatus(InterviewScheduleStatus.Accepted);
+		interviewRepository.saveAndFlush(interviewModel);
+		return "interview.accepted";
+	}
+
+
+	public String rejectInterview(Long interviewId) {
+		InterviewModel interviewModel = interviewRepository.findById(interviewId).get();
+		interviewModel.setStatus(InterviewScheduleStatus.Rejected_By_Student);
+		interviewRepository.saveAndFlush(interviewModel);
+		return "interview.rejected";
+	}
+
+
+	public String markAsSelected(Long interviewId) {
+		InterviewModel interviewModel = interviewRepository.findById(interviewId).get();
+		interviewModel.setStatus(InterviewScheduleStatus.Selected);
+		JobApplicationModel jobApplicationModel = interviewModel.getJobApplicationModel();
+		jobApplicationModel.setStatus(JobApplicationStatus.SELECTED);
+		jobApplicationRepository.saveAndFlush(jobApplicationModel);
+		interviewRepository.saveAndFlush(interviewModel);
+		return "interview.student.selected";
+	}
+
+
+	public String notSelected(Long interviewId) {
+		InterviewModel interviewModel = interviewRepository.findById(interviewId).get();
+		interviewModel.setStatus(InterviewScheduleStatus.Rejected);
+		JobApplicationModel jobApplicationModel = interviewModel.getJobApplicationModel();
+		jobApplicationModel.setStatus(JobApplicationStatus.REJECTED);
+		jobApplicationRepository.saveAndFlush(jobApplicationModel);
+		interviewRepository.saveAndFlush(interviewModel);
+		return "interview.student.rejected";
+	}
+
+
+	public String releaseOffer(Long interviewId, OfferLetterModel offerLetterModel) {
+		InterviewModel interviewModel = interviewRepository.findById(interviewId).get();
+		offerLetterModel.setInterviewModel(interviewModel);
+		offerLetterRepository.save(offerLetterModel);
+		interviewModel.setStatus(InterviewScheduleStatus.Offer_Sent);
+		interviewRepository.saveAndFlush(interviewModel);
+		return "offer-letter.released";
+	}
+
+
+	public String acceptOffer(Long offerLetterId) {
+		OfferLetterModel offerLetterModel = offerLetterRepository.findById(offerLetterId).get();
+		offerLetterModel.setStatus(OfferLetterStatus.Accepted);
+		return "offer-letter.accepted";
+	}
+
+
+	public String rejectOffer(Long offerLetterId) {
+		OfferLetterModel offerLetterModel = offerLetterRepository.findById(offerLetterId).get();
+		offerLetterModel.setStatus(OfferLetterStatus.Rejected);
+		return "offer-letter.rejected";
+	}
+
+
+	public String reScheduleInterview(Long interviewId, InterviewModel interviewModel) {
+		InterviewModel interviewModel2 = interviewRepository.findById(interviewId).get();
+		interviewModel2.setInterviewDateTime(interviewModel.getInterviewDateTime());
+		interviewModel2.setInterviewInstructions(interviewModel.getInterviewInstructions());
+		interviewModel2.setLatitude(interviewModel.getLatitude());
+		interviewModel2.setLongitude(interviewModel.getLongitude());
+		interviewModel2.setStatus(InterviewScheduleStatus.Scheduled);
+		interviewRepository.saveAndFlush(interviewModel2);
+		return "interview.re-scheduled";
+	}
+	 
+	 
+
+	public OfferLetterModel getOfferLetter(Long interviewId) {
+		InterviewModel interviewModel = interviewRepository.findById(interviewId).get();
+		OfferLetterModel offerLetterModel  = offerLetterRepository.findByInterviewModel(interviewModel);
+		return offerLetterModel;
+	}
+
+
+	public String uploadReport(Long jobApplicationId, PlacementReportModel placementReportModel, String name) {
+		StudentModel studentModel = studentRepository.findByEmail(name);
+		placementReportModel.setStudentModel(studentModel);
+		JobApplicationModel jobApplicationModel = jobApplicationRepository.findById(jobApplicationId).get();
+		placementReportModel.setJobApplicationModel(jobApplicationModel);
+		placementReportRepository.save(placementReportModel);
+		return "placement-report.added";
+	}
+
+
+	public PlacementReportModel getReport(Long jobApplicationId) {
+		System.out.println("report");
+		JobApplicationModel jobApplicationModel = jobApplicationRepository.findById(jobApplicationId).get();
+		PlacementReportModel placementReportModel = placementReportRepository.findByJobApplicationModel(jobApplicationModel);
+		System.out.println(placementReportModel.getReport());
+		return placementReportModel;
+	}
+	 
+	 
+
+}

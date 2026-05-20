@@ -1,0 +1,64 @@
+package crud_2.mappers;
+
+import crud_2.models.CategoryModel;
+import crud_2.models.ProductModel;
+import crud_2.response.ProductResponseDTO;
+import java.util.ArrayList;
+import java.util.List;
+import javax.annotation.processing.Generated;
+import org.springframework.stereotype.Component;
+
+@Generated(
+    value = "org.mapstruct.ap.MappingProcessor",
+    date = "2026-05-13T11:14:20+0530",
+    comments = "version: 1.5.5.Final, compiler: Eclipse JDT (IDE) 3.45.0.v20260224-0835, environment: Java 25.0.2 (Eclipse Adoptium)"
+)
+@Component
+public class ProductMapperImpl implements ProductMapper {
+
+    @Override
+    public ProductResponseDTO toDTO(ProductModel productModel) {
+        if ( productModel == null ) {
+            return null;
+        }
+
+        ProductResponseDTO productResponseDTO = new ProductResponseDTO();
+
+        productResponseDTO.setCategoryId( productModelCategoryModelCategoryId( productModel ) );
+        productResponseDTO.setProductId( productModel.getProductId() );
+        productResponseDTO.setProductName( productModel.getProductName() );
+        productResponseDTO.setQuantity( productModel.getQuantity() );
+        productResponseDTO.setPrice( productModel.getPrice() );
+        productResponseDTO.setDescription( productModel.getDescription() );
+        productResponseDTO.setPicture( productModel.getPicture() );
+        productResponseDTO.setPicture2( productModel.getPicture2() );
+
+        return productResponseDTO;
+    }
+
+    @Override
+    public List<ProductResponseDTO> toDtoList(List<ProductModel> productModelsList) {
+        if ( productModelsList == null ) {
+            return null;
+        }
+
+        List<ProductResponseDTO> list = new ArrayList<ProductResponseDTO>( productModelsList.size() );
+        for ( ProductModel productModel : productModelsList ) {
+            list.add( toDTO( productModel ) );
+        }
+
+        return list;
+    }
+
+    private long productModelCategoryModelCategoryId(ProductModel productModel) {
+        if ( productModel == null ) {
+            return 0L;
+        }
+        CategoryModel categoryModel = productModel.getCategoryModel();
+        if ( categoryModel == null ) {
+            return 0L;
+        }
+        long categoryId = categoryModel.getCategoryId();
+        return categoryId;
+    }
+}

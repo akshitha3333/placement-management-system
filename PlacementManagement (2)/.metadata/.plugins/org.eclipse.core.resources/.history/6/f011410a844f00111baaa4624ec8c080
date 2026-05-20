@@ -1,0 +1,76 @@
+package crud_2.mappers;
+
+import crud_2.models.SellerModel;
+import crud_2.request.SellerRequestDTO;
+import crud_2.response.SellerResponseDTO;
+import java.util.ArrayList;
+import java.util.List;
+import javax.annotation.processing.Generated;
+import org.springframework.stereotype.Component;
+
+@Generated(
+    value = "org.mapstruct.ap.MappingProcessor",
+    date = "2026-05-13T11:14:20+0530",
+    comments = "version: 1.5.5.Final, compiler: Eclipse JDT (IDE) 3.45.0.v20260224-0835, environment: Java 25.0.2 (Eclipse Adoptium)"
+)
+@Component
+public class SellerMapperImpl implements SellerMapper {
+
+    @Override
+    public SellerResponseDTO toDTO(SellerModel studentModel) {
+        if ( studentModel == null ) {
+            return null;
+        }
+
+        SellerResponseDTO sellerResponseDTO = new SellerResponseDTO();
+
+        sellerResponseDTO.setAbout( studentModel.getAbout() );
+        sellerResponseDTO.setCanSpeakEnglish( studentModel.isCanSpeakEnglish() );
+        sellerResponseDTO.setCanSpeakTelugu( studentModel.isCanSpeakTelugu() );
+        sellerResponseDTO.setEmail( studentModel.getEmail() );
+        sellerResponseDTO.setGender( studentModel.getGender() );
+        sellerResponseDTO.setName( studentModel.getName() );
+        sellerResponseDTO.setPassword( studentModel.getPassword() );
+        sellerResponseDTO.setPhone( studentModel.getPhone() );
+        sellerResponseDTO.setPlace( studentModel.getPlace() );
+        sellerResponseDTO.setRole( studentModel.getRole() );
+        sellerResponseDTO.setStudentId( studentModel.getStudentId() );
+
+        return sellerResponseDTO;
+    }
+
+    @Override
+    public SellerModel toEntity(SellerRequestDTO dto) {
+        if ( dto == null ) {
+            return null;
+        }
+
+        SellerModel sellerModel = new SellerModel();
+
+        sellerModel.setName( dto.getName() );
+        sellerModel.setEmail( dto.getEmail() );
+        sellerModel.setPhone( dto.getPhone() );
+        sellerModel.setAbout( dto.getAbout() );
+        sellerModel.setPassword( dto.getPassword() );
+        sellerModel.setGender( dto.getGender() );
+        sellerModel.setPlace( dto.getPlace() );
+        sellerModel.setCanSpeakTelugu( dto.isCanSpeakTelugu() );
+        sellerModel.setCanSpeakEnglish( dto.isCanSpeakEnglish() );
+
+        return sellerModel;
+    }
+
+    @Override
+    public List<SellerResponseDTO> toDtoList(List<SellerModel> studentModelsList) {
+        if ( studentModelsList == null ) {
+            return null;
+        }
+
+        List<SellerResponseDTO> list = new ArrayList<SellerResponseDTO>( studentModelsList.size() );
+        for ( SellerModel sellerModel : studentModelsList ) {
+            list.add( toDTO( sellerModel ) );
+        }
+
+        return list;
+    }
+}
